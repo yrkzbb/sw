@@ -588,6 +588,11 @@ function ensureChatVisible() {
   el.profilePageBtn?.classList.remove("active");
 }
 
+function setPageHash(hash) {
+  if (window.location.hash === hash) return;
+  window.history.replaceState(null, "", hash || `${window.location.pathname}${window.location.search}`);
+}
+
 function showHome() {
   state.messages = [];
   try {
@@ -600,6 +605,7 @@ function showHome() {
   if (el.home) el.home.hidden = false;
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
+  setPageHash("");
 }
 
 function showProfilePage() {
@@ -609,14 +615,24 @@ function showProfilePage() {
   el.profilePage.hidden = false;
   el.profilePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
+  setPageHash("#profile");
   renderStudentProfile();
 }
 
 function showChatPage() {
+  setPageHash("#chat");
   if (state.messages.length > 0) {
     ensureChatVisible();
   } else {
     showHome();
+  }
+}
+
+function restoreViewFromHash() {
+  if (window.location.hash === "#profile") {
+    showProfilePage();
+  } else if (window.location.hash === "#chat" && state.messages.length > 0) {
+    ensureChatVisible();
   }
 }
 
@@ -1100,6 +1116,7 @@ function initEventHandlers() {
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.chatPageBtn?.addEventListener("click", showChatPage);
   el.profileBackBtn?.addEventListener("click", showChatPage);
+  window.addEventListener("hashchange", restoreViewFromHash);
 
   
   document.querySelectorAll(".suggest-card[data-prompt]").forEach((btn) => {
@@ -1290,6 +1307,7 @@ function init() {
   initEventHandlers();
   initImageLightbox();
   restorePersistedChat();
+  restoreViewFromHash();
   initComposer();
   initCopyDelegation();
 }
