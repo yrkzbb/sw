@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>配置 API Key · 灵犀</title>
+    <link rel="stylesheet" href="./css/index.css" />
+  </head>
+  <body data-theme="dark">
+    <div class="setup-page">
+      <div class="setup-card">
+        <h1 class="setup-title">配置 API Key</h1>
+        <p class="setup-desc">仅保存在本机 <code>localStorage</code>，键名 <code>LINGXI_API_KEY</code>，不写进代码。</p>
+
+        <div id="noKey" class="setup-section">
+          <h2>方式一：手动输入</h2>
+          <label class="field">
+            <div class="field-label">API Key</div>
+            <input id="keyInput" type="password" class="field-input" placeholder="sk-xxxx" />
+          </label>
+          <button id="saveBtn" type="button" class="primary-btn">保存到本地</button>
+        </div>
+
+        <div class="setup-divider">或</div>
+
+        <div class="setup-section">
+          <h2>方式二：导入配置（免手输）</h2>
+          <p class="setup-hint">选择 <code>lingxi-key.json</code> 即可写入本地。</p>
+          <input id="importInput" type="file" accept=".json" hidden />
+          <button id="importBtn" type="button" class="ghost-btn">选择文件导入</button>
+        </div>
+
+        <div id="hasKey" class="setup-section" hidden>
+          <p class="setup-ok">✓ 已配置</p>
+          <a href="./index.html" class="primary-btn">进入应用</a>
+          <button id="exportBtn" type="button" class="ghost-btn">导出 lingxi-key.json</button>
+          <button id="changeKeyBtn" type="button" class="ghost-btn">修改 Key</button>
+        </div>
+      </div>
+    </div>
+    <script>
+      (function () {
+        const S = "LINGXI_API_KEY";
+        const $ = (id) => document.getElementById(id);
+        const keyInput = $("keyInput");
+        const noKey = $("noKey");
+        const hasKey = $("hasKey");
+
+        function updateUI() {
+          const ok = !!(localStorage.getItem(S) || "").trim();
+          noKey.hidden = ok;
+          hasKey.hidden = !ok;
+        }
+
+        $("saveBtn").addEventListener("click", () => {
+          const v = (keyInput.value || "").trim();
+          if (!v) return alert("请输入 API Key");
+          try {
+            localStorage.setItem(S, v);
+            keyInput.value = "";
+            updateUI();
+            alert("已保存");
+          } catch (e) {
+            alert("保存失败：" + (e?.message || e));
+          }
+        });
+
+        $("importBtn").addEventListener("click", () => $("importInput").click());
+        $("importInput").addEventListener("change", (e) => {
+          const f = e.target.files?.[0];
+          if (!f) return;
+          const r = new FileReader();
+          r.onload = () => {
+            try {
+              const j = JSON.parse(r.result);
+              const k = j?.LINGXI_API_KEY || j?.apiKey || "";
+              if (typeof k !== "string" || !k.trim()) return alert("配置文件格式无效");
+              localStorage.setItem(S, k.trim());
+              e.target.value = "";
+              updateUI();
+              alert("导入成功");
+              location.href = "./index.html";
+            } catch (err) {
+              alert("导入失败：" + (err?.message || err));
+            }
+          };
+          r.readAsText(f);
+        });
+
+        $("changeKeyBtn").addEventListener("click", () => {
+          noKey.hidden = false;
+          hasKey.hidden = true;
+        });
+
+        $("exportBtn").addEventListener("click", () => {
+          const k = localStorage.getItem(S);
+          if (!k) return;
+          const a = Object.assign(document.createElement("a"), {
+            href: URL.createObjectURL(new Blob([JSON.stringify({ LINGXI_API_KEY: k })], { type: "application/json" })),
+            download: "lingxi-key.json",
+          });
+          a.click();
+          URL.revokeObjectURL(a.href);
+          alert("已下载，可私下发给同学");
+        });
+
+        updateUI();
+      })();
+    </script>
+  </body>
+</html>

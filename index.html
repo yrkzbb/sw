@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WPS 灵犀 · AI</title>
+    <link rel="stylesheet" href="./css/index.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
+    <script src="./js/index.js" defer></script>
+  </head>
+  <body data-theme="dark">
+    <div id="app">
+      <button id="themeToggle" class="icon-btn" type="button" aria-label="切换主题">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 3a1 1 0 0 0-1 1v1a1 1 0 1 0 2 0V4a1 1 0 0 0-1-1Z" />
+            <path d="M12 19a1 1 0 0 0-1 1v1a1 1 0 1 0 2 0v-1a1 1 0 0 0-1-1Z" />
+            <path d="M4.22 5.64a1 1 0 0 0-1.41 1.41l.7.7a1 1 0 0 0 1.41-1.41l-.7-.7Z" />
+            <path d="M19.98 19.98a1 1 0 0 0-1.41 0l-.7.7a1 1 0 1 0 1.41 1.41l.7-.7a1 1 0 0 0 0-1.41Z" />
+            <path d="M3 12a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2H4a1 1 0 0 0-1 1Z" />
+            <path d="M19 12a1 1 0 0 0 1 1h1a1 1 0 1 0 0-2h-1a1 1 0 0 0-1 1Z" />
+            <path d="M5.64 19.78a1 1 0 0 0 1.41 0l.7-.7a1 1 0 1 0-1.41-1.41l-.7.7a1 1 0 0 0 0 1.41Z" />
+            <path d="M18.27 4.93a1 1 0 0 0-1.41 1.41l.7.7a1 1 0 0 0 1.41-1.41l-.7-.7Z" />
+            <path d="M12 7a5 5 0 1 0 0 10 5 5 0 0 0 0-10Z" />
+          </svg>
+        </span>
+      </button>
+      <nav class="top-nav" aria-label="页面导航">
+        <button id="chatPageBtn" class="nav-btn active" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+            </svg>
+          </span>
+          对话
+        </button>
+        <button id="profilePageBtn" class="nav-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 2a7 7 0 0 0-7 7c0 5 7 13 7 13s7-8 7-13a7 7 0 0 0-7-7Z" />
+              <path d="M9.5 9.5h5" />
+              <path d="M9.5 12.5h5" />
+            </svg>
+          </span>
+          画像
+        </button>
+      </nav>
+
+      <main class="main">
+        <section id="home" class="home">
+          <h1 class="title">嘿，<span class="grad-text">我是灵犀</span></h1>
+          <div class="subtitle">我能帮你什么吗？</div>
+          <div class="card-row" role="group" aria-label="快捷建议">
+            <button class="suggest-card" type="button" data-prompt="我是一名前端开发初学者，如何提升相关技能？">
+              <div class="card-text">我是一名前端开发初学者，如何提升相关技能？</div>
+              <div class="card-icon card-icon-1" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M8 12h8" /><path d="M12 8v8" />
+                </svg>
+              </div>
+            </button>
+            <button class="suggest-card" type="button" data-prompt="有哪些平价又新颖的生日礼物适合送朋友？">
+              <div class="card-text">有哪些平价又新颖的生日礼物适合送朋友？</div>
+              <div class="card-icon card-icon-2" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M6 18L18 6" /><path d="M6 6l12 12" />
+                </svg>
+              </div>
+            </button>
+            <button class="suggest-card" type="button" data-prompt="准备在家里举办一个大型家庭聚会，帮我计划！">
+              <div class="card-text">准备在家里举办一个大型家庭聚会，帮我计划！</div>
+              <div class="card-icon card-icon-3" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 2l3 7 7 3-7 3-3 7-3-7-7-3 7-3 3-7Z" />
+                </svg>
+              </div>
+            </button>
+            <button class="suggest-card" type="button" data-prompt="带小朋友去野餐，有什么好玩的活动建议吗？">
+              <div class="card-text">带小朋友去野餐，有什么好玩的活动建议吗？</div>
+              <div class="card-icon card-icon-4" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 6v6l4 2" /><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+                </svg>
+              </div>
+            </button>
+          </div>
+        </section>
+
+        <section id="chat" class="chat" hidden>
+          <div id="messages" class="messages" aria-live="polite"></div>
+        </section>
+
+        <section id="profilePage" class="profile-page" hidden>
+          <div class="profile-header">
+            <div>
+              <h1 class="profile-title">我的学习画像</h1>
+              <div id="profileMeta" class="profile-meta">画像会根据对话持续更新</div>
+            </div>
+          </div>
+          <div id="profileVisual" class="profile-visual" aria-live="polite"></div>
+          <div id="profileGrid" class="profile-grid" aria-live="polite"></div>
+        </section>
+      </main>
+
+      <footer id="composer" class="composer">
+        <div class="composer-inner">
+          <div id="imagePreview" class="image-preview" aria-hidden="true"></div>
+          <div class="composer-row">
+            <label class="icon-btn" for="imageInput" id="uploadBtn" title="上传图片">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                  <path d="M7 10l5-5 5 5" /><path d="M12 5v10" />
+                </svg>
+              </span>
+            </label>
+            <input id="imageInput" type="file" accept="image/*" multiple hidden />
+            <textarea id="input" class="input" rows="1" placeholder="有问题尽管问我"></textarea>
+            <button id="stopBtn" class="icon-btn stop-btn" type="button" hidden aria-label="停止生成">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="6" y="6" width="12" height="12" rx="2" />
+                </svg>
+              </span>
+            </button>
+            <button id="sendBtn" class="send-btn" type="button" hidden aria-label="发送">发送</button>
+            <button id="clearBtn" class="icon-btn clear-btn" type="button" aria-label="清除对话">
+              <span class="icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M3 6h18" />
+                  <path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+                  <path d="M10 11v6" /><path d="M14 11v6" />
+                </svg>
+              </span>
+            </button>
+          </div>
+        </div>
+      </footer>
+    </div>
+
+    <div id="apiKeyModal" class="modal" hidden>
+      <div class="modal-card">
+        <div class="modal-title">设置 API Key</div>
+        <div class="modal-desc">将 Key 存到浏览器 localStorage，键名：LINGXI_API_KEY。</div>
+        <label class="field">
+          <div class="field-label">API Key</div>
+          <input id="apiKeyInput" type="password" class="field-input" placeholder="sk-xxxx" />
+        </label>
+        <div class="modal-actions">
+          <button id="saveApiKeyBtn" class="primary-btn" type="button">保存</button>
+          <button id="closeApiKeyBtn" class="ghost-btn" type="button">稍后</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="keyBanner" class="key-banner" hidden>
+      <div class="key-banner-title">未检测到 API Key</div>
+      <div class="key-banner-desc">
+        请打开 <a href="./setup.html" class="link-btn">setup.html</a> 保存到本地，键名 <code>LINGXI_API_KEY</code>。
+      </div>
+    </div>
+
+    <div id="imageLightbox" class="image-lightbox" hidden aria-modal="true" role="dialog" aria-label="图片预览">
+      <div class="lightbox-backdrop"></div>
+      <div class="lightbox-panel">
+        <div class="lightbox-header">
+          <span class="lightbox-title">附件图片</span>
+          <button type="button" class="lightbox-close" aria-label="关闭">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="lightbox-body">
+          <img id="lightboxImage" src="" alt="预览" />
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
