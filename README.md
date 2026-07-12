@@ -31,7 +31,7 @@ WPS 灵犀风格 AI 对话助手，HTML / CSS / JavaScript 实现。
 
 - [x] **对话历史持久化**（`LINGXI_MESSAGES`）：刷新恢复文字；带图消息保存 `imageUrls`以恢复缩略图  
 - [x] **我的学习画像页面**（`LINGXI_STUDENT_PROFILE`）：从自然对话中抽取专业背景、学习目标、知识基础、认知风格、学习习惯、易错点、互动偏好、情绪动力等维度，并用卡片页随学随新展示  
-- [x] **多智能体资源生成**（`LINGXI_LEARNING_RESOURCES`）：画像分析师、课程讲解、思维导图、练习命题、阅读拓展、多模态脚本、代码实操、审核整合等 Agent 协作，生成 6 类个性化学习资料  
+- [x] **多智能体资源生成**（`LINGXI_LEARNING_RESOURCES`）：画像分析师、知识讲解、思维导图、练习命题、阅读拓展、多模态脚本、代码实操、审核整合等 Agent 协作，生成 6 类个性化学习资料  
 - [x] **API Key 管理**：`setup.html` 写入 `LINGXI_API_KEY`；支持导入 / 导出 `lingxi-key.json`；密钥不写进源码  
 - [x] **可选本地代理**：`js/server.js`（Node）转发 `/api/chat`，Key 来自环境变量或 `lingxi-key.txt`  
 

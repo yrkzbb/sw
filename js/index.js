@@ -35,7 +35,7 @@ const PROFILE_FIELD_META = {
 
 const RESOURCE_AGENTS = [
   { role: "画像分析师", task: "读取学生画像，识别专业、课程、短板和学习目标。" },
-  { role: "课程讲解 Agent", task: "生成个性化课程讲解文档。" },
+  { role: "知识讲解 Agent", task: "生成完整、可直接阅读的知识讲解文档。" },
   { role: "思维导图 Agent", task: "组织知识点结构和关联路径。" },
   { role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。" },
   { role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。" },
@@ -254,6 +254,67 @@ function renderResourceMarkdown(markdown) {
   return wrap.innerHTML;
 }
 
+function normalizeGeneratedResources(data, demand) {
+  if (!data || !Array.isArray(data.resources)) return data;
+  const resources = data.resources.map((item) => ({ ...item }));
+  const doc = resources.find((item) => item.type === "专业课程讲解文档") || resources[0];
+  if (doc) {
+    doc.agent = "知识讲解 Agent";
+    const contentText = typeof doc.content === "string" ? doc.content : JSON.stringify(doc.content || "");
+    const tooShort = contentText.length < 900 || !/常见误区|易错|例题|示例|小结|学习建议/.test(contentText);
+    if (tooShort) {
+      doc.content = `# ${doc.title || demand || "个性化知识讲解文档"}
+
+## 1. 学习定位
+这份文档不是课程目录，而是一份面向当前学生画像的讲解型学习材料。它会围绕“${demand || "当前学习需求"}”展开，先解释核心概念，再用例子说明应用方式，最后给出易错点和学习建议。
+
+## 2. 核心概念讲解
+请先把本知识点理解成“问题、规则、应用场景”三层：
+
+- **问题**：它解决什么学习或编程问题。
+- **规则**：它有哪些必须遵守的语法、定义、步骤或条件。
+- **应用场景**：它通常在哪类题目、项目或课程任务中出现。
+
+如果你正在学习 Java / C++ / 前端等编程内容，建议不要只记语法，而要追问：这段代码为什么这样组织？变量、流程、函数或组件之间是什么关系？
+
+## 3. 示例讲解
+以编程学习为例，可以按下面的方式理解一个知识点：
+
+1. 先读题或需求，找出输入、处理过程和输出。
+2. 再把处理过程拆成若干小步骤。
+3. 最后用代码或伪代码表达每一步。
+
+\`\`\`text
+输入：需要处理的数据
+过程：循环 / 判断 / 函数拆分 / 数据结构选择
+输出：结果、页面变化或程序行为
+\`\`\`
+
+这样做的好处是，你不会只停留在“会抄代码”，而是能逐渐形成迁移能力。
+
+## 4. 常见误区与易错点
+
+- **只背概念，不做例子**：知道定义但不会应用，通常说明缺少“场景化练习”。
+- **只看答案，不复盘过程**：建议每道题都写出“我卡在哪里、为什么卡住、下次如何判断”。
+- **语言之间迁移混乱**：例如 Java 和 C++ 都有循环、函数、类，但内存模型、标准库、对象管理方式不同，不能完全照搬。
+- **缺少最小可运行案例**：每学一个知识点，都应该有一个能运行、能修改、能观察结果的小案例。
+
+## 5. 针对你的学习建议
+
+根据当前画像，系统已经知道你对某些知识点有明确学习需求，但画像仍会继续随对话更新。建议你接下来补充：
+
+- 你当前课程名称或作业要求。
+- 你最容易错的题型或代码片段。
+- 你更希望用 Java、C++、前端还是其他方向举例。
+
+## 6. 小结
+
+学习这个知识点时，请用“概念解释 -> 示例拆解 -> 易错复盘 -> 迁移练习”的顺序推进。后续资源中的思维导图、练习题、拓展阅读、视频脚本和代码实操，会围绕这份讲解文档继续展开。`;
+    }
+  }
+  return { ...data, resources };
+}
+
 function renderLearningResources() {
   if (!el.resourceGrid) return;
   renderAgentPipeline(state.resourcesGenerating ? "running" : state.learningResources ? "done" : "idle");
@@ -273,7 +334,7 @@ function renderLearningResources() {
           <div class="resource-type">${escapeHtml(item.type || "学习资源")}</div>
           <div class="resource-title">${escapeHtml(item.title || "个性化资源")}</div>
         </div>
-        <div class="resource-agent">${escapeHtml(item.agent || "Agent")}</div>
+        <div class="resource-agent">${escapeHtml((item.agent || "Agent").replace("课程讲解 Agent", "知识讲解 Agent"))}</div>
       </div>
       <div class="resource-body">${renderResourceMarkdown(item.content || "")}</div>
     </article>
@@ -296,7 +357,7 @@ async function generateLearningResources() {
 
 必须体现这些智能体分工：
 1. 画像分析师：解析学生专业、课程内容、知识短板和学习需求。
-2. 课程讲解 Agent：生成专业课程讲解文档。
+2. 知识讲解 Agent：生成完整、可直接阅读的专业课程知识讲解文档。
 3. 思维导图 Agent：生成知识点思维导图。
 4. 练习命题 Agent：生成不同类型练习题。
 5. 阅读拓展 Agent：生成拓展阅读材料。
@@ -310,7 +371,7 @@ async function generateLearningResources() {
   "generated_at": string,
   "agents": [{"role": string, "contribution": string}],
   "resources": [
-    {"type": "专业课程讲解文档", "title": string, "agent": "课程讲解 Agent", "content": string},
+    {"type": "专业课程讲解文档", "title": string, "agent": "知识讲解 Agent", "content": string},
     {"type": "知识点思维导图", "title": string, "agent": "思维导图 Agent", "content": string},
     {"type": "不同类型练习题目", "title": string, "agent": "练习命题 Agent", "content": string},
     {"type": "拓展阅读材料", "title": string, "agent": "阅读拓展 Agent", "content": string},
@@ -319,7 +380,9 @@ async function generateLearningResources() {
   ]
 }
 
-content 可以使用 Markdown；练习题必须包含基础题、易错题、迁移应用题；思维导图可用 Mermaid mindmap 或层级列表；视频/动画要包含分镜、旁白、画面元素和互动提问；代码案例要包含任务说明、代码骨架或完整示例、运行/调试提示。`;
+content 可以使用 Markdown。
+重要：专业课程讲解文档必须是“讲义正文”，不是大纲。它至少包含：学习定位、核心概念逐段解释、知识点之间的关系、示例或类比、步骤推导、常见误区/易错点、面向该学生画像的学习建议、小结。正文不少于 900 个中文字符，禁止只输出课程目标和目录。
+练习题必须包含基础题、易错题、迁移应用题；思维导图可用 Mermaid mindmap 或层级列表；视频/动画要包含分镜、旁白、画面元素和互动提问；代码案例要包含任务说明、代码骨架或完整示例、运行/调试提示。`;
 
   const user = `学生画像：
 ${JSON.stringify(profile, null, 2)}
@@ -348,7 +411,7 @@ ${demand}
     const text = data?.choices?.[0]?.message?.content || "";
     const parsed = extractJsonObject(text);
     if (!parsed?.resources?.length) throw new Error("模型未返回有效资源 JSON");
-    saveLearningResources(parsed);
+    saveLearningResources(normalizeGeneratedResources(parsed, demand));
   } catch (e) {
     console.error(e);
     el.resourceGrid.innerHTML = `<div class="resource-empty">资源生成失败：${escapeHtml(String(e?.message || e))}</div>`;
