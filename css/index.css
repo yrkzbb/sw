@@ -555,6 +555,37 @@ button.agent-card:hover {
   line-height: 1.65;
 }
 
+.resource-preview {
+  min-height: 86px;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.65;
+  border-top: 1px solid var(--border);
+  padding-top: 12px;
+}
+
+.resource-toggle {
+  margin-top: 14px;
+  height: 36px;
+  border: 1px solid rgba(77, 124, 255, 0.22);
+  border-radius: 999px;
+  padding: 0 14px;
+  background: rgba(77, 124, 255, 0.09);
+  color: var(--accent1);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.resource-toggle:hover {
+  background: rgba(77, 124, 255, 0.14);
+}
+
+.resource-toggle[aria-expanded="true"] {
+  color: #21d4a5;
+  border-color: rgba(33, 212, 165, 0.25);
+  background: rgba(33, 212, 165, 0.1);
+}
+
 .resource-body :where(p, ul, ol, pre) {
   margin: 9px 0;
 }
