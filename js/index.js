@@ -234,7 +234,13 @@ function loadStoredMarkdownFiles() {
   try {
     const raw = localStorage.getItem(STORED_MARKDOWN_FILES_STORAGE);
     const data = raw ? JSON.parse(raw) : [];
-    return Array.isArray(data) ? data.filter((item) => item && item.content && item.filename) : [];
+    if (!Array.isArray(data)) return [];
+    return data
+      .filter((item) => item && item.content && item.filename)
+      .map((item) => ({
+        ...item,
+        category: categorizeKnowledge(`${item.title || ""} ${item.filename || ""}`, item.content || ""),
+      }));
   } catch {
     return [];
   }
@@ -251,18 +257,34 @@ function saveStoredMarkdownFiles(files) {
 }
 
 function categorizeKnowledge(title, content) {
-  const text = `${title || ""} ${content || ""}`.toLowerCase();
+  const titleText = `${title || ""}`.toLowerCase();
+  const contentText = `${content || ""}`.toLowerCase();
+  const strongTitleRules = [
+    ["编译原理", /编译原理|文法|语法分析|词法分析|乔姆斯基|chomsky|type-?1|1型|一型|上下文有关|context.?sensitive/],
+    ["数据结构", /floyd|弗洛伊德|dijkstra|最短路|图论|动态规划|dp|算法|数据结构|链表|栈|队列|树|堆|排序|查找|并查集/],
+    ["多模态", /多模态|multimodal|图文|文本.*图像|图像.*文本|音频|视频|clip|vlm/],
+    ["计算机视觉", /计算机视觉|图像识别|目标检测|分割|opencv|cnn|视觉/],
+    ["前端", /前端|html|css|javascript|typescript|react|vue|浏览器|dom|页面/],
+    ["后端", /后端|node|express|spring|django|flask|api|服务器|数据库|mysql|redis/],
+    ["软件工程", /软件工程|需求分析|设计模式|uml|测试|架构|项目管理|敏捷/],
+    ["考研数学", /考研数学|高等数学|线性代数|概率论|微积分|极限|导数|积分/],
+    ["人工智能", /人工智能|机器学习|深度学习|神经网络|大模型|llm|transformer/],
+  ];
+  const titleHit = strongTitleRules.find(([, regex]) => regex.test(titleText));
+  if (titleHit) return titleHit[0];
+
   const rules = [
+    ["编译原理", /编译原理|文法|语法分析|词法分析|乔姆斯基|chomsky|type-?1|1型|一型|上下文有关|context.?sensitive|产生式|非收缩|线性有界/],
+    ["数据结构", /floyd|弗洛伊德|dijkstra|最短路|图论|动态规划|dp|算法|数据结构|链表|栈|队列|树|堆|排序|查找|并查集/],
     ["前端", /前端|html|css|javascript|typescript|react|vue|浏览器|dom|页面/],
     ["后端", /后端|node|express|spring|django|flask|api|服务器|数据库|mysql|redis/],
     ["软件工程", /软件工程|需求分析|设计模式|uml|测试|架构|项目管理|敏捷/],
     ["多模态", /多模态|multimodal|图文|文本.*图像|图像.*文本|音频|视频|clip|vlm/],
     ["计算机视觉", /计算机视觉|图像识别|目标检测|分割|opencv|cnn|视觉/],
     ["考研数学", /考研数学|高等数学|线性代数|概率论|微积分|极限|导数|积分/],
-    ["数据结构", /数据结构|链表|栈|队列|树|图|排序|查找|算法/],
     ["人工智能", /人工智能|机器学习|深度学习|神经网络|大模型|llm|transformer/],
   ];
-  const found = rules.find(([, regex]) => regex.test(text));
+  const found = rules.find(([, regex]) => regex.test(contentText));
   return found ? found[0] : "其他";
 }
 
