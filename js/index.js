@@ -4,6 +4,7 @@ const THEME_STORAGE = "LINGXI_THEME";
 const MESSAGES_STORAGE = "LINGXI_MESSAGES";
 const STUDENT_PROFILE_STORAGE = "LINGXI_STUDENT_PROFILE";
 const LEARNING_RESOURCES_STORAGE = "LINGXI_LEARNING_RESOURCES";
+const STORED_MARKDOWN_FILES_STORAGE = "LINGXI_STORED_MARKDOWN_FILES";
 
 
 const CHAT_ENDPOINT = "/api/chat";
@@ -77,9 +78,11 @@ const el = {
   chat: document.querySelector("#chat"),
   profilePage: document.querySelector("#profilePage"),
   resourcePage: document.querySelector("#resourcePage"),
+  storagePage: document.querySelector("#storagePage"),
   chatPageBtn: document.querySelector("#chatPageBtn"),
   profilePageBtn: document.querySelector("#profilePageBtn"),
   resourcePageBtn: document.querySelector("#resourcePageBtn"),
+  storagePageBtn: document.querySelector("#storagePageBtn"),
   profileBackBtn: document.querySelector("#profileBackBtn"),
   profileVisual: document.querySelector("#profileVisual"),
   profileGrid: document.querySelector("#profileGrid"),
@@ -88,6 +91,7 @@ const el = {
   generateResourcesBtn: document.querySelector("#generateResourcesBtn"),
   agentPipeline: document.querySelector("#agentPipeline"),
   resourceGrid: document.querySelector("#resourceGrid"),
+  storageGrid: document.querySelector("#storageGrid"),
   messages: document.querySelector("#messages"),
   input: document.querySelector("#input"),
   sendBtn: document.querySelector("#sendBtn"),
@@ -125,6 +129,7 @@ const state = {
   studentProfile: null,
   profileUpdateInFlight: null,
   learningResources: null,
+  storedMarkdownFiles: [],
   resourcesGenerating: false,
   selectedResourceAgents: [],
 };
@@ -223,6 +228,117 @@ function saveLearningResources(data) {
     console.warn("保存学习资源失败", e);
   }
   renderLearningResources();
+}
+
+function loadStoredMarkdownFiles() {
+  try {
+    const raw = localStorage.getItem(STORED_MARKDOWN_FILES_STORAGE);
+    const data = raw ? JSON.parse(raw) : [];
+    return Array.isArray(data) ? data.filter((item) => item && item.content && item.filename) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredMarkdownFiles(files) {
+  state.storedMarkdownFiles = Array.isArray(files) ? files : [];
+  try {
+    localStorage.setItem(STORED_MARKDOWN_FILES_STORAGE, JSON.stringify(state.storedMarkdownFiles));
+  } catch (e) {
+    console.warn("保存 Markdown 文件库失败", e);
+  }
+  renderStoragePage();
+}
+
+function categorizeKnowledge(title, content) {
+  const text = `${title || ""} ${content || ""}`.toLowerCase();
+  const rules = [
+    ["前端", /前端|html|css|javascript|typescript|react|vue|浏览器|dom|页面/],
+    ["后端", /后端|node|express|spring|django|flask|api|服务器|数据库|mysql|redis/],
+    ["软件工程", /软件工程|需求分析|设计模式|uml|测试|架构|项目管理|敏捷/],
+    ["多模态", /多模态|multimodal|图文|文本.*图像|图像.*文本|音频|视频|clip|vlm/],
+    ["计算机视觉", /计算机视觉|图像识别|目标检测|分割|opencv|cnn|视觉/],
+    ["考研数学", /考研数学|高等数学|线性代数|概率论|微积分|极限|导数|积分/],
+    ["数据结构", /数据结构|链表|栈|队列|树|图|排序|查找|算法/],
+    ["人工智能", /人工智能|机器学习|深度学习|神经网络|大模型|llm|transformer/],
+  ];
+  const found = rules.find(([, regex]) => regex.test(text));
+  return found ? found[0] : "其他";
+}
+
+function safeFilename(name) {
+  return String(name || "知识讲解文档")
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, "-")
+    .replace(/\s+/g, "-")
+    .slice(0, 80) || "知识讲解文档";
+}
+
+function downloadMarkdownFile(file) {
+  const blob = new Blob([file.content], { type: "text/markdown;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = file.filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function storeAndDownloadResource(index) {
+  const item = state.learningResources?.resources?.[index];
+  if (!item) return;
+  const content = resourcePlainText(item.content || "");
+  if (!content.trim()) return;
+  const title = item.title || "知识讲解文档";
+  const file = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title,
+    type: item.type || "专业课程讲解文档",
+    agent: "知识讲解 Agent",
+    category: categorizeKnowledge(title, content),
+    filename: `${safeFilename(title)}.md`,
+    content,
+    createdAt: new Date().toISOString(),
+  };
+  const next = [file].concat(state.storedMarkdownFiles || []);
+  saveStoredMarkdownFiles(next);
+  downloadMarkdownFile(file);
+}
+
+function renderStoragePage() {
+  if (!el.storageGrid) return;
+  const files = state.storedMarkdownFiles || [];
+  if (!files.length) {
+    el.storageGrid.innerHTML = `<div class="resource-empty">还没有存储的 Markdown 文档。在资源页点击知识讲解文档的“下载 Markdown”，文件会同时保存到这里。</div>`;
+    return;
+  }
+  const groups = files.reduce((map, file) => {
+    const key = file.category || "其他";
+    if (!map[key]) map[key] = [];
+    map[key].push(file);
+    return map;
+  }, {});
+  el.storageGrid.innerHTML = Object.entries(groups).map(([category, items]) => `
+    <section class="storage-group">
+      <div class="storage-group-head">
+        <div class="storage-category">${escapeHtml(category)}</div>
+        <div class="storage-count">${items.length} 个文件</div>
+      </div>
+      <div class="storage-file-list">
+        ${items.map((file) => `
+          <article class="storage-file-card">
+            <div>
+              <div class="storage-file-title">${escapeHtml(file.title)}</div>
+              <div class="storage-file-meta">${escapeHtml(file.filename)} · ${escapeHtml(new Date(file.createdAt).toLocaleString())}</div>
+            </div>
+            <button class="resource-toggle storage-download-btn" type="button" data-storage-id="${escapeHtml(file.id)}">下载</button>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `).join("");
 }
 
 function renderAgentPipeline(status = "idle") {
@@ -402,6 +518,11 @@ function renderLearningResources() {
       <div class="resource-preview">${escapeHtml(preview || "点击展开查看完整内容")}${rawText.length > 170 ? "..." : ""}</div>
       <div class="resource-body" hidden>${renderResourceMarkdown(item.content || "")}</div>
       <button class="resource-toggle" type="button" data-resource-index="${index}" aria-expanded="false">展开全文</button>
+      ${
+        item.type === "专业课程讲解文档"
+          ? `<button class="resource-toggle resource-download" type="button" data-resource-download-index="${index}">下载 Markdown</button>`
+          : ""
+      }
     </article>
   `;
   }).join("");
@@ -901,11 +1022,13 @@ function ensureChatVisible() {
   if (!el.chat || !el.home) return;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
   el.home.hidden = true;
   el.chat.hidden = false;
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
 }
 
 function setPageHash(hash) {
@@ -923,10 +1046,12 @@ function showHome() {
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
   if (el.home) el.home.hidden = false;
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
   setPageHash("");
 }
 
@@ -935,10 +1060,12 @@ function showProfilePage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
   el.profilePage.hidden = false;
   el.profilePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
   setPageHash("#profile");
   renderStudentProfile();
 }
@@ -948,12 +1075,29 @@ function showResourcePage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
   el.resourcePage.hidden = false;
   el.resourcePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
   setPageHash("#resources");
   renderLearningResources();
+}
+
+function showStoragePage() {
+  if (!el.storagePage) return;
+  if (el.home) el.home.hidden = true;
+  if (el.chat) el.chat.hidden = true;
+  if (el.profilePage) el.profilePage.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
+  el.storagePage.hidden = false;
+  el.storagePageBtn?.classList.add("active");
+  el.chatPageBtn?.classList.remove("active");
+  el.profilePageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
+  setPageHash("#storage");
+  renderStoragePage();
 }
 
 function showChatPage() {
@@ -970,6 +1114,8 @@ function restoreViewFromHash() {
     showProfilePage();
   } else if (window.location.hash === "#resources") {
     showResourcePage();
+  } else if (window.location.hash === "#storage") {
+    showStoragePage();
   } else if (window.location.hash === "#chat" && state.messages.length > 0) {
     ensureChatVisible();
   }
@@ -1455,6 +1601,7 @@ function initEventHandlers() {
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.chatPageBtn?.addEventListener("click", showChatPage);
   el.resourcePageBtn?.addEventListener("click", showResourcePage);
+  el.storagePageBtn?.addEventListener("click", showStoragePage);
   el.generateResourcesBtn?.addEventListener("click", () => void generateLearningResources());
   el.agentPipeline?.addEventListener("click", (e) => {
     const btn = e.target instanceof HTMLElement ? e.target.closest("[data-agent-id]") : null;
@@ -1462,6 +1609,12 @@ function initEventHandlers() {
     if (id) toggleResourceAgent(id);
   });
   el.resourceGrid?.addEventListener("click", (e) => {
+    const downloadBtn = e.target instanceof HTMLElement ? e.target.closest("[data-resource-download-index]") : null;
+    if (downloadBtn) {
+      const index = Number(downloadBtn.getAttribute("data-resource-download-index"));
+      if (Number.isInteger(index)) storeAndDownloadResource(index);
+      return;
+    }
     const btn = e.target instanceof HTMLElement ? e.target.closest(".resource-toggle") : null;
     if (!btn) return;
     const card = btn.closest(".resource-card");
@@ -1473,6 +1626,12 @@ function initEventHandlers() {
     preview.hidden = !expanded;
     btn.setAttribute("aria-expanded", String(!expanded));
     btn.textContent = expanded ? "展开全文" : "收起";
+  });
+  el.storageGrid?.addEventListener("click", (e) => {
+    const btn = e.target instanceof HTMLElement ? e.target.closest("[data-storage-id]") : null;
+    const id = btn?.getAttribute("data-storage-id");
+    const file = state.storedMarkdownFiles.find((item) => item.id === id);
+    if (file) downloadMarkdownFile(file);
   });
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);
@@ -1661,8 +1820,10 @@ function init() {
   }
   state.studentProfile = loadStudentProfile();
   state.learningResources = loadLearningResources();
+  state.storedMarkdownFiles = loadStoredMarkdownFiles();
   renderStudentProfile();
   renderLearningResources();
+  renderStoragePage();
   initTheme();
   initApiKeyModal();
   initEventHandlers();

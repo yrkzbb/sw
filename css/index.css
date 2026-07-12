@@ -338,7 +338,8 @@ body[data-theme="light"] {
   margin: 0 auto;
 }
 
-.resource-page {
+.resource-page,
+.storage-page {
   width: 100%;
   max-width: 1120px;
   margin: 0 auto;
@@ -584,6 +585,89 @@ button.agent-card:hover {
   color: #21d4a5;
   border-color: rgba(33, 212, 165, 0.25);
   background: rgba(33, 212, 165, 0.1);
+}
+
+.resource-download {
+  margin-left: 8px;
+}
+
+.storage-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.storage-group {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.085);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  padding: 18px;
+}
+
+[data-theme="light"] .storage-group {
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 16px 42px rgba(76, 92, 142, 0.1);
+}
+
+.storage-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.storage-category {
+  color: var(--text);
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.storage-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.storage-file-list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.storage-file-card {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+[data-theme="light"] .storage-file-card {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.storage-file-title {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1.4;
+  margin-bottom: 5px;
+}
+
+.storage-file-meta {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+  word-break: break-word;
+}
+
+.storage-download-btn {
+  flex: 0 0 auto;
+  margin-top: 0;
 }
 
 .resource-body :where(p, ul, ol, pre) {
@@ -1626,7 +1710,8 @@ code {
   }
 
   .agent-pipeline,
-  .resource-grid {
+  .resource-grid,
+  .storage-file-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
@@ -1647,9 +1732,10 @@ code {
     flex: 1;
     min-width: 0;
     height: 50px;
-    font-size: 16px;
-    padding: 0 10px;
+    font-size: 13px;
+    padding: 0 6px;
     border-radius: 17px;
+    gap: 5px;
   }
 
   #themeToggle {
@@ -1694,7 +1780,8 @@ code {
   }
 
   .agent-pipeline,
-  .resource-grid {
+  .resource-grid,
+  .storage-file-list {
     grid-template-columns: 1fr;
   }
 
