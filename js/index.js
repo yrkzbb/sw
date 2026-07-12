@@ -34,15 +34,17 @@ const PROFILE_FIELD_META = {
 };
 
 const RESOURCE_AGENTS = [
-  { role: "需求分析师", task: "优先解析本次主题，只在相关时参考学习画像。" },
-  { role: "知识讲解 Agent", task: "生成完整、可直接阅读的知识讲解文档。" },
-  { role: "思维导图 Agent", task: "组织知识点结构和关联路径。" },
-  { role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。" },
-  { role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。" },
-  { role: "多模态脚本 Agent", task: "设计教学视频或动画分镜脚本。" },
-  { role: "代码实操 Agent", task: "生成可运行实操案例和调试任务。" },
-  { role: "审核整合 Agent", task: "统一难度、补齐多模态资源并输出学习路径。" },
+  { id: "analysis", role: "需求分析师", task: "优先解析本次主题，只在相关时参考学习画像。", selectable: false },
+  { id: "doc", type: "专业课程讲解文档", role: "知识讲解 Agent", task: "生成完整、可直接阅读的知识讲解文档。", selectable: true },
+  { id: "mindmap", type: "知识点思维导图", role: "思维导图 Agent", task: "组织知识点结构和关联路径。", selectable: true },
+  { id: "quiz", type: "不同类型练习题目", role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。", selectable: true },
+  { id: "reading", type: "拓展阅读材料", role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。", selectable: true },
+  { id: "video", type: "多模态教学视频/动画", role: "多模态脚本 Agent", task: "设计教学视频或动画分镜脚本。", selectable: true },
+  { id: "code", type: "代码类实操案例", role: "代码实操 Agent", task: "生成可运行实操案例和调试任务。", selectable: true },
+  { id: "review", role: "审核整合 Agent", task: "统一难度、补齐资源并输出学习路径。", selectable: false },
 ];
+
+const SELECTABLE_RESOURCE_AGENTS = RESOURCE_AGENTS.filter((agent) => agent.selectable);
 
 const LEARNING_PROFILE_SYSTEM_PROMPT = `你是一个“对话式学习画像构建助手”。你的任务不是让学生填写表单，而是在自然对话中自然地了解学生，并持续维护一个动态学习画像。
 
@@ -124,6 +126,7 @@ const state = {
   profileUpdateInFlight: null,
   learningResources: null,
   resourcesGenerating: false,
+  selectedResourceAgents: [],
 };
 
 function escapeHtml(text) {
@@ -225,16 +228,40 @@ function saveLearningResources(data) {
 function renderAgentPipeline(status = "idle") {
   if (!el.agentPipeline) return;
   el.agentPipeline.innerHTML = RESOURCE_AGENTS.map((agent, index) => {
-    const running = status === "running" && index < RESOURCE_AGENTS.length - 1;
-    const done = status === "done" || (status === "running" && index < 3);
-    const cls = done ? "done" : running ? "running" : "";
+    const selected = state.selectedResourceAgents.includes(agent.id);
+    const selectedSet = getSelectedResourceAgents();
+    const inCurrentFlow = !agent.selectable || selectedSet.some((item) => item.id === agent.id);
+    const running = status === "running" && inCurrentFlow;
+    const done = status === "done" && inCurrentFlow;
+    const disabled = agent.selectable ? "" : "locked";
+    const cls = [done ? "done" : "", running ? "running" : "", selected ? "selected" : "", disabled].filter(Boolean).join(" ");
+    const tag = agent.selectable ? "button" : "article";
+    const attrs = agent.selectable
+      ? `type="button" data-agent-id="${agent.id}" aria-pressed="${selected ? "true" : "false"}"`
+      : "";
     return `
-      <article class="agent-card ${cls}">
+      <${tag} class="agent-card ${cls}" ${attrs}>
         <div class="agent-role"><span class="agent-dot" aria-hidden="true"></span>${escapeHtml(agent.role)}</div>
         <div class="agent-task">${escapeHtml(agent.task)}</div>
-      </article>
+      </${tag}>
     `;
   }).join("");
+}
+
+function getSelectedResourceAgents() {
+  if (!state.selectedResourceAgents.length) return SELECTABLE_RESOURCE_AGENTS;
+  return SELECTABLE_RESOURCE_AGENTS.filter((agent) => state.selectedResourceAgents.includes(agent.id));
+}
+
+function toggleResourceAgent(agentId) {
+  const agent = SELECTABLE_RESOURCE_AGENTS.find((item) => item.id === agentId);
+  if (!agent || state.resourcesGenerating) return;
+  if (state.selectedResourceAgents.includes(agentId)) {
+    state.selectedResourceAgents = state.selectedResourceAgents.filter((id) => id !== agentId);
+  } else {
+    state.selectedResourceAgents = state.selectedResourceAgents.concat(agentId);
+  }
+  renderLearningResources();
 }
 
 function renderResourceMarkdown(markdown) {
@@ -257,8 +284,14 @@ function renderResourceMarkdown(markdown) {
 function normalizeGeneratedResources(data, demand) {
   if (!data || !Array.isArray(data.resources)) return data;
   const resources = data.resources.map((item) => ({ ...item }));
+  const agentByType = Object.fromEntries(
+    SELECTABLE_RESOURCE_AGENTS.map((agent) => [agent.type, agent.role])
+  );
+  for (const item of resources) {
+    if (agentByType[item.type]) item.agent = agentByType[item.type];
+  }
   const doc = resources.find((item) => item.type === "专业课程讲解文档") || resources[0];
-  if (doc) {
+  if (doc && doc.type === "专业课程讲解文档") {
     doc.agent = "知识讲解 Agent";
     const contentText = typeof doc.content === "string" ? doc.content : JSON.stringify(doc.content || "");
     const tooShort = contentText.length < 900 || !/常见误区|易错|例题|示例|小结|学习建议/.test(contentText);
@@ -319,13 +352,17 @@ function normalizeGeneratedResources(data, demand) {
 function renderLearningResources() {
   if (!el.resourceGrid) return;
   renderAgentPipeline(state.resourcesGenerating ? "running" : state.learningResources ? "done" : "idle");
+  const selectedAgents = getSelectedResourceAgents();
+  const flowText = state.selectedResourceAgents.length
+    ? `当前将生成：${selectedAgents.map((agent) => agent.type).join("、")}`
+    : "当前未选择具体 Agent，将默认走完整资源生成流程。";
   if (state.resourcesGenerating) {
-    el.resourceGrid.innerHTML = `<div class="resource-empty">多智能体正在协作生成个性化学习资料...</div>`;
+    el.resourceGrid.innerHTML = `<div class="resource-empty">多智能体正在协作生成个性化学习资料...<br>${escapeHtml(flowText)}</div>`;
     return;
   }
   const data = state.learningResources;
   if (!data?.resources?.length) {
-    el.resourceGrid.innerHTML = `<div class="resource-empty">填写课程内容或学习需求后，点击“生成资源”。系统会优先围绕你本次输入的主题生成资料，画像只用于调整难度和讲解风格。</div>`;
+    el.resourceGrid.innerHTML = `<div class="resource-empty">填写课程内容或学习需求后，点击“生成资源”。系统会优先围绕你本次输入的主题生成资料，画像只用于调整难度和讲解风格。<br>${escapeHtml(flowText)}</div>`;
     return;
   }
   el.resourceGrid.innerHTML = data.resources.map((item) => `
@@ -335,7 +372,7 @@ function renderLearningResources() {
           <div class="resource-type">${escapeHtml(item.type || "学习资源")}</div>
           <div class="resource-title">${escapeHtml(item.title || "个性化资源")}</div>
         </div>
-        <div class="resource-agent">${escapeHtml((item.agent || "Agent").replace("课程讲解 Agent", "知识讲解 Agent"))}</div>
+        <div class="resource-agent">${escapeHtml((SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.type === item.type)?.role || item.agent || "Agent").replace("课程讲解 Agent", "知识讲解 Agent"))}</div>
       </div>
       <div class="resource-body">${renderResourceMarkdown(item.content || "")}</div>
     </article>
@@ -354,6 +391,13 @@ async function generateLearningResources() {
   state.resourcesGenerating = true;
   renderLearningResources();
   const profile = state.studentProfile || createEmptyProfile();
+  const selectedAgents = getSelectedResourceAgents();
+  const resourceSchema = selectedAgents
+    .map((agent) => `    {"type": "${agent.type}", "title": string, "agent": "${agent.role}", "content": string}`)
+    .join(",\n");
+  const selectedAgentRules = selectedAgents
+    .map((agent) => `- ${agent.role}：必须生成 1 个“${agent.type}”。`)
+    .join("\n");
   const system = `你是一个多智能体学习资源生成系统的总控 Agent。请模拟并整合多个角色智能体的协作结果，只输出合法 JSON，不要输出 Markdown 代码块。
 
 必须体现这些智能体分工：
@@ -366,20 +410,21 @@ async function generateLearningResources() {
 7. 代码实操 Agent：生成代码类实操案例。
 8. 审核整合 Agent：检查个性化程度和学习路径。
 
+本次用户选择参与资源输出的 Agent：
+${selectedAgentRules}
+需求分析师和审核整合 Agent 始终参与编排与质量检查，但不需要在 resources 中单独输出资源卡。
+
 输出 JSON 格式：
 {
   "topic": string,
   "generated_at": string,
   "agents": [{"role": string, "contribution": string}],
   "resources": [
-    {"type": "专业课程讲解文档", "title": string, "agent": "知识讲解 Agent", "content": string},
-    {"type": "知识点思维导图", "title": string, "agent": "思维导图 Agent", "content": string},
-    {"type": "不同类型练习题目", "title": string, "agent": "练习命题 Agent", "content": string},
-    {"type": "拓展阅读材料", "title": string, "agent": "阅读拓展 Agent", "content": string},
-    {"type": "多模态教学视频/动画", "title": string, "agent": "多模态脚本 Agent", "content": string},
-    {"type": "代码类实操案例", "title": string, "agent": "代码实操 Agent", "content": string}
+${resourceSchema}
   ]
 }
+
+resources 中只能包含本次用户选择的资源类型；如果用户没有选择 Agent，则生成完整 6 类资源。
 
 content 可以使用 Markdown。
 最高优先级规则：用户本次输入的主题是资源生成的主主题。学生画像只能用于调整解释深度、难度、例子风格和练习梯度，不能把画像里的旧主题硬塞进资源标题或正文。除非用户本次明确提到，禁止把不相关的前端、Java、C++ 等旧画像内容混入“多模态”等新主题。
@@ -1383,6 +1428,11 @@ function initEventHandlers() {
   el.chatPageBtn?.addEventListener("click", showChatPage);
   el.resourcePageBtn?.addEventListener("click", showResourcePage);
   el.generateResourcesBtn?.addEventListener("click", () => void generateLearningResources());
+  el.agentPipeline?.addEventListener("click", (e) => {
+    const btn = e.target instanceof HTMLElement ? e.target.closest("[data-agent-id]") : null;
+    const id = btn?.getAttribute("data-agent-id");
+    if (id) toggleResourceAgent(id);
+  });
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);
 

@@ -436,10 +436,34 @@ body[data-theme="light"] {
   border-radius: 16px;
   padding: 13px;
   background: rgba(255, 255, 255, 0.055);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
 }
 
 [data-theme="light"] .agent-card {
   background: rgba(255, 255, 255, 0.62);
+}
+
+button.agent-card {
+  cursor: pointer;
+  transition: transform 160ms ease, border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+button.agent-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(77, 124, 255, 0.28);
+  box-shadow: 0 14px 34px rgba(77, 124, 255, 0.12);
+}
+
+.agent-card.selected {
+  border-color: rgba(77, 124, 255, 0.45);
+  background: linear-gradient(135deg, rgba(77, 124, 255, 0.14), rgba(33, 212, 165, 0.1));
+  box-shadow: 0 16px 38px rgba(77, 124, 255, 0.14);
+}
+
+.agent-card.locked {
+  opacity: 0.82;
 }
 
 .agent-role {
@@ -463,6 +487,11 @@ body[data-theme="light"] {
 .agent-card.done .agent-dot {
   background: #21d4a5;
   box-shadow: 0 0 0 4px rgba(33, 212, 165, 0.16);
+}
+
+.agent-card.selected .agent-dot {
+  background: #4d7cff;
+  box-shadow: 0 0 0 4px rgba(77, 124, 255, 0.18);
 }
 
 .agent-card.running .agent-dot {
