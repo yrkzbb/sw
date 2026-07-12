@@ -47,6 +47,17 @@
           </span>
           画像
         </button>
+        <button id="resourcePageBtn" class="nav-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5V5a2 2 0 0 1 2-2h10l4 4v12.5" />
+              <path d="M14 3v5h5" />
+              <path d="M8 13h8" />
+              <path d="M8 17h6" />
+            </svg>
+          </span>
+          资源
+        </button>
       </nav>
 
       <main class="main">
@@ -102,6 +113,24 @@
           </div>
           <div id="profileVisual" class="profile-visual" aria-live="polite"></div>
           <div id="profileGrid" class="profile-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="resourcePage" class="resource-page" hidden>
+          <div class="resource-header">
+            <div>
+              <h1 class="profile-title">多智能体学习资源</h1>
+              <div class="profile-meta">由不同角色 Agent 协作生成讲解、导图、练习、阅读、视频脚本和代码实操。</div>
+            </div>
+            <button id="generateResourcesBtn" class="primary-btn resource-generate-btn" type="button">生成资源</button>
+          </div>
+          <div class="resource-control">
+            <label class="resource-field">
+              <span>课程 / 知识点 / 学习需求</span>
+              <textarea id="resourcePromptInput" class="resource-input" rows="3" placeholder="例如：Java 循环、数组和方法基础；希望补齐易错点并准备课程作业"></textarea>
+            </label>
+          </div>
+          <div id="agentPipeline" class="agent-pipeline" aria-live="polite"></div>
+          <div id="resourceGrid" class="resource-grid" aria-live="polite"></div>
         </section>
       </main>
 

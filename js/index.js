@@ -3,6 +3,7 @@ const API_KEY_STORAGE = "LINGXI_API_KEY";
 const THEME_STORAGE = "LINGXI_THEME";
 const MESSAGES_STORAGE = "LINGXI_MESSAGES";
 const STUDENT_PROFILE_STORAGE = "LINGXI_STUDENT_PROFILE";
+const LEARNING_RESOURCES_STORAGE = "LINGXI_LEARNING_RESOURCES";
 
 
 const CHAT_ENDPOINT = "/api/chat";
@@ -31,6 +32,17 @@ const PROFILE_FIELD_META = {
   interaction_preference: { title: "互动偏好", icon: "chat" },
   motivation_emotion: { title: "情绪与动力", icon: "heart" },
 };
+
+const RESOURCE_AGENTS = [
+  { role: "画像分析师", task: "读取学生画像，识别专业、课程、短板和学习目标。" },
+  { role: "课程讲解 Agent", task: "生成个性化课程讲解文档。" },
+  { role: "思维导图 Agent", task: "组织知识点结构和关联路径。" },
+  { role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。" },
+  { role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。" },
+  { role: "多模态脚本 Agent", task: "设计教学视频或动画分镜脚本。" },
+  { role: "代码实操 Agent", task: "生成可运行实操案例和调试任务。" },
+  { role: "审核整合 Agent", task: "统一难度、补齐多模态资源并输出学习路径。" },
+];
 
 const LEARNING_PROFILE_SYSTEM_PROMPT = `你是一个“对话式学习画像构建助手”。你的任务不是让学生填写表单，而是在自然对话中自然地了解学生，并持续维护一个动态学习画像。
 
@@ -62,12 +74,18 @@ const el = {
   home: document.querySelector("#home"),
   chat: document.querySelector("#chat"),
   profilePage: document.querySelector("#profilePage"),
+  resourcePage: document.querySelector("#resourcePage"),
   chatPageBtn: document.querySelector("#chatPageBtn"),
   profilePageBtn: document.querySelector("#profilePageBtn"),
+  resourcePageBtn: document.querySelector("#resourcePageBtn"),
   profileBackBtn: document.querySelector("#profileBackBtn"),
   profileVisual: document.querySelector("#profileVisual"),
   profileGrid: document.querySelector("#profileGrid"),
   profileMeta: document.querySelector("#profileMeta"),
+  resourcePromptInput: document.querySelector("#resourcePromptInput"),
+  generateResourcesBtn: document.querySelector("#generateResourcesBtn"),
+  agentPipeline: document.querySelector("#agentPipeline"),
+  resourceGrid: document.querySelector("#resourceGrid"),
   messages: document.querySelector("#messages"),
   input: document.querySelector("#input"),
   sendBtn: document.querySelector("#sendBtn"),
@@ -104,6 +122,8 @@ const state = {
   currentAssistant: null,
   studentProfile: null,
   profileUpdateInFlight: null,
+  learningResources: null,
+  resourcesGenerating: false,
 };
 
 function escapeHtml(text) {
@@ -176,6 +196,166 @@ function saveStudentProfile(profile) {
     console.warn("保存学生画像失败", e);
   }
   renderStudentProfile();
+}
+
+function loadLearningResources() {
+  try {
+    const raw = localStorage.getItem(LEARNING_RESOURCES_STORAGE);
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    if (!data || !Array.isArray(data.resources)) return null;
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function saveLearningResources(data) {
+  state.learningResources = data && Array.isArray(data.resources) ? data : null;
+  try {
+    if (state.learningResources) {
+      localStorage.setItem(LEARNING_RESOURCES_STORAGE, JSON.stringify(state.learningResources));
+    }
+  } catch (e) {
+    console.warn("保存学习资源失败", e);
+  }
+  renderLearningResources();
+}
+
+function renderAgentPipeline(status = "idle") {
+  if (!el.agentPipeline) return;
+  el.agentPipeline.innerHTML = RESOURCE_AGENTS.map((agent, index) => {
+    const running = status === "running" && index < RESOURCE_AGENTS.length - 1;
+    const done = status === "done" || (status === "running" && index < 3);
+    const cls = done ? "done" : running ? "running" : "";
+    return `
+      <article class="agent-card ${cls}">
+        <div class="agent-role"><span class="agent-dot" aria-hidden="true"></span>${escapeHtml(agent.role)}</div>
+        <div class="agent-task">${escapeHtml(agent.task)}</div>
+      </article>
+    `;
+  }).join("");
+}
+
+function renderResourceMarkdown(markdown) {
+  const wrap = document.createElement("div");
+  wrap.className = "resource-body";
+  let text = "";
+  if (typeof markdown === "string") {
+    text = markdown;
+  } else if (Array.isArray(markdown)) {
+    text = markdown.map((item) => `- ${typeof item === "string" ? item : JSON.stringify(item)}`).join("\n");
+  } else if (markdown && typeof markdown === "object") {
+    text = Object.entries(markdown)
+      .map(([key, value]) => `### ${key}\n${Array.isArray(value) ? value.map((item) => `- ${typeof item === "string" ? item : JSON.stringify(item)}`).join("\n") : String(value)}`)
+      .join("\n\n");
+  }
+  renderMarkdownInto(wrap, text);
+  return wrap.innerHTML;
+}
+
+function renderLearningResources() {
+  if (!el.resourceGrid) return;
+  renderAgentPipeline(state.resourcesGenerating ? "running" : state.learningResources ? "done" : "idle");
+  if (state.resourcesGenerating) {
+    el.resourceGrid.innerHTML = `<div class="resource-empty">多智能体正在协作生成个性化学习资料...</div>`;
+    return;
+  }
+  const data = state.learningResources;
+  if (!data?.resources?.length) {
+    el.resourceGrid.innerHTML = `<div class="resource-empty">填写课程内容或学习需求后，点击“生成资源”。系统会结合当前学习画像生成至少 5 类个性化资料。</div>`;
+    return;
+  }
+  el.resourceGrid.innerHTML = data.resources.map((item) => `
+    <article class="resource-card">
+      <div class="resource-card-head">
+        <div>
+          <div class="resource-type">${escapeHtml(item.type || "学习资源")}</div>
+          <div class="resource-title">${escapeHtml(item.title || "个性化资源")}</div>
+        </div>
+        <div class="resource-agent">${escapeHtml(item.agent || "Agent")}</div>
+      </div>
+      <div class="resource-body">${renderResourceMarkdown(item.content || "")}</div>
+    </article>
+  `).join("");
+}
+
+async function generateLearningResources() {
+  if (state.resourcesGenerating) return;
+  if (USE_BROWSER_API_KEY && !ensureApiKey("未配置 API Key，请先配置后再生成资源")) return;
+  const demand = (el.resourcePromptInput?.value || "").trim();
+  if (!demand) {
+    alert("请先输入课程内容、知识点或学习需求");
+    return;
+  }
+
+  state.resourcesGenerating = true;
+  renderLearningResources();
+  const profile = state.studentProfile || createEmptyProfile();
+  const system = `你是一个多智能体学习资源生成系统的总控 Agent。请模拟并整合多个角色智能体的协作结果，只输出合法 JSON，不要输出 Markdown 代码块。
+
+必须体现这些智能体分工：
+1. 画像分析师：解析学生专业、课程内容、知识短板和学习需求。
+2. 课程讲解 Agent：生成专业课程讲解文档。
+3. 思维导图 Agent：生成知识点思维导图。
+4. 练习命题 Agent：生成不同类型练习题。
+5. 阅读拓展 Agent：生成拓展阅读材料。
+6. 多模态脚本 Agent：生成教学视频/动画脚本。
+7. 代码实操 Agent：生成代码类实操案例。
+8. 审核整合 Agent：检查个性化程度和学习路径。
+
+输出 JSON 格式：
+{
+  "topic": string,
+  "generated_at": string,
+  "agents": [{"role": string, "contribution": string}],
+  "resources": [
+    {"type": "专业课程讲解文档", "title": string, "agent": "课程讲解 Agent", "content": string},
+    {"type": "知识点思维导图", "title": string, "agent": "思维导图 Agent", "content": string},
+    {"type": "不同类型练习题目", "title": string, "agent": "练习命题 Agent", "content": string},
+    {"type": "拓展阅读材料", "title": string, "agent": "阅读拓展 Agent", "content": string},
+    {"type": "多模态教学视频/动画", "title": string, "agent": "多模态脚本 Agent", "content": string},
+    {"type": "代码类实操案例", "title": string, "agent": "代码实操 Agent", "content": string}
+  ]
+}
+
+content 可以使用 Markdown；练习题必须包含基础题、易错题、迁移应用题；思维导图可用 Mermaid mindmap 或层级列表；视频/动画要包含分镜、旁白、画面元素和互动提问；代码案例要包含任务说明、代码骨架或完整示例、运行/调试提示。`;
+
+  const user = `学生画像：
+${JSON.stringify(profile, null, 2)}
+
+学生提供的课程内容 / 知识短板 / 学习需求：
+${demand}
+
+请生成面向该学生的多智能体协作学习资源。`;
+
+  try {
+    const res = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: buildChatHeaders(),
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        stream: false,
+        temperature: 0.45,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text().catch(() => "资源生成失败"));
+    const data = await res.json().catch(() => null);
+    const text = data?.choices?.[0]?.message?.content || "";
+    const parsed = extractJsonObject(text);
+    if (!parsed?.resources?.length) throw new Error("模型未返回有效资源 JSON");
+    saveLearningResources(parsed);
+  } catch (e) {
+    console.error(e);
+    el.resourceGrid.innerHTML = `<div class="resource-empty">资源生成失败：${escapeHtml(String(e?.message || e))}</div>`;
+  } finally {
+    state.resourcesGenerating = false;
+    renderLearningResources();
+  }
 }
 
 function profileIconSvg(icon) {
@@ -582,10 +762,12 @@ function adjustTextareaHeight() {
 function ensureChatVisible() {
   if (!el.chat || !el.home) return;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
   el.home.hidden = true;
   el.chat.hidden = false;
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
 }
 
 function setPageHash(hash) {
@@ -602,9 +784,11 @@ function showHome() {
   el.messages.innerHTML = "";
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.home) el.home.hidden = false;
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
   setPageHash("");
 }
 
@@ -612,11 +796,26 @@ function showProfilePage() {
   if (!el.profilePage) return;
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
   el.profilePage.hidden = false;
   el.profilePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
   setPageHash("#profile");
   renderStudentProfile();
+}
+
+function showResourcePage() {
+  if (!el.resourcePage) return;
+  if (el.home) el.home.hidden = true;
+  if (el.chat) el.chat.hidden = true;
+  if (el.profilePage) el.profilePage.hidden = true;
+  el.resourcePage.hidden = false;
+  el.resourcePageBtn?.classList.add("active");
+  el.chatPageBtn?.classList.remove("active");
+  el.profilePageBtn?.classList.remove("active");
+  setPageHash("#resources");
+  renderLearningResources();
 }
 
 function showChatPage() {
@@ -631,6 +830,8 @@ function showChatPage() {
 function restoreViewFromHash() {
   if (window.location.hash === "#profile") {
     showProfilePage();
+  } else if (window.location.hash === "#resources") {
+    showResourcePage();
   } else if (window.location.hash === "#chat" && state.messages.length > 0) {
     ensureChatVisible();
   }
@@ -1115,6 +1316,8 @@ function initEventHandlers() {
 
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.chatPageBtn?.addEventListener("click", showChatPage);
+  el.resourcePageBtn?.addEventListener("click", showResourcePage);
+  el.generateResourcesBtn?.addEventListener("click", () => void generateLearningResources());
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);
 
@@ -1301,7 +1504,9 @@ function init() {
       "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/";
   }
   state.studentProfile = loadStudentProfile();
+  state.learningResources = loadLearningResources();
   renderStudentProfile();
+  renderLearningResources();
   initTheme();
   initApiKeyModal();
   initEventHandlers();
