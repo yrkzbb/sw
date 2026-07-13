@@ -1011,6 +1011,7 @@ button.agent-card:hover {
 }
 
 .assessment-hero,
+.assessment-focus-card,
 .assessment-panel,
 .assessment-signal-grid article,
 .assessment-next-action {
@@ -1023,6 +1024,7 @@ button.agent-card:hover {
 }
 
 [data-theme="light"] .assessment-hero,
+[data-theme="light"] .assessment-focus-card,
 [data-theme="light"] .assessment-panel,
 [data-theme="light"] .assessment-signal-grid article,
 [data-theme="light"] .assessment-next-action {
@@ -1036,6 +1038,20 @@ button.agent-card:hover {
   gap: 22px;
   align-items: center;
   padding: 20px;
+}
+
+.assessment-student-hero {
+  grid-template-columns: minmax(0, 1fr) 190px;
+  border-color: rgba(33, 212, 165, 0.18);
+  background:
+    linear-gradient(135deg, rgba(33, 212, 165, 0.12), rgba(77, 124, 255, 0.07)),
+    rgba(255, 255, 255, 0.085);
+}
+
+[data-theme="light"] .assessment-student-hero {
+  background:
+    linear-gradient(135deg, rgba(209, 250, 229, 0.78), rgba(219, 234, 254, 0.55)),
+    rgba(255, 255, 255, 0.86);
 }
 
 .assessment-hero h2 {
@@ -1053,6 +1069,110 @@ button.agent-card:hover {
   color: var(--muted);
   font-size: 14px;
   line-height: 1.65;
+}
+
+.assessment-student-status {
+  justify-self: end;
+  width: 172px;
+  min-height: 132px;
+  border: 1px solid rgba(33, 212, 165, 0.28);
+  border-radius: 18px;
+  padding: 16px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="light"] .assessment-student-status {
+  background: rgba(255, 255, 255, 0.62);
+}
+
+.assessment-student-status span,
+.assessment-student-status em {
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.assessment-student-status strong {
+  color: #21d4a5;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.assessment-focus-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 18px;
+  border-color: rgba(77, 124, 255, 0.18);
+}
+
+.assessment-focus-card span {
+  color: var(--accent1);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.assessment-focus-card h3 {
+  margin: 5px 0 7px;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1.35;
+  font-weight: 950;
+}
+
+.assessment-focus-card p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.assessment-focus-card .primary-btn {
+  flex: 0 0 auto;
+}
+
+.assessment-pulse {
+  justify-self: end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 120px;
+  height: 120px;
+}
+
+.assessment-pulse span {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #21d4a5;
+  animation: assessmentPulse 900ms ease-in-out infinite;
+}
+
+.assessment-pulse span:nth-child(2) {
+  animation-delay: 120ms;
+}
+
+.assessment-pulse span:nth-child(3) {
+  animation-delay: 240ms;
+}
+
+@keyframes assessmentPulse {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.55;
+  }
+  50% {
+    transform: translateY(-9px);
+    opacity: 1;
+  }
 }
 
 .assessment-meta {
@@ -1201,8 +1321,12 @@ button.agent-card:hover {
 }
 
 .assessment-dimension-head span {
+  border: 1px solid rgba(33, 212, 165, 0.24);
+  border-radius: 999px;
+  padding: 4px 8px;
   color: #21d4a5;
-  font-size: 19px;
+  background: rgba(33, 212, 165, 0.08);
+  font-size: 11px;
   font-weight: 950;
 }
 
@@ -1261,6 +1385,10 @@ button.agent-card:hover {
   gap: 9px;
   margin: 12px 0 0;
   padding-left: 18px;
+}
+
+.assessment-panel li::marker {
+  color: var(--accent1);
 }
 
 .assessment-good {
@@ -3603,6 +3731,21 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .assessment-student-hero,
+  .assessment-focus-card {
+    grid-template-columns: 1fr;
+  }
+
+  .assessment-focus-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .assessment-student-status,
+  .assessment-pulse {
+    justify-self: start;
+  }
+
   .learning-path-basis {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -3710,10 +3853,30 @@ code {
     grid-template-columns: 1fr;
   }
 
+  .assessment-student-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .assessment-focus-card {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
   .assessment-score-ring {
     justify-self: start;
     width: 118px;
     height: 118px;
+  }
+
+  .assessment-student-status {
+    justify-self: stretch;
+    width: 100%;
+    min-height: 108px;
+  }
+
+  .assessment-pulse {
+    justify-self: start;
+    height: 72px;
   }
 
   .push-summary {

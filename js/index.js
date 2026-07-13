@@ -4055,11 +4055,132 @@ function renderAssessmentList(title, items, className = "") {
       <h3>${escapeHtml(title)}</h3>
       <ul>
         ${list.length
-          ? list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+          ? list.map((item) => `<li>${escapeHtml(studentFriendlyAssessmentText(item))}</li>`).join("")
           : `<li>暂无足够证据，继续学习后可重新生成。</li>`}
       </ul>
     </section>
   `;
+}
+
+function studentFriendlyAssessmentText(text) {
+  return String(text || "")
+    .replace(/急需/g, "建议")
+    .replace(/立即/g, "可以先")
+    .replace(/没有任何/g, "还没有")
+    .replace(/未进行任何/g, "还没有开始")
+    .replace(/极低/g, "刚起步")
+    .replace(/不足/g, "还不够完整")
+    .replace(/缺乏/g, "还缺少")
+    .replace(/干预/g, "调整")
+    .replace(/风险/g, "提醒")
+    .replace(/薄弱/g, "待补")
+    .replace(/学生/g, "你")
+    .trim();
+}
+
+function assessmentTone(score) {
+  const n = clampScore(score);
+  if (n >= 80) {
+    return {
+      label: "节奏很好",
+      title: "这轮学习已经比较稳了",
+      summary: "你已经积累了不少有效证据，可以继续做迁移练习，把知识用到更真实的任务里。",
+      mood: "steady",
+    };
+  }
+  if (n >= 60) {
+    return {
+      label: "正在变稳",
+      title: "你已经进入学习状态了",
+      summary: "现在最有价值的是把已学内容通过练习和复盘固定下来，再根据错题调整下一轮资源。",
+      mood: "growing",
+    };
+  }
+  if (n >= 35) {
+    return {
+      label: "需要补证据",
+      title: "先把下一步做小一点",
+      summary: "当前不是学得不好，而是系统还缺少足够的练习、路径完成和资源使用证据。先完成一两个小任务，评估会更准。",
+      mood: "warming",
+    };
+  }
+  return {
+    label: "刚刚开始",
+    title: "我们先建立学习起点",
+    summary: "现在适合先做诊断题、打开一份核心资料，并把不确定的题放进错题本，系统会据此继续调整计划。",
+    mood: "start",
+  };
+}
+
+function firstAssessmentItems(...groups) {
+  return groups.flatMap((group) => normalizeAssessmentList(group)).filter(Boolean);
+}
+
+function renderStudentActionItems(items, fallback) {
+  const list = firstAssessmentItems(items).slice(0, 4);
+  const finalList = list.length ? list : fallback;
+  return finalList.map((item, index) => `
+    <li>
+      <span>${index + 1}</span>
+      <p>${escapeHtml(studentFriendlyAssessmentText(item))}</p>
+    </li>
+  `).join("");
+}
+
+function renderStudentEvidenceItems(evidence) {
+  const items = [
+    {
+      label: "路径进度",
+      value: `${evidence.path_progress.done}/${evidence.path_progress.total || 0}`,
+      note: evidence.path_progress.total ? `已完成 ${evidence.path_progress.percent}%` : "生成资源后会出现待办",
+    },
+    {
+      label: "资料使用",
+      value: `${evidence.resource_usage.total}`,
+      note: `${evidence.resources.generated_count} 类资料可用`,
+    },
+    {
+      label: "错题复盘",
+      value: `${evidence.mistake_performance.total}`,
+      note: "越具体，建议越准",
+    },
+    {
+      label: "学习提问",
+      value: `${evidence.chat.user_question_count}`,
+      note: "记录你的真实需求",
+    },
+  ];
+  return items.map((item) => `
+    <article>
+      <span>${escapeHtml(item.label)}</span>
+      <strong>${escapeHtml(item.value)}</strong>
+      <em>${escapeHtml(item.note)}</em>
+    </article>
+  `).join("");
+}
+
+function studentDimensionName(name) {
+  return String(name || "")
+    .replace("学习投入", "提问与投入")
+    .replace("路径执行", "计划推进")
+    .replace("资源利用", "资料使用")
+    .replace("练习反馈", "练习复盘")
+    .replace("知识掌握", "掌握证据")
+    .replace("动态优化", "计划调整");
+}
+
+function renderStudentDimensionCards(dimensions) {
+  return dimensions.map((item) => `
+    <article class="assessment-dimension">
+      <div class="assessment-dimension-head">
+        <strong>${escapeHtml(studentDimensionName(item.name))}</strong>
+        <span>${item.score >= 70 ? "不错" : item.score >= 45 ? "补一点" : "先起步"}</span>
+      </div>
+      <div class="assessment-bar" aria-hidden="true"><div style="width: ${item.score}%"></div></div>
+      <p>${escapeHtml(studentFriendlyAssessmentText(item.evidence))}</p>
+      <em>${escapeHtml(studentFriendlyAssessmentText(item.action))}</em>
+    </article>
+  `).join("");
 }
 
 function renderAssessmentPage() {
@@ -4070,93 +4191,75 @@ function renderAssessmentPage() {
   const dimensions = normalizeDimensions(assessment.dimensions, []);
   const weakDimensions = dimensions.filter((item) => item.score < 70).slice(0, 3);
   const activeData = getActivePathData();
-  const pathProgress = evidence.path_progress;
-  const resourceUsage = evidence.resource_usage;
-  const mistakeTotal = evidence.mistake_performance.total;
+  const tone = assessmentTone(assessment.overall_score);
+  const firstActions = firstAssessmentItems(
+    assessment.plan_adjustments,
+    assessment.resource_strategy,
+    weakDimensions.map((item) => item.action)
+  ).slice(0, 3);
   if (state.assessmentGenerating) {
     el.assessmentGrid.innerHTML = `
       <section class="assessment-hero">
         <div>
-          <div class="resource-type">大模型学习评估</div>
-          <h2>正在分析学习行为与练习反馈...</h2>
-          <p>系统正在整合画像、对话、资源使用、错题本和路径待办，生成下一轮动态优化建议。</p>
+          <div class="resource-type">学习复盘</div>
+          <h2>正在整理你的学习线索...</h2>
+          <p>我在把最近的提问、练习、资料使用和路径待办整理成更清楚的下一步建议。</p>
         </div>
-        <div class="assessment-score-ring"><span>AI</span><small>分析中</small></div>
+        <div class="assessment-pulse" aria-hidden="true"><span></span><span></span><span></span></div>
       </section>
     `;
     return;
   }
   el.assessmentGrid.innerHTML = `
-    <section class="assessment-hero">
+    <section class="assessment-hero assessment-student-hero ${tone.mood}">
       <div>
-        <div class="resource-type">综合学习效果</div>
-        <h2>${escapeHtml(assessment.overall_level)}</h2>
-        <p>${escapeHtml(assessment.summary)}</p>
+        <div class="resource-type">这轮复盘</div>
+        <h2>${escapeHtml(tone.title)}</h2>
+        <p>${escapeHtml(tone.summary)}</p>
         <div class="assessment-meta">
           <span>更新时间：${escapeHtml(formatAssessmentTime(assessment.generated_at))}</span>
           <span>当前大类：${escapeHtml(activeData?.category || state.activePathCategory || "待生成路径")}</span>
         </div>
       </div>
-      <div class="assessment-score-ring" style="--score: ${clampScore(assessment.overall_score)}">
-        <span>${clampScore(assessment.overall_score)}</span>
-        <small>综合分</small>
+      <div class="assessment-student-status">
+        <span>${escapeHtml(tone.label)}</span>
+        <strong>${clampScore(assessment.overall_score)}%</strong>
+        <em>学习证据完整度</em>
       </div>
     </section>
+    <section class="assessment-focus-card">
+      <div>
+        <span>建议先做</span>
+        <h3>${escapeHtml(studentFriendlyAssessmentText(firstActions[0] || "先完成当前路径里的一个小待办，再回来刷新复盘。"))}</h3>
+        <p>${escapeHtml(tone.summary)}</p>
+      </div>
+      <button class="primary-btn" type="button" data-assessment-go-path>去看学习路径</button>
+    </section>
     <section class="assessment-signal-grid">
-      <article>
-        <span>路径完成</span>
-        <strong>${pathProgress.done}/${pathProgress.total}</strong>
-        <em>${pathProgress.percent}%</em>
-      </article>
-      <article>
-        <span>资源使用</span>
-        <strong>${resourceUsage.total}</strong>
-        <em>${evidence.resources.generated_count} 类资源</em>
-      </article>
-      <article>
-        <span>练习反馈</span>
-        <strong>${mistakeTotal}</strong>
-        <em>错题/疑惑</em>
-      </article>
-      <article>
-        <span>学习互动</span>
-        <strong>${evidence.chat.user_question_count}</strong>
-        <em>提问轮次</em>
-      </article>
+      ${renderStudentEvidenceItems(evidence)}
     </section>
     <section class="assessment-panel assessment-dimensions">
       <div class="assessment-panel-head">
-        <h3>多维度评估</h3>
-        <span>${dimensions.length} 个维度</span>
+        <h3>为什么会这样建议</h3>
+        <span>${dimensions.length} 个线索</span>
       </div>
       <div class="assessment-dimension-list">
-        ${dimensions.map((item) => `
-          <article class="assessment-dimension">
-            <div class="assessment-dimension-head">
-              <strong>${escapeHtml(item.name)}</strong>
-              <span>${item.score}</span>
-            </div>
-            <div class="assessment-bar"><div style="width: ${item.score}%"></div></div>
-            <div class="assessment-level">${escapeHtml(item.level)}</div>
-            <p>${escapeHtml(item.evidence)}</p>
-            <em>${escapeHtml(item.action)}</em>
-          </article>
-        `).join("")}
+        ${renderStudentDimensionCards(dimensions)}
       </div>
     </section>
     <div class="assessment-two-col">
-      ${renderAssessmentList("优势信号", assessment.strengths, "assessment-good")}
-      ${renderAssessmentList("风险与薄弱点", assessment.risks, "assessment-risk")}
+      ${renderAssessmentList("已经做得不错的地方", assessment.strengths, "assessment-good")}
+      ${renderAssessmentList("接下来先补的证据", assessment.risks, "assessment-risk")}
     </div>
     <div class="assessment-two-col">
-      ${renderAssessmentList("动态资源推送策略", assessment.resource_strategy)}
-      ${renderAssessmentList("学习计划调整", assessment.plan_adjustments)}
+      ${renderAssessmentList("资源会怎么推给你", assessment.resource_strategy)}
+      ${renderAssessmentList("学习计划怎么调整", assessment.plan_adjustments)}
     </div>
-    ${renderAssessmentList("下一次检查点", assessment.next_checkpoints, "assessment-checkpoints")}
+    ${renderAssessmentList("下次刷新前可以检查", assessment.next_checkpoints, "assessment-checkpoints")}
     ${weakDimensions.length ? `
       <section class="assessment-panel assessment-next-action">
-        <h3>建议立即优化</h3>
-        <p>${escapeHtml(weakDimensions.map((item) => `${item.name}：${item.action}`).join("；"))}</p>
+        <h3>别急，先做最小一步</h3>
+        <p>${escapeHtml(studentFriendlyAssessmentText(weakDimensions.map((item) => `${studentDimensionName(item.name)}：${item.action}`).join("；")))}</p>
         <button class="primary-btn" type="button" data-assessment-go-path>查看路径待办</button>
       </section>
     ` : ""}
