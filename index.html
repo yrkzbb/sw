@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WPS 灵犀 · AI</title>
-    <link rel="stylesheet" href="./css/index.css?v=20260713-markdown-math" />
+    <link rel="stylesheet" href="./css/index.css?v=20260713-mistake-book" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/index.js?v=20260713-markdown-math" defer></script>
+    <script src="./js/index.js?v=20260713-mistake-book" defer></script>
   </head>
   <body data-theme="dark">
     <div id="app">
@@ -66,6 +66,17 @@
             </svg>
           </span>
           存储
+        </button>
+        <button id="mistakePageBtn" class="nav-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 1 4 16.5v-11Z" />
+              <path d="M8 7h8" />
+              <path d="M8 11h7" />
+              <path d="M8 15h5" />
+            </svg>
+          </span>
+          错题本
         </button>
       </nav>
 
@@ -150,6 +161,16 @@
             </div>
           </div>
           <div id="storageGrid" class="storage-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="mistakePage" class="mistake-page" hidden>
+          <div class="resource-header">
+            <div>
+              <h1 class="profile-title">错题本</h1>
+              <div class="profile-meta">收集错误、疑惑和想复盘的题目；记录加入日期，按知识主题沉淀复习线索。</div>
+            </div>
+          </div>
+          <div id="mistakeBookGrid" class="mistake-book-grid" aria-live="polite"></div>
         </section>
       </main>
 

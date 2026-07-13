@@ -591,6 +591,97 @@ button.agent-card:hover {
   margin-left: 8px;
 }
 
+.exercise-grid,
+.mistake-list {
+  display: grid;
+  gap: 14px;
+}
+
+.exercise-card,
+.mistake-card,
+.mistake-group {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.055);
+  padding: 16px;
+}
+
+[data-theme="light"] .exercise-card,
+[data-theme="light"] .mistake-card,
+[data-theme="light"] .mistake-group {
+  background: rgba(255, 255, 255, 0.66);
+}
+
+.exercise-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.exercise-card h3,
+.mistake-card h3 {
+  margin: 7px 0 0;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.55;
+}
+
+.exercise-meta {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.exercise-meta span {
+  border: 1px solid rgba(33, 212, 165, 0.22);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #21d4a5;
+  background: rgba(33, 212, 165, 0.09);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.exercise-source,
+.exercise-answer {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.exercise-answer {
+  color: var(--text);
+}
+
+.exercise-detail {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.exercise-detail summary {
+  color: var(--accent1);
+  cursor: pointer;
+  font-weight: 950;
+}
+
+.exercise-explanation {
+  margin-top: 8px;
+}
+
+.add-mistake-btn {
+  flex: 0 0 auto;
+  margin-top: 0;
+}
+
+.mistake-book-grid {
+  display: grid;
+  gap: 16px;
+}
+
 .storage-grid {
   display: grid;
   gap: 16px;
