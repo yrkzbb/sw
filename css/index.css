@@ -682,6 +682,79 @@ button.agent-card:hover {
   gap: 16px;
 }
 
+.mistake-overview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr)) auto;
+  align-items: stretch;
+  gap: 12px;
+}
+
+.mistake-stat,
+.mistake-tabs {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.065);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07);
+}
+
+[data-theme="light"] .mistake-stat,
+[data-theme="light"] .mistake-tabs {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.mistake-stat {
+  min-height: 76px;
+  padding: 13px 15px;
+  display: grid;
+  align-content: center;
+  gap: 5px;
+}
+
+.mistake-stat span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.mistake-stat strong {
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+}
+
+.mistake-tabs {
+  min-height: 76px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+}
+
+.mistake-tab {
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: 0 13px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 900;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mistake-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.mistake-tab.active {
+  color: #21d4a5;
+  border-color: rgba(33, 212, 165, 0.28);
+  background: rgba(33, 212, 165, 0.1);
+}
+
 .storage-grid {
   display: grid;
   gap: 16px;
@@ -2364,6 +2437,16 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
+  .mistake-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .mistake-tabs {
+    grid-column: 1 / -1;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
   .storage-editor-grid,
   .storage-editor-body {
     grid-template-columns: 1fr;
@@ -2441,6 +2524,18 @@ code {
   .resource-grid,
   .storage-file-list {
     grid-template-columns: 1fr;
+  }
+
+  .mistake-overview {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .mistake-stat {
+    min-height: 68px;
+  }
+
+  .mistake-tabs {
+    min-height: auto;
   }
 
   .storage-modal {

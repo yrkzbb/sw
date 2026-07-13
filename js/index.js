@@ -7,6 +7,7 @@ const LEARNING_RESOURCES_STORAGE = "LINGXI_LEARNING_RESOURCES";
 const STORED_MARKDOWN_FILES_STORAGE = "LINGXI_STORED_MARKDOWN_FILES";
 const STORAGE_EDITOR_SPLIT_STORAGE = "LINGXI_STORAGE_EDITOR_SPLIT";
 const MISTAKE_BOOK_STORAGE = "LINGXI_MISTAKE_BOOK";
+const MISTAKE_BOOK_GROUP_STORAGE = "LINGXI_MISTAKE_BOOK_GROUP";
 
 
 const CHAT_ENDPOINT = "/api/chat";
@@ -151,6 +152,7 @@ const state = {
   learningResources: null,
   storedMarkdownFiles: [],
   mistakeBookItems: [],
+  mistakeBookGroupBy: "category",
   activeStorageFileId: null,
   storageEditorSplit: 50,
   storageResizeActive: false,
@@ -191,6 +193,13 @@ function formatMathExpression(expression) {
     "\\subset": "⊂",
     "\\subseteq": "⊆",
     "\\in": "∈",
+    "\\notin": "∉",
+    "\\emptyset": "∅",
+    "\\varnothing": "∅",
+    "\\cup": "∪",
+    "\\cap": "∩",
+    "\\forall": "∀",
+    "\\exists": "∃",
   };
   let html = escapeHtml(String(expression || "").trim());
   Object.entries(replacements).forEach(([token, value]) => {
@@ -199,12 +208,36 @@ function formatMathExpression(expression) {
   html = html
     .replace(/\\\{/g, "{")
     .replace(/\\\}/g, "}")
+    .replace(/\\text\{([^{}]+)\}/g, "$1")
     .replace(/-&gt;/g, "→")
     .replace(/&gt;=/g, "≥")
     .replace(/&lt;=/g, "≤")
     .replace(/\^(\{([^{}]+)\}|([A-Za-z0-9+\-=]+))/g, (_, __, group, simple) => `<sup>${group || simple}</sup>`)
     .replace(/_(\{([^{}]+)\}|([A-Za-z0-9+\-=]+))/g, (_, __, group, simple) => `<sub>${group || simple}</sub>`);
   return html.replace(/\s+/g, " ");
+}
+
+function hasLooseMath(text) {
+  return /\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|to|rightarrow|ge|le|neq|mid|in|notin|subset|subseteq|emptyset|varnothing|cup|cap|forall|exists)|(?<![A-Za-z0-9_])[A-Za-z](?:[_^]\{?[A-Za-z0-9+\-=]+\}?)+|[A-Z]\s*=\s*\\?\{/.test(text || "");
+}
+
+function renderLooseMathInTextNode(node) {
+  const text = node.nodeValue || "";
+  if (!hasLooseMath(text)) return;
+  const pattern = /([A-Z]\s*=\s*\\?\{[^。；，,\n]+\\?\}|\\(?:alpha|beta|gamma|delta|epsilon|varepsilon|to|rightarrow|ge|le|neq|mid|in|notin|subset|subseteq|emptyset|varnothing|cup|cap|forall|exists)|(?<![A-Za-z0-9_])[A-Za-z](?:[_^]\{?[A-Za-z0-9+\-=]+\}?)+)/g;
+  const fragment = document.createDocumentFragment();
+  let lastIndex = 0;
+  text.replace(pattern, (match, _all, offset) => {
+    if (offset > lastIndex) fragment.appendChild(document.createTextNode(text.slice(lastIndex, offset)));
+    const span = document.createElement("span");
+    span.className = "math math-inline";
+    span.innerHTML = formatMathExpression(match);
+    fragment.appendChild(span);
+    lastIndex = offset + match.length;
+    return match;
+  });
+  if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+  node.parentNode?.replaceChild(fragment, node);
 }
 
 function renderMathInContainer(container) {
@@ -249,31 +282,47 @@ function renderNakedExponentsInContainer(container) {
     acceptNode(node) {
       const parent = node.parentElement;
       if (!parent || parent.closest("pre, code, textarea, script, style, .math")) return NodeFilter.FILTER_REJECT;
-      return /\b[A-Za-z]\^[A-Za-z0-9]+\b/.test(node.nodeValue || "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+      return /(?<![A-Za-z0-9_])[A-Za-z][_^]\{?[A-Za-z0-9+\-=]+\}?/.test(node.nodeValue || "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
     },
   });
   const textNodes = [];
   while (walker.nextNode()) textNodes.push(walker.currentNode);
   textNodes.forEach((node) => {
-    const text = node.nodeValue || "";
-    const fragment = document.createDocumentFragment();
-    let lastIndex = 0;
-    text.replace(/\b([A-Za-z])\^([A-Za-z0-9]+)\b/g, (match, base, exponent, offset) => {
-      if (offset > lastIndex) fragment.appendChild(document.createTextNode(text.slice(lastIndex, offset)));
-      const span = document.createElement("span");
-      span.className = "math math-inline";
-      span.innerHTML = `${escapeHtml(base)}<sup>${escapeHtml(exponent)}</sup>`;
-      fragment.appendChild(span);
-      lastIndex = offset + match.length;
-      return match;
-    });
-    if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
-    node.parentNode?.replaceChild(fragment, node);
+    renderLooseMathInTextNode(node);
   });
 }
 
+function renderInlineMathText(text) {
+  const source = String(text || "");
+  const mathRegex = /(\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g;
+  let html = "";
+  let lastIndex = 0;
+  source.replace(mathRegex, (match, _all, offset) => {
+    html += escapeHtml(source.slice(lastIndex, offset));
+    const raw = match.startsWith("$$")
+      ? match.slice(2, -2)
+      : match.startsWith("$")
+        ? match.slice(1, -1)
+        : match.slice(2, -2);
+    html += `<span class="math math-inline">${formatMathExpression(raw)}</span>`;
+    lastIndex = offset + match.length;
+    return match;
+  });
+  html += escapeHtml(source.slice(lastIndex));
+  return html
+    .replace(/(?<![A-Za-z0-9_])([A-Za-z])\^(\{([^{}]+)\}|([A-Za-z0-9+\-=]+))/g, (_, base, __, group, simple) => `<span class="math math-inline">${base}<sup>${group || simple}</sup></span>`)
+    .replace(/(?<![A-Za-z0-9_])([A-Za-z])_(\{([^{}]+)\}|([A-Za-z0-9+\-=]+))/g, (_, base, __, group, simple) => `<span class="math math-inline">${base}<sub>${group || simple}</sub></span>`)
+    .replace(/\\alpha/g, '<span class="math math-inline">α</span>')
+    .replace(/\\beta/g, '<span class="math math-inline">β</span>')
+    .replace(/\\gamma/g, '<span class="math math-inline">γ</span>')
+    .replace(/\\to|-&gt;/g, "→")
+    .replace(/\\ge|&gt;=/g, "≥")
+    .replace(/\\le|&lt;=/g, "≤")
+    .replace(/\\mid/g, "|");
+}
+
 function normalizeMarkdownMath(markdownText) {
-  return String(markdownText || "").replace(/```(?:text)?\s*\n([^`\n]*(?:\^[A-Za-z0-9]|>=|<=|->)[^`\n]*)\n```/g, (_match, body) => {
+  const normalized = String(markdownText || "").replace(/```(?:text)?\s*\n([^`\n]*(?:\^[A-Za-z0-9]|_[A-Za-z0-9]|>=|<=|->|→|⊂|[A-Z]\s*=)[^`\n]*)\n```/g, (_match, body) => {
     const expression = String(body || "").trim();
     if (!expression || expression.length > 160) return _match;
     const latex = expression
@@ -283,6 +332,7 @@ function normalizeMarkdownMath(markdownText) {
       .replace(/->/g, "\\to");
     return `$$${latex}$$`;
   });
+  return normalized.replace(/(^|[：:，,；;\s])([A-Z]\s*=\s*\\?\{[^。\n]+?\\?\})(?=$|[。；;\n])/g, (_match, lead, expression) => `${lead}$${expression}$`);
 }
 
 function scrollMessagesToBottom() {
@@ -446,6 +496,76 @@ function addExerciseToMistakeBook(exercise, resource) {
 
 function deleteMistakeBookItem(id) {
   saveMistakeBookItems((state.mistakeBookItems || []).filter((item) => item.id !== id));
+}
+
+function loadMistakeBookGroupBy() {
+  try {
+    const value = localStorage.getItem(MISTAKE_BOOK_GROUP_STORAGE);
+    return ["category", "difficulty", "type", "month"].includes(value) ? value : "category";
+  } catch {
+    return "category";
+  }
+}
+
+function setMistakeBookGroupBy(groupBy) {
+  if (!["category", "difficulty", "type", "month"].includes(groupBy)) return;
+  state.mistakeBookGroupBy = groupBy;
+  try {
+    localStorage.setItem(MISTAKE_BOOK_GROUP_STORAGE, groupBy);
+  } catch {
+    /* ignore */
+  }
+  renderMistakeBookPage();
+}
+
+function getMistakeGroupLabel(item, groupBy) {
+  if (groupBy === "difficulty") return item.difficulty || "未标难度";
+  if (groupBy === "type") return item.type || "练习题";
+  if (groupBy === "month") {
+    const date = item.addedAt ? new Date(item.addedAt) : null;
+    if (!date || Number.isNaN(date.getTime())) return "未知时间";
+    return `${date.getFullYear()}年${String(date.getMonth() + 1).padStart(2, "0")}月`;
+  }
+  return item.category || "其他";
+}
+
+function renderMistakeGroupTabs(items) {
+  const modes = [
+    { id: "category", label: "按知识点" },
+    { id: "difficulty", label: "按难度" },
+    { id: "type", label: "按题型" },
+    { id: "month", label: "按时间" },
+  ];
+  const categories = new Set(items.map((item) => item.category || "其他")).size;
+  const difficulties = new Set(items.map((item) => item.difficulty || "未标难度")).size;
+  const types = new Set(items.map((item) => item.type || "练习题")).size;
+  return `
+    <div class="mistake-overview">
+      <div class="mistake-stat">
+        <span>错题总数</span>
+        <strong>${items.length}</strong>
+      </div>
+      <div class="mistake-stat">
+        <span>知识点</span>
+        <strong>${categories}</strong>
+      </div>
+      <div class="mistake-stat">
+        <span>难度层级</span>
+        <strong>${difficulties}</strong>
+      </div>
+      <div class="mistake-stat">
+        <span>题型</span>
+        <strong>${types}</strong>
+      </div>
+      <div class="mistake-tabs" role="tablist" aria-label="错题本分类方式">
+        ${modes.map((mode) => `
+          <button class="mistake-tab ${state.mistakeBookGroupBy === mode.id ? "active" : ""}" type="button" role="tab" aria-selected="${state.mistakeBookGroupBy === mode.id ? "true" : "false"}" data-mistake-groupby="${mode.id}">
+            ${mode.label}
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
 }
 
 function categorizeKnowledge(title, content) {
@@ -819,12 +939,12 @@ function renderMistakeBookPage() {
     return;
   }
   const groups = items.reduce((map, item) => {
-    const key = item.category || "其他";
+    const key = getMistakeGroupLabel(item, state.mistakeBookGroupBy);
     if (!map[key]) map[key] = [];
     map[key].push(item);
     return map;
   }, {});
-  el.mistakeBookGrid.innerHTML = Object.entries(groups).map(([category, group]) => `
+  el.mistakeBookGrid.innerHTML = renderMistakeGroupTabs(items) + Object.entries(groups).map(([category, group]) => `
     <section class="mistake-group">
       <div class="storage-group-head">
         <div>
@@ -842,12 +962,12 @@ function renderMistakeBookPage() {
                   <span>${escapeHtml(item.difficulty || "中等")}</span>
                   <span>${escapeHtml(formatDateTime(item.addedAt))} 加入</span>
                 </div>
-                <h3>${escapeHtml(item.question || "未命名题目")}</h3>
+                <h3>${renderInlineMathText(item.question || "未命名题目")}</h3>
               </div>
               <button class="storage-mini-btn danger" type="button" data-mistake-delete="${escapeHtml(item.id)}">删除</button>
             </div>
             <div class="exercise-source">来源：${escapeHtml(item.source || "经典题型改编")}</div>
-            <div class="exercise-answer"><strong>答案：</strong>${escapeHtml(item.answer || "待补充")}</div>
+            <div class="exercise-answer"><strong>答案：</strong>${renderInlineMathText(item.answer || "待补充")}</div>
             <div class="exercise-explanation markdown-body">${renderResourceMarkdown(item.explanation || "暂无详解")}</div>
           </article>
         `).join("")}
@@ -1333,14 +1453,14 @@ function renderExerciseResource(content, title, resourceIndex) {
                 <span>${escapeHtml(exercise.difficulty)}</span>
                 <span>${escapeHtml(exercise.knowledge || title || "综合知识")}</span>
               </div>
-              <h3>${escapeHtml(index + 1)}. ${escapeHtml(exercise.question)}</h3>
+              <h3>${escapeHtml(index + 1)}. ${renderInlineMathText(exercise.question)}</h3>
             </div>
             <button class="resource-toggle add-mistake-btn" type="button" data-add-mistake="${resourceIndex}:${index}">加入错题本</button>
           </div>
           <div class="exercise-source">来源：${escapeHtml(exercise.source)}</div>
           <details class="exercise-detail" open>
             <summary>答案与详解</summary>
-            <div class="exercise-answer"><strong>答案：</strong>${escapeHtml(exercise.answer || "见解析")}</div>
+            <div class="exercise-answer"><strong>答案：</strong>${renderInlineMathText(exercise.answer || "见解析")}</div>
             <div class="exercise-explanation markdown-body">${renderResourceMarkdown(exercise.explanation)}</div>
           </details>
         </article>
@@ -1366,24 +1486,18 @@ function buildTypeOneGrammarDocument(demand, title) {
 
 一个文法通常写成四元组：
 
-\`\`\`text
-G = (V_N, V_T, P, S)
-\`\`\`
+$$G = (V_N, V_T, P, S)$$
 
 其中 $V_N$ 是非终结符集合，$V_T$ 是终结符集合，$P$ 是产生式集合，$S$ 是开始符号。1 型文法对产生式有严格限制：产生式一般形如
 
-\`\`\`text
-α A β -> α γ β
-\`\`\`
+$$\\alpha A \\beta \\to \\alpha \\gamma \\beta$$
 
 这里 $A$ 是非终结符，$\\alpha$、$\\beta$ 是上下文，$\\gamma$ 是非空符号串。含义是：只有当 $A$ 出现在左上下文 $\\alpha$ 和右上下文 $\\beta$ 之间时，才允许把 $A$ 改写成 $\\gamma$。这就是“上下文有关”的来源。
 
 ## 2. 非收缩性质
 1 型文法常用一个等价限制来判断：产生式右部长度不能小于左部长度，即
 
-\`\`\`text
-|右部| >= |左部|
-\`\`\`
+$$|右部| \\ge |左部|$$
 
 所以它也常被称为**非收缩文法**。例如：
 
@@ -1403,9 +1517,7 @@ AB -> a
 ## 3. 与 0、2、3 型文法的区别
 乔姆斯基层次可以粗略理解为：
 
-\`\`\`text
-3 型文法 ⊂ 2 型文法 ⊂ 1 型文法 ⊂ 0 型文法
-\`\`\`
+$$3\\text{ 型文法} \\subset 2\\text{ 型文法} \\subset 1\\text{ 型文法} \\subset 0\\text{ 型文法}$$
 
 3 型文法对应正则语言，通常能被有限自动机识别。2 型文法对应上下文无关语言，常用于描述程序语言中的括号匹配、表达式嵌套等结构。1 型文法比 2 型更强，因为它能表达“多个部分数量相等”这类需要跨区域约束的语言。0 型文法最强，对产生式限制最少，对应图灵机可识别语言。
 
@@ -1992,7 +2104,8 @@ function buildLearningSystemMessage() {
     content:
       `${LEARNING_PROFILE_SYSTEM_PROMPT}\n\n当前已维护的学生画像 JSON：\n` +
       `${JSON.stringify(profile, null, 2)}\n\n` +
-      "请基于该画像回答学生当前问题；本轮不要输出内部更新 JSON，除非学生明确要求查看画像。",
+      "请基于该画像回答学生当前问题；本轮不要输出内部更新 JSON，除非学生明确要求查看画像。\n\n" +
+      "回答规范：涉及数学、形式语言、算法公式、集合、上下标时，必须使用规范 Markdown 数学写法。行内公式用 $...$，独立公式用 $$...$$。例如写 $V_N$、$V_T$、$L=\\{a^n b^n c^n \\mid n \\ge 1\\}$、$\\alpha A \\beta \\to \\alpha \\gamma \\beta$，不要裸写 V_N、a^n 或把 LaTeX 源码当普通文本输出。除非用户明确要求代码，公式不要放进代码块。",
   };
 }
 
@@ -2936,7 +3049,13 @@ function initEventHandlers() {
     if (file) openStorageFile(file);
   });
   el.mistakeBookGrid?.addEventListener("click", (e) => {
-    const id = e.target instanceof HTMLElement ? e.target.closest("[data-mistake-delete]")?.getAttribute("data-mistake-delete") : null;
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    const groupBy = target?.closest("[data-mistake-groupby]")?.getAttribute("data-mistake-groupby");
+    if (groupBy) {
+      setMistakeBookGroupBy(groupBy);
+      return;
+    }
+    const id = target?.closest("[data-mistake-delete]")?.getAttribute("data-mistake-delete") || null;
     if (id) deleteMistakeBookItem(id);
   });
   el.storageModalClose?.addEventListener("click", closeStorageModal);
@@ -3191,6 +3310,7 @@ function init() {
   state.learningResources = loadLearningResources();
   state.storedMarkdownFiles = loadStoredMarkdownFiles();
   state.mistakeBookItems = loadMistakeBookItems();
+  state.mistakeBookGroupBy = loadMistakeBookGroupBy();
   state.storageEditorSplit = loadStorageEditorSplit();
   applyStorageEditorSplit(state.storageEditorSplit);
   renderStudentProfile();
