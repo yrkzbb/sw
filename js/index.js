@@ -586,10 +586,69 @@ function renderMindmapResource(content, title) {
   `;
 }
 
-function normalizeMindmapContent(content, title) {
-  if (content && typeof content === "object" && !Array.isArray(content)) {
-    return content;
+function parseMaybeJson(value) {
+  if (typeof value !== "string") return value;
+  const trimmed = value.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+  if (!trimmed.startsWith("{") && !trimmed.startsWith("[")) return value;
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return value;
   }
+}
+
+function toMindmapData(value, fallbackTitle) {
+  const data = parseMaybeJson(value);
+  if (!data || typeof data !== "object" || Array.isArray(data)) return null;
+  const center = data.center || data["中心主题"] || data.root || data["根节点"] || fallbackTitle || "知识图谱";
+  const rawBranches = data.branches || data["一级分支"] || data.children || data["分支"];
+  let branches = [];
+  if (Array.isArray(rawBranches)) {
+    branches = rawBranches.map((branch) => {
+      if (typeof branch === "string") return { title: branch, children: [] };
+      const title = branch.title || branch.name || branch["标题"] || branch["名称"] || branch["一级节点"] || "分支";
+      const children = branch.children || branch.nodes || branch["二级节点"] || branch["子节点"] || [];
+      return { title, children: normalizeMindmapChildren(children) };
+    });
+  } else if (rawBranches && typeof rawBranches === "object") {
+    branches = Object.entries(rawBranches).map(([title, children]) => ({
+      title,
+      children: normalizeMindmapChildren(children),
+    }));
+  }
+  const path = data.path || data["复习路径"] || data.review_path || data["学习路径"] || "";
+  return branches.length ? { center, branches, path } : null;
+}
+
+function normalizeMindmapChildren(children) {
+  if (Array.isArray(children)) {
+    return children.map((item) => {
+      if (typeof item === "string") return item;
+      if (item && typeof item === "object") return item.title || item.name || item["标题"] || item["名称"] || JSON.stringify(item);
+      return String(item);
+    }).filter(Boolean);
+  }
+  if (children && typeof children === "object") {
+    if (Array.isArray(children["二级节点"])) return normalizeMindmapChildren(children["二级节点"]);
+    if (Array.isArray(children["子节点"])) return normalizeMindmapChildren(children["子节点"]);
+    return Object.entries(children).map(([key, value]) => {
+      if (Array.isArray(value)) return `${key}：${value.join("、")}`;
+      return `${key}：${String(value)}`;
+    });
+  }
+  return children ? [String(children)] : [];
+}
+
+function mindmapPreviewText(content, title) {
+  const data = normalizeMindmapContent(content, title);
+  const branches = Array.isArray(data.branches) ? data.branches : [];
+  const names = branches.map((branch) => branch.title).filter(Boolean).slice(0, 6).join("、");
+  return `${data.center || title || "知识图谱"}：${branches.length} 个一级分支${names ? `（${names}）` : ""}`;
+}
+
+function normalizeMindmapContent(content, title) {
+  const parsed = toMindmapData(content, title);
+  if (parsed) return parsed;
   const text = resourcePlainText(content);
   const center = title || text.match(/根节点[:：]\s*(.+)/)?.[1] || "知识图谱";
   if (!isPoorMindmap(text)) {
@@ -906,7 +965,8 @@ function normalizeGeneratedResources(data, demand) {
     mindmap.agent = "思维导图 Agent";
     const subjectText = `${demand || ""} ${mindmap.title || ""}`;
     const contentText = resourcePlainText(mindmap.content);
-    if (isPoorMindmap(contentText)) {
+    const parsedMindmap = toMindmapData(mindmap.content, mindmap.title);
+    if (!parsedMindmap && isPoorMindmap(contentText)) {
       mindmap.content = buildFallbackMindmap(subjectText.trim() || mindmap.title);
     }
   }
@@ -931,7 +991,9 @@ function renderLearningResources() {
   }
   el.resourceGrid.innerHTML = data.resources.map((item, index) => {
     const rawText = resourcePlainText(item.content || "");
-    const preview = rawText.replace(/\s+/g, " ").trim().slice(0, 170);
+    const preview = item.type === "知识点思维导图"
+      ? mindmapPreviewText(item.content || "", item.title)
+      : rawText.replace(/\s+/g, " ").trim().slice(0, 170);
     return `
     <article class="resource-card">
       <div class="resource-card-head">
