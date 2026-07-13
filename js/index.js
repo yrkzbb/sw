@@ -113,6 +113,7 @@ const el = {
   learningPathPanel: document.querySelector("#learningPathPanel"),
   assessmentGrid: document.querySelector("#assessmentGrid"),
   generateAssessmentBtn: document.querySelector("#generateAssessmentBtn"),
+  assessmentPullStatus: document.querySelector("#assessmentPullStatus"),
   pushGrid: document.querySelector("#pushGrid"),
   resourceGrid: document.querySelector("#resourceGrid"),
   storageGrid: document.querySelector("#storageGrid"),
@@ -192,6 +193,12 @@ const state = {
   learningBehaviorEvents: [],
   learningAssessment: null,
   assessmentGenerating: false,
+  assessmentPull: {
+    active: false,
+    startY: 0,
+    distance: 0,
+    armed: false,
+  },
   renderedVideoUrls: {},
 };
 
@@ -3582,16 +3589,34 @@ function buildFallbackAssessment(evidence) {
   };
 }
 
+function updateAssessmentRefreshUi() {
+  if (el.generateAssessmentBtn) {
+    el.generateAssessmentBtn.disabled = Boolean(state.assessmentGenerating);
+    el.generateAssessmentBtn.textContent = state.assessmentGenerating ? "刷新中..." : "刷新评估";
+  }
+}
+
+async function refreshLearningAssessment(source = "manual") {
+  recordLearningBehavior("assessment_refresh", {
+    category: state.activePathCategory,
+    topic: getActivePathData()?.topic || state.learningResources?.topic || "",
+    title: source,
+  });
+  await generateLearningAssessment();
+}
+
 async function generateLearningAssessment() {
   if (state.assessmentGenerating) return;
   const evidence = buildLearningEvidence();
   state.assessmentGenerating = true;
+  updateAssessmentRefreshUi();
   renderAssessmentPage();
   const fallback = buildFallbackAssessment(evidence);
   if (USE_BROWSER_API_KEY && !state.apiKey) state.apiKey = localStorage.getItem(API_KEY_STORAGE) || "";
   if (USE_BROWSER_API_KEY && !state.apiKey) {
     saveLearningAssessment(fallback);
     state.assessmentGenerating = false;
+    updateAssessmentRefreshUi();
     renderAssessmentPage();
     return;
   }
@@ -3645,6 +3670,7 @@ async function generateLearningAssessment() {
     });
   } finally {
     state.assessmentGenerating = false;
+    updateAssessmentRefreshUi();
     renderAssessmentPage();
   }
 }
@@ -3983,6 +4009,45 @@ function formatAssessmentTime(value) {
   });
 }
 
+function isAssessmentMobileViewport() {
+  return window.matchMedia?.("(max-width: 620px), (pointer: coarse)")?.matches || false;
+}
+
+function setAssessmentPullStatus(distance = 0, armed = false, refreshing = false) {
+  if (!el.assessmentPullStatus) return;
+  const visible = distance > 0 || refreshing;
+  el.assessmentPullStatus.hidden = !visible;
+  el.assessmentPullStatus.classList.toggle("armed", Boolean(armed));
+  el.assessmentPullStatus.classList.toggle("refreshing", Boolean(refreshing));
+  el.assessmentPullStatus.style.setProperty("--pull-distance", `${Math.min(72, Math.max(0, distance))}px`);
+  el.assessmentPullStatus.textContent = refreshing
+    ? "正在刷新评估..."
+    : armed
+      ? "松开刷新评估"
+      : "下拉刷新评估";
+}
+
+function resetAssessmentPullStatus(delay = 0) {
+  window.setTimeout(() => {
+    state.assessmentPull = {
+      active: false,
+      startY: 0,
+      distance: 0,
+      armed: false,
+    };
+    setAssessmentPullStatus(0, false, false);
+  }, delay);
+}
+
+function isAssessmentPageVisible() {
+  return Boolean(el.assessmentPage && !el.assessmentPage.hidden);
+}
+
+function shouldAutoRefreshAssessmentAfterReload() {
+  const nav = performance.getEntriesByType?.("navigation")?.[0];
+  return window.location.hash === "#assessment" && nav?.type === "reload";
+}
+
 function renderAssessmentList(title, items, className = "") {
   const list = normalizeAssessmentList(items);
   return `
@@ -3999,6 +4064,7 @@ function renderAssessmentList(title, items, className = "") {
 
 function renderAssessmentPage() {
   if (!el.assessmentGrid) return;
+  updateAssessmentRefreshUi();
   const evidence = buildLearningEvidence();
   const assessment = state.learningAssessment || buildFallbackAssessment(evidence);
   const dimensions = normalizeDimensions(assessment.dimensions, []);
@@ -5499,7 +5565,39 @@ function initEventHandlers() {
   el.pathPageBtn?.addEventListener("click", showPathPage);
   el.pathGenerateResourcesBtn?.addEventListener("click", showResourcePage);
   el.assessmentPageBtn?.addEventListener("click", showAssessmentPage);
-  el.generateAssessmentBtn?.addEventListener("click", () => void generateLearningAssessment());
+  el.generateAssessmentBtn?.addEventListener("click", () => void refreshLearningAssessment("desktop_button"));
+  el.assessmentPage?.addEventListener("touchstart", (e) => {
+    if (!isAssessmentMobileViewport() || !isAssessmentPageVisible() || state.assessmentGenerating) return;
+    if (window.scrollY > 2 || e.touches.length !== 1) return;
+    state.assessmentPull = {
+      active: true,
+      startY: e.touches[0].clientY,
+      distance: 0,
+      armed: false,
+    };
+  }, { passive: true });
+  el.assessmentPage?.addEventListener("touchmove", (e) => {
+    if (!state.assessmentPull.active || e.touches.length !== 1) return;
+    const distance = Math.max(0, e.touches[0].clientY - state.assessmentPull.startY);
+    if (distance <= 0) return;
+    state.assessmentPull.distance = distance;
+    state.assessmentPull.armed = distance >= 74;
+    setAssessmentPullStatus(distance, state.assessmentPull.armed, false);
+    if (distance > 8) e.preventDefault();
+  }, { passive: false });
+  el.assessmentPage?.addEventListener("touchend", () => {
+    if (!state.assessmentPull.active) return;
+    const armed = state.assessmentPull.armed;
+    if (armed) {
+      setAssessmentPullStatus(72, true, true);
+      void refreshLearningAssessment("mobile_pull").finally(() => resetAssessmentPullStatus(420));
+    } else {
+      resetAssessmentPullStatus();
+    }
+  });
+  el.assessmentPage?.addEventListener("touchcancel", () => {
+    resetAssessmentPullStatus();
+  });
   el.assessmentGrid?.addEventListener("click", (e) => {
     const btn = e.target instanceof HTMLElement ? e.target.closest("[data-assessment-go-path]") : null;
     if (btn) showPathPage();
@@ -6091,6 +6189,11 @@ function init() {
   restoreViewFromHash();
   initComposer();
   initCopyDelegation();
+  if (shouldAutoRefreshAssessmentAfterReload() && !isAssessmentMobileViewport()) {
+    window.setTimeout(() => {
+      if (isAssessmentPageVisible()) void refreshLearningAssessment("desktop_browser_reload");
+    }, 250);
+  }
 }
 
 

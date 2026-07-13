@@ -982,6 +982,34 @@ button.agent-card:hover {
   gap: 16px;
 }
 
+.assessment-pull-status {
+  width: fit-content;
+  min-height: 34px;
+  margin: calc(-8px + var(--pull-distance, 0px) * 0.16) auto 14px;
+  border: 1px solid rgba(77, 124, 255, 0.24);
+  border-radius: 999px;
+  padding: 8px 13px;
+  color: var(--accent1);
+  background: rgba(77, 124, 255, 0.1);
+  font-size: 12px;
+  font-weight: 950;
+  line-height: 1;
+  transform: translateY(calc(var(--pull-distance, 0px) * 0.28));
+  transition: transform 120ms ease, margin 120ms ease, border-color 120ms ease, color 120ms ease, background 120ms ease;
+}
+
+.assessment-pull-status.armed,
+.assessment-pull-status.refreshing {
+  border-color: rgba(33, 212, 165, 0.32);
+  color: #21d4a5;
+  background: rgba(33, 212, 165, 0.1);
+}
+
+.resource-generate-btn:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
 .assessment-hero,
 .assessment-panel,
 .assessment-signal-grid article,
