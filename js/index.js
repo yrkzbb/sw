@@ -426,6 +426,19 @@ function setStorageFullscreenZoom(value) {
   if (stage instanceof HTMLElement) stage.style.transform = `scale(${state.storageFullscreenZoom / 100})`;
 }
 
+function fitStorageFullscreenSvg() {
+  const viewer = document.querySelector("#storageSvgFullscreen");
+  const body = viewer?.querySelector(".storage-svg-fullscreen-body");
+  const svg = viewer?.querySelector(".storage-svg-fullscreen-stage svg");
+  if (!(body instanceof HTMLElement) || !(svg instanceof SVGElement)) return;
+  const svgWidth = Number(svg.getAttribute("width")) || svg.viewBox.baseVal.width || svg.getBoundingClientRect().width || 1200;
+  const svgHeight = Number(svg.getAttribute("height")) || svg.viewBox.baseVal.height || svg.getBoundingClientRect().height || 700;
+  const scaleX = (body.clientWidth - 44) / svgWidth;
+  const scaleY = (body.clientHeight - 44) / svgHeight;
+  const scale = Math.min(1.35, Math.max(0.3, Math.min(scaleX, scaleY)));
+  setStorageFullscreenZoom(Math.round(scale * 100));
+}
+
 function openStorageSvgFullscreen() {
   if (!el.storageEditContent || !isSvgContent(el.storageEditContent.value)) return;
   const viewer = ensureStorageSvgFullscreen();
@@ -434,10 +447,9 @@ function openStorageSvgFullscreen() {
   const stage = viewer.querySelector(".storage-svg-fullscreen-stage");
   if (titleNode) titleNode.textContent = title;
   if (stage) stage.innerHTML = sanitizeSvgContent(el.storageEditContent.value);
-  state.storageFullscreenZoom = state.storageSvgZoom || 100;
-  setStorageFullscreenZoom(state.storageFullscreenZoom);
   viewer.hidden = false;
   document.body.classList.add("fullscreen-preview-open");
+  requestAnimationFrame(fitStorageFullscreenSvg);
 }
 
 function closeStorageSvgFullscreen() {
@@ -2564,6 +2576,10 @@ function initEventHandlers() {
       return;
     }
     if (el.storageModal && !el.storageModal.hidden) closeStorageModal();
+  });
+  window.addEventListener("resize", () => {
+    const fullscreen = document.querySelector("#storageSvgFullscreen");
+    if (fullscreen && !fullscreen.hidden) requestAnimationFrame(fitStorageFullscreenSvg);
   });
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);
