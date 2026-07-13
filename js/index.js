@@ -150,6 +150,7 @@ const state = {
   storageEditorSplit: 50,
   storageResizeActive: false,
   storageSvgZoom: 100,
+  storageFullscreenZoom: 100,
   resourcesGenerating: false,
   selectedResourceAgents: [],
 };
@@ -371,6 +372,80 @@ function setStorageSvgZoom(value) {
   updateStoragePreview();
 }
 
+function ensureStorageSvgFullscreen() {
+  let viewer = document.querySelector("#storageSvgFullscreen");
+  if (viewer) return viewer;
+  viewer = document.createElement("div");
+  viewer.id = "storageSvgFullscreen";
+  viewer.className = "storage-svg-fullscreen";
+  viewer.hidden = true;
+  viewer.innerHTML = `
+    <div class="storage-svg-fullscreen-head">
+      <div>
+        <div class="storage-modal-kicker">SVG 全屏预览</div>
+        <div class="storage-svg-fullscreen-title">思维导图</div>
+      </div>
+      <div class="storage-svg-fullscreen-tools">
+        <button class="storage-mini-btn" type="button" data-fullscreen-zoom="out">缩小</button>
+        <input class="storage-svg-zoom" type="range" min="30" max="260" value="100" step="10" data-fullscreen-zoom-range aria-label="全屏 SVG 缩放" />
+        <button class="storage-mini-btn" type="button" data-fullscreen-zoom="in">放大</button>
+        <button class="storage-mini-btn" type="button" data-fullscreen-zoom="reset">重置</button>
+        <button class="storage-mini-btn" type="button" data-fullscreen-close>退出全屏</button>
+      </div>
+    </div>
+    <div class="storage-svg-fullscreen-body">
+      <div class="storage-svg-fullscreen-stage"></div>
+    </div>
+  `;
+  document.body.appendChild(viewer);
+  viewer.addEventListener("click", (e) => {
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    if (target?.hasAttribute("data-fullscreen-close")) {
+      closeStorageSvgFullscreen();
+      return;
+    }
+    const action = target?.closest("[data-fullscreen-zoom]")?.getAttribute("data-fullscreen-zoom");
+    if (!action) return;
+    if (action === "in") setStorageFullscreenZoom(state.storageFullscreenZoom + 20);
+    if (action === "out") setStorageFullscreenZoom(state.storageFullscreenZoom - 20);
+    if (action === "reset") setStorageFullscreenZoom(100);
+  });
+  viewer.querySelector("[data-fullscreen-zoom-range]")?.addEventListener("input", (e) => {
+    const range = e.target instanceof HTMLInputElement ? e.target : null;
+    if (range) setStorageFullscreenZoom(range.value);
+  });
+  return viewer;
+}
+
+function setStorageFullscreenZoom(value) {
+  state.storageFullscreenZoom = Math.min(260, Math.max(30, Number(value) || 100));
+  const viewer = document.querySelector("#storageSvgFullscreen");
+  const range = viewer?.querySelector("[data-fullscreen-zoom-range]");
+  const stage = viewer?.querySelector(".storage-svg-fullscreen-stage");
+  if (range instanceof HTMLInputElement) range.value = String(state.storageFullscreenZoom);
+  if (stage instanceof HTMLElement) stage.style.transform = `scale(${state.storageFullscreenZoom / 100})`;
+}
+
+function openStorageSvgFullscreen() {
+  if (!el.storageEditContent || !isSvgContent(el.storageEditContent.value)) return;
+  const viewer = ensureStorageSvgFullscreen();
+  const title = el.storageEditTitle?.value?.trim() || getActiveStorageFile()?.title || "思维导图";
+  const titleNode = viewer.querySelector(".storage-svg-fullscreen-title");
+  const stage = viewer.querySelector(".storage-svg-fullscreen-stage");
+  if (titleNode) titleNode.textContent = title;
+  if (stage) stage.innerHTML = sanitizeSvgContent(el.storageEditContent.value);
+  state.storageFullscreenZoom = state.storageSvgZoom || 100;
+  setStorageFullscreenZoom(state.storageFullscreenZoom);
+  viewer.hidden = false;
+  document.body.classList.add("fullscreen-preview-open");
+}
+
+function closeStorageSvgFullscreen() {
+  const viewer = document.querySelector("#storageSvgFullscreen");
+  if (viewer) viewer.hidden = true;
+  document.body.classList.remove("fullscreen-preview-open");
+}
+
 function loadStorageEditorSplit() {
   const raw = Number(localStorage.getItem(STORAGE_EDITOR_SPLIT_STORAGE));
   return Number.isFinite(raw) ? Math.min(72, Math.max(28, raw)) : 50;
@@ -415,6 +490,7 @@ function openStorageFile(file) {
 
 function closeStorageModal() {
   state.activeStorageFileId = null;
+  closeStorageSvgFullscreen();
   if (el.storageModal) el.storageModal.hidden = true;
 }
 
@@ -2447,6 +2523,7 @@ function initEventHandlers() {
     if (action === "in") setStorageSvgZoom(state.storageSvgZoom + 20);
     if (action === "out") setStorageSvgZoom(state.storageSvgZoom - 20);
     if (action === "reset") setStorageSvgZoom(100);
+    if (action === "fullscreen") openStorageSvgFullscreen();
   });
   el.storageSaveFileBtn?.addEventListener("click", (e) => {
     e.preventDefault();
@@ -2480,7 +2557,13 @@ function initEventHandlers() {
     localStorage.setItem(STORAGE_EDITOR_SPLIT_STORAGE, "50");
   });
   window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && el.storageModal && !el.storageModal.hidden) closeStorageModal();
+    if (e.key !== "Escape") return;
+    const fullscreen = document.querySelector("#storageSvgFullscreen");
+    if (fullscreen && !fullscreen.hidden) {
+      closeStorageSvgFullscreen();
+      return;
+    }
+    if (el.storageModal && !el.storageModal.hidden) closeStorageModal();
   });
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);

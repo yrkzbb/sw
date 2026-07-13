@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WPS 灵犀 · AI</title>
-    <link rel="stylesheet" href="./css/index.css" />
+    <link rel="stylesheet" href="./css/index.css?v=20260713-svg-fullscreen" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/index.js?v=20260713-mindmap-collision-fix" defer></script>
+    <script src="./js/index.js?v=20260713-svg-fullscreen" defer></script>
   </head>
   <body data-theme="dark">
     <div id="app">
@@ -187,6 +187,7 @@
                   <input id="storageSvgZoom" class="storage-svg-zoom" type="range" min="40" max="220" value="100" step="10" aria-label="SVG 预览缩放" />
                   <button class="storage-mini-btn" type="button" data-svg-zoom="in">放大</button>
                   <button class="storage-mini-btn" type="button" data-svg-zoom="reset">重置</button>
+                  <button class="storage-mini-btn" type="button" data-svg-zoom="fullscreen">全屏</button>
                 </div>
               </div>
               <div id="storagePreview" class="markdown-body storage-preview"></div>
