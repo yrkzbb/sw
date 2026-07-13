@@ -1676,6 +1676,35 @@ button.agent-card:hover {
   border: 1px solid rgba(0, 0, 0, 0.1);
 }
 
+.markdown-body .math {
+  font-family: "Times New Roman", Cambria, Georgia, serif;
+  letter-spacing: 0;
+}
+
+.markdown-body .math-inline {
+  display: inline;
+  padding: 0 2px;
+}
+
+.markdown-body .math-display {
+  display: block;
+  width: fit-content;
+  max-width: 100%;
+  margin: 12px auto;
+  padding: 12px 16px;
+  overflow-x: auto;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 1.08em;
+  text-align: center;
+}
+
+[data-theme="light"] .markdown-body .math-display {
+  border-color: rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.035);
+}
+
 .composer {
   position: fixed;
   left: 0;

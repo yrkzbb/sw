@@ -169,6 +169,117 @@ function sanitizePrismLang(lang) {
   return s.replace(/[^\w-]/g, "");
 }
 
+function formatMathExpression(expression) {
+  const replacements = {
+    "\\alpha": "α",
+    "\\beta": "β",
+    "\\gamma": "γ",
+    "\\delta": "δ",
+    "\\epsilon": "ε",
+    "\\varepsilon": "ε",
+    "\\ge": "≥",
+    "\\le": "≤",
+    "\\neq": "≠",
+    "\\to": "→",
+    "\\rightarrow": "→",
+    "\\mid": "|",
+    "\\subset": "⊂",
+    "\\subseteq": "⊆",
+    "\\in": "∈",
+  };
+  let html = escapeHtml(String(expression || "").trim());
+  Object.entries(replacements).forEach(([token, value]) => {
+    html = html.replaceAll(escapeHtml(token), value);
+  });
+  html = html
+    .replace(/\\\{/g, "{")
+    .replace(/\\\}/g, "}")
+    .replace(/-&gt;/g, "→")
+    .replace(/&gt;=/g, "≥")
+    .replace(/&lt;=/g, "≤")
+    .replace(/\^(\{([^{}]+)\}|([A-Za-z0-9+\-=]+))/g, (_, __, group, simple) => `<sup>${group || simple}</sup>`)
+    .replace(/_(\{([^{}]+)\}|([A-Za-z0-9+\-=]+))/g, (_, __, group, simple) => `<sub>${group || simple}</sub>`);
+  return html.replace(/\s+/g, " ");
+}
+
+function renderMathInContainer(container) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest("pre, code, textarea, script, style")) return NodeFilter.FILTER_REJECT;
+      return /\\\(|\\\[|\$/.test(node.nodeValue || "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  const mathRegex = /(\\\[[\s\S]+?\\\]|\\\([\s\S]+?\\\)|\$\$[\s\S]+?\$\$|\$[^$\n]+\$)/g;
+  textNodes.forEach((node) => {
+    const text = node.nodeValue || "";
+    if (!mathRegex.test(text)) return;
+    mathRegex.lastIndex = 0;
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    text.replace(mathRegex, (match, _all, offset) => {
+      if (offset > lastIndex) fragment.appendChild(document.createTextNode(text.slice(lastIndex, offset)));
+      const isDisplay = match.startsWith("$$") || match.startsWith("\\[");
+      const raw = match.startsWith("$$")
+        ? match.slice(2, -2)
+        : match.startsWith("$")
+          ? match.slice(1, -1)
+          : match.slice(2, -2);
+      const span = document.createElement("span");
+      span.className = isDisplay ? "math math-display" : "math math-inline";
+      span.innerHTML = formatMathExpression(raw);
+      fragment.appendChild(span);
+      lastIndex = offset + match.length;
+      return match;
+    });
+    if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+    node.parentNode?.replaceChild(fragment, node);
+  });
+}
+
+function renderNakedExponentsInContainer(container) {
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement;
+      if (!parent || parent.closest("pre, code, textarea, script, style, .math")) return NodeFilter.FILTER_REJECT;
+      return /\b[A-Za-z]\^[A-Za-z0-9]+\b/.test(node.nodeValue || "") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    },
+  });
+  const textNodes = [];
+  while (walker.nextNode()) textNodes.push(walker.currentNode);
+  textNodes.forEach((node) => {
+    const text = node.nodeValue || "";
+    const fragment = document.createDocumentFragment();
+    let lastIndex = 0;
+    text.replace(/\b([A-Za-z])\^([A-Za-z0-9]+)\b/g, (match, base, exponent, offset) => {
+      if (offset > lastIndex) fragment.appendChild(document.createTextNode(text.slice(lastIndex, offset)));
+      const span = document.createElement("span");
+      span.className = "math math-inline";
+      span.innerHTML = `${escapeHtml(base)}<sup>${escapeHtml(exponent)}</sup>`;
+      fragment.appendChild(span);
+      lastIndex = offset + match.length;
+      return match;
+    });
+    if (lastIndex < text.length) fragment.appendChild(document.createTextNode(text.slice(lastIndex)));
+    node.parentNode?.replaceChild(fragment, node);
+  });
+}
+
+function normalizeMarkdownMath(markdownText) {
+  return String(markdownText || "").replace(/```(?:text)?\s*\n([^`\n]*(?:\^[A-Za-z0-9]|>=|<=|->)[^`\n]*)\n```/g, (_match, body) => {
+    const expression = String(body || "").trim();
+    if (!expression || expression.length > 160) return _match;
+    const latex = expression
+      .replace(/\|/g, "\\mid")
+      .replace(/>=/g, "\\ge")
+      .replace(/<=/g, "\\le")
+      .replace(/->/g, "\\to");
+    return `$$${latex}$$`;
+  });
+}
+
 function scrollMessagesToBottom() {
   if (!el.messages) return;
   el.messages.scrollTop = el.messages.scrollHeight;
@@ -1051,13 +1162,13 @@ function buildTypeOneGrammarDocument(demand, title) {
 G = (V_N, V_T, P, S)
 \`\`\`
 
-其中 \(V_N\) 是非终结符集合，\(V_T\) 是终结符集合，\(P\) 是产生式集合，\(S\) 是开始符号。1 型文法对产生式有严格限制：产生式一般形如
+其中 $V_N$ 是非终结符集合，$V_T$ 是终结符集合，$P$ 是产生式集合，$S$ 是开始符号。1 型文法对产生式有严格限制：产生式一般形如
 
 \`\`\`text
 α A β -> α γ β
 \`\`\`
 
-这里 \(A\) 是非终结符，\(α\)、\(β\) 是上下文，\(γ\) 是非空符号串。含义是：只有当 \(A\) 出现在左上下文 \(α\) 和右上下文 \(β\) 之间时，才允许把 \(A\) 改写成 \(γ\)。这就是“上下文有关”的来源。
+这里 $A$ 是非终结符，$\\alpha$、$\\beta$ 是上下文，$\\gamma$ 是非空符号串。含义是：只有当 $A$ 出现在左上下文 $\\alpha$ 和右上下文 $\\beta$ 之间时，才允许把 $A$ 改写成 $\\gamma$。这就是“上下文有关”的来源。
 
 ## 2. 非收缩性质
 1 型文法常用一个等价限制来判断：产生式右部长度不能小于左部长度，即
@@ -1079,7 +1190,7 @@ A  -> aA
 AB -> a
 \`\`\`
 
-因为左部长度是 2，右部长度是 1，发生了收缩。唯一常见例外是开始符号推出空串 \(S -> ε\)，但一般要求 \(S\) 不出现在任何产生式右部。
+因为左部长度是 2，右部长度是 1，发生了收缩。唯一常见例外是开始符号推出空串 $S \\to \\varepsilon$，但一般要求 $S$ 不出现在任何产生式右部。
 
 ## 3. 与 0、2、3 型文法的区别
 乔姆斯基层次可以粗略理解为：
@@ -1092,11 +1203,9 @@ AB -> a
 
 一个典型例子是：
 
-\`\`\`text
-L = { a^n b^n c^n | n >= 1 }
-\`\`\`
+$$L = \\{ a^n b^n c^n \\mid n \\ge 1 \\}$$
 
-这个语言要求 a、b、c 的数量三者相等。上下文无关文法可以方便地处理 \(a^n b^n\)，但同时约束三段数量相等就超出了 2 型文法的能力范围；1 型文法可以通过上下文相关的改写规则表达这种约束。
+这个语言要求 a、b、c 的数量三者相等。上下文无关文法可以方便地处理 $a^n b^n$，但同时约束三段数量相等就超出了 2 型文法的能力范围；1 型文法可以通过上下文相关的改写规则表达这种约束。
 
 ## 4. 产生式直觉
 1 型文法的关键不是“随便替换一个符号”，而是“在指定上下文中替换一个符号”。例如：
@@ -1105,7 +1214,7 @@ L = { a^n b^n c^n | n >= 1 }
 a B c -> a b c
 \`\`\`
 
-这条规则表示：只有当 \(B\) 左边是 \(a\)、右边是 \(c\) 时，才可以把 \(B\) 改成 \(b\)。如果句型中只有 \(d B c\)，就不能使用这条规则。这个限制让文法可以表达更精细的依赖关系。
+这条规则表示：只有当 $B$ 左边是 $a$、右边是 $c$ 时，才可以把 $B$ 改成 $b$。如果句型中只有 $d B c$，就不能使用这条规则。这个限制让文法可以表达更精细的依赖关系。
 
 在编译原理中，很多程序语言的核心语法可以用上下文无关文法描述，比如表达式、语句块、函数调用等。但有些约束不是纯 CFG 能自然表达的，例如“变量使用前必须声明”“函数调用参数个数与声明一致”“某些标识符类型必须匹配”。这些约束往往体现了上下文依赖。实际编译器通常不会直接用 1 型文法完整描述它们，而是把 CFG 用于语法分析，再用语义分析、符号表和类型检查处理这些上下文约束。
 
@@ -1119,8 +1228,8 @@ a B c -> a b c
 
 1. 左部不能只有终结符，通常必须包含至少一个非终结符。
 2. 右部长度不能小于左部长度。
-3. 如果出现 \(S -> ε\)，要检查开始符号 \(S\) 是否出现在任何产生式右部。
-4. 如果产生式体现 \(αAβ -> αγβ\)，要能说明 \(A\) 的改写依赖左右上下文。
+3. 如果出现 $S \\to \\varepsilon$，要检查开始符号 $S$ 是否出现在任何产生式右部。
+4. 如果产生式体现 $\\alpha A \\beta \\to \\alpha \\gamma \\beta$，要能说明 $A$ 的改写依赖左右上下文。
 
 例如：
 
@@ -1133,7 +1242,7 @@ bC -> bc
 cC -> cc
 \`\`\`
 
-这类规则常用于构造 \(a^n b^n c^n\) 一类语言。它的思想是先生成数量相关的符号，再通过交换和替换规则把非终结符逐步整理成终结符串。
+这类规则常用于构造 $a^n b^n c^n$ 一类语言。它的思想是先生成数量相关的符号，再通过交换和替换规则把非终结符逐步整理成终结符串。
 
 ## 7. 易错点
 - 把 1 型文法误认为“只能有一个非终结符在左部”。这是 2 型文法的典型限制，不是 1 型文法的限制。
@@ -1378,10 +1487,10 @@ ${resourceSchema}
 
 resources 中只能包含本次用户选择的资源类型；如果用户没有选择 Agent，则生成完整 6 类资源。
 
-content 可以使用 Markdown。
+content 可以使用 Markdown。数学表达式必须使用 Markdown 数学写法：行内公式用“美元符号包围的 LaTeX”，独立公式用“双美元符号包围的 LaTeX”；禁止裸写纯文本公式，例如 a 的 n 次幂、n 大于等于 1、上下文相关产生式箭头等，应写成 LaTeX 公式形式。除非是程序代码或文法产生式列表，不要把数学公式放进代码块。
 最高优先级规则：用户本次输入的主题是资源生成的主主题。学生画像只能用于调整解释深度、难度、例子风格和练习梯度，不能把画像里的旧主题硬塞进资源标题或正文。除非用户本次明确提到，禁止把不相关的前端、Java、C++ 等旧画像内容混入“多模态”等新主题。
 重要：专业课程讲解文档必须是“知识正文”，不是大纲，也不是“如何学习/如何讲解这个知识”的方法论。它必须直接讲用户指定知识点本身：定义、背景、规则/公式/结构、工作机制、例子、性质、应用边界、易错点、小结。正文控制在约 1300-1700 个中文字符，目标约 1500 字；不能少到只有提纲，也不要写成长篇论文。禁止出现“这份文档会先...”“学习这个主题时可以...”“一个合格的讲解文档应该...”这类元话术。
-如果主题是编译原理、文法、1 型文法、上下文有关文法，知识文档必须讲：乔姆斯基层次、1 型文法定义、产生式形式 αAβ -> αγβ、非收缩性质、S -> ε 例外、与上下文无关文法区别、上下文有关语言、线性有界自动机、典型语言 a^n b^n c^n、判断文法类型的易错点。
+如果主题是编译原理、文法、1 型文法、上下文有关文法，知识文档必须讲：乔姆斯基层次、1 型文法定义、产生式形式 $\\alpha A \\beta \\to \\alpha \\gamma \\beta$、非收缩性质、$S \\to \\varepsilon$ 例外、与上下文无关文法区别、上下文有关语言、线性有界自动机、典型语言 $a^n b^n c^n$、判断文法类型的易错点。
 如果主题是算法、数据结构或具体算法名（例如 Floyd、Dijkstra、动态规划、最短路），知识文档必须围绕该算法本身展开，必须包含：问题定义、输入输出、状态/变量含义、核心转移或关键步骤、正确性直觉、复杂度、手推例题、代码示例、易错点。禁止输出与该算法无关的多模态、前端或通用学习法内容。
 思维导图必须有中心主题、5-7 个一级分支、每个分支 3 个具体二级节点，并给出一条复习路径。禁止输出“子节点：定义/应用/计算方法”这类空泛占位词；每个节点必须是具体知识点或题型，例如“等价无穷小替换”“洛必达法则适用条件”“定积分几何应用”。优先输出结构清晰的层级内容。
 练习题必须包含基础题、易错题、迁移应用题；视频/动画要包含分镜、旁白、画面元素和互动提问；代码案例要包含任务说明、代码骨架或完整示例、运行/调试提示。`;
@@ -1692,7 +1801,7 @@ function renderMarkdownInto(container, markdownText) {
   });
 
   try {
-    container.innerHTML = md.parse(markdownText || "");
+    container.innerHTML = md.parse(normalizeMarkdownMath(markdownText || ""));
   } catch (e) {
     console.error(e);
     container.textContent = markdownText || "";
@@ -1701,6 +1810,8 @@ function renderMarkdownInto(container, markdownText) {
   if (window.Prism && typeof window.Prism.highlightAllUnder === "function") {
     window.Prism.highlightAllUnder(container);
   }
+  renderMathInContainer(container);
+  renderNakedExponentsInContainer(container);
 }
 
 function commitAssistantTurn(assistantPlainText, newHistory, uiVersion) {
