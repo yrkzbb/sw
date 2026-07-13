@@ -342,6 +342,7 @@ body[data-theme="light"] {
 .resource-page,
 .push-page,
 .path-page,
+.assessment-page,
 .storage-page {
   width: 100%;
   max-width: 1380px;
@@ -974,6 +975,291 @@ button.agent-card:hover {
 .push-grid {
   display: grid;
   gap: 16px;
+}
+
+.assessment-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.assessment-hero,
+.assessment-panel,
+.assessment-signal-grid article,
+.assessment-next-action {
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.085);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+[data-theme="light"] .assessment-hero,
+[data-theme="light"] .assessment-panel,
+[data-theme="light"] .assessment-signal-grid article,
+[data-theme="light"] .assessment-next-action {
+  background: rgba(255, 255, 255, 0.76);
+  box-shadow: 0 16px 42px rgba(76, 92, 142, 0.1);
+}
+
+.assessment-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 150px;
+  gap: 22px;
+  align-items: center;
+  padding: 20px;
+}
+
+.assessment-hero h2 {
+  margin: 4px 0 9px;
+  color: var(--text);
+  font-size: 26px;
+  line-height: 1.2;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.assessment-hero p {
+  max-width: 880px;
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.65;
+}
+
+.assessment-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 13px;
+}
+
+.assessment-meta span {
+  border: 1px solid rgba(77, 124, 255, 0.22);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: var(--accent1);
+  background: rgba(77, 124, 255, 0.08);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assessment-score-ring {
+  --score: 0;
+  width: 138px;
+  height: 138px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  justify-self: end;
+  position: relative;
+  color: var(--text);
+  background:
+    radial-gradient(circle at center, var(--elevated-bg) 0 58%, transparent 59%),
+    conic-gradient(#21d4a5 calc(var(--score) * 1%), rgba(139, 147, 167, 0.22) 0);
+}
+
+.assessment-score-ring span {
+  display: block;
+  font-size: 34px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.assessment-score-ring small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assessment-score-ring > span,
+.assessment-score-ring > small {
+  grid-area: 1 / 1;
+  text-align: center;
+}
+
+.assessment-score-ring small {
+  transform: translateY(25px);
+}
+
+.assessment-signal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.assessment-signal-grid article {
+  padding: 15px;
+  min-width: 0;
+}
+
+.assessment-signal-grid span,
+.assessment-signal-grid em {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 900;
+}
+
+.assessment-signal-grid strong {
+  display: block;
+  margin: 5px 0 3px;
+  color: var(--text);
+  font-size: 25px;
+  line-height: 1;
+  font-weight: 950;
+}
+
+.assessment-panel {
+  padding: 18px;
+}
+
+.assessment-panel-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.assessment-panel h3,
+.assessment-panel-head h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 17px;
+  line-height: 1.3;
+  font-weight: 950;
+}
+
+.assessment-panel-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.assessment-dimension-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.assessment-dimension {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 13px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+[data-theme="light"] .assessment-dimension {
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.assessment-dimension-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.assessment-dimension-head strong {
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.35;
+  font-weight: 950;
+}
+
+.assessment-dimension-head span {
+  color: #21d4a5;
+  font-size: 19px;
+  font-weight: 950;
+}
+
+.assessment-bar {
+  height: 7px;
+  border-radius: 999px;
+  overflow: hidden;
+  margin: 10px 0 8px;
+  background: rgba(139, 147, 167, 0.18);
+}
+
+.assessment-bar div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #4d7cff, #21d4a5);
+}
+
+.assessment-level {
+  width: fit-content;
+  border: 1px solid rgba(33, 212, 165, 0.24);
+  border-radius: 999px;
+  padding: 4px 8px;
+  color: #21d4a5;
+  background: rgba(33, 212, 165, 0.08);
+  font-size: 11px;
+  font-weight: 950;
+}
+
+.assessment-dimension p,
+.assessment-dimension em,
+.assessment-panel li,
+.assessment-next-action p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.assessment-dimension p {
+  margin: 10px 0 7px;
+}
+
+.assessment-dimension em {
+  display: block;
+  font-style: normal;
+  font-weight: 850;
+}
+
+.assessment-two-col {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.assessment-panel ul {
+  display: grid;
+  gap: 9px;
+  margin: 12px 0 0;
+  padding-left: 18px;
+}
+
+.assessment-good {
+  border-color: rgba(33, 212, 165, 0.22);
+}
+
+.assessment-risk {
+  border-color: rgba(244, 114, 182, 0.24);
+}
+
+.assessment-checkpoints {
+  border-color: rgba(77, 124, 255, 0.22);
+}
+
+.assessment-next-action {
+  padding: 18px;
+}
+
+.assessment-next-action h3 {
+  margin: 0 0 8px;
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.assessment-next-action p {
+  margin: 0 0 13px;
 }
 
 .push-summary,
@@ -3279,7 +3565,13 @@ code {
   .agent-pipeline,
   .resource-grid,
   .push-card-grid,
+  .assessment-dimension-list,
   .storage-file-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assessment-signal-grid,
+  .assessment-two-col {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3379,8 +3671,21 @@ code {
   .agent-pipeline,
   .resource-grid,
   .push-card-grid,
+  .assessment-dimension-list,
+  .assessment-signal-grid,
+  .assessment-two-col,
   .storage-file-list {
     grid-template-columns: 1fr;
+  }
+
+  .assessment-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .assessment-score-ring {
+    justify-self: start;
+    width: 118px;
+    height: 118px;
   }
 
   .push-summary {

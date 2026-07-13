@@ -12,6 +12,8 @@ const LEARNING_PATH_TODO_STORAGE = "LINGXI_LEARNING_PATH_TODO";
 const LEARNING_DEMANDS_STORAGE = "LINGXI_LEARNING_DEMANDS";
 const LEARNING_PATH_LIBRARY_STORAGE = "LINGXI_LEARNING_PATH_LIBRARY";
 const ACTIVE_PATH_CATEGORY_STORAGE = "LINGXI_ACTIVE_PATH_CATEGORY";
+const LEARNING_BEHAVIOR_STORAGE = "LINGXI_LEARNING_BEHAVIOR";
+const LEARNING_EFFECT_ASSESSMENT_STORAGE = "LINGXI_LEARNING_EFFECT_ASSESSMENT";
 
 
 const CHAT_ENDPOINT = "/api/chat";
@@ -88,6 +90,7 @@ const el = {
   resourcePage: document.querySelector("#resourcePage"),
   pushPage: document.querySelector("#pushPage"),
   pathPage: document.querySelector("#pathPage"),
+  assessmentPage: document.querySelector("#assessmentPage"),
   storagePage: document.querySelector("#storagePage"),
   mistakePage: document.querySelector("#mistakePage"),
   chatPageBtn: document.querySelector("#chatPageBtn"),
@@ -95,6 +98,7 @@ const el = {
   resourcePageBtn: document.querySelector("#resourcePageBtn"),
   pushPageBtn: document.querySelector("#pushPageBtn"),
   pathPageBtn: document.querySelector("#pathPageBtn"),
+  assessmentPageBtn: document.querySelector("#assessmentPageBtn"),
   storagePageBtn: document.querySelector("#storagePageBtn"),
   mistakePageBtn: document.querySelector("#mistakePageBtn"),
   profileBackBtn: document.querySelector("#profileBackBtn"),
@@ -107,6 +111,8 @@ const el = {
   pathGenerateResourcesBtn: document.querySelector("#pathGenerateResourcesBtn"),
   agentPipeline: document.querySelector("#agentPipeline"),
   learningPathPanel: document.querySelector("#learningPathPanel"),
+  assessmentGrid: document.querySelector("#assessmentGrid"),
+  generateAssessmentBtn: document.querySelector("#generateAssessmentBtn"),
   pushGrid: document.querySelector("#pushGrid"),
   resourceGrid: document.querySelector("#resourceGrid"),
   storageGrid: document.querySelector("#storageGrid"),
@@ -183,6 +189,9 @@ const state = {
   resourcesGenerating: false,
   selectedResourceAgents: [],
   learningPathTodoDone: {},
+  learningBehaviorEvents: [],
+  learningAssessment: null,
+  assessmentGenerating: false,
   renderedVideoUrls: {},
 };
 
@@ -441,6 +450,7 @@ function saveLearningResources(data) {
   }
   renderLearningResources();
   renderPushPage();
+  renderAssessmentPage();
 }
 
 function normalizePathCategory(category) {
@@ -635,6 +645,7 @@ function saveMistakeBookItems(items) {
     return false;
   }
   renderMistakeBookPage();
+  renderAssessmentPage();
   return true;
 }
 
@@ -676,6 +687,58 @@ function saveLearningDemandEvents() {
   } catch (e) {
     console.warn("保存学习需求轨迹失败", e);
   }
+}
+
+function loadLearningBehaviorEvents() {
+  try {
+    const data = JSON.parse(localStorage.getItem(LEARNING_BEHAVIOR_STORAGE) || "[]");
+    return Array.isArray(data) ? data.slice(0, 160) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLearningBehaviorEvents() {
+  try {
+    localStorage.setItem(LEARNING_BEHAVIOR_STORAGE, JSON.stringify((state.learningBehaviorEvents || []).slice(0, 160)));
+  } catch (e) {
+    console.warn("保存学习行为轨迹失败", e);
+  }
+}
+
+function recordLearningBehavior(type, detail = {}) {
+  const event = {
+    id: `behavior-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    type,
+    category: detail.category || "",
+    topic: detail.topic || "",
+    title: detail.title || "",
+    meta: detail.meta || {},
+    createdAt: new Date().toISOString(),
+  };
+  state.learningBehaviorEvents = [event].concat(state.learningBehaviorEvents || []).slice(0, 160);
+  saveLearningBehaviorEvents();
+  renderAssessmentPage();
+}
+
+function loadLearningAssessment() {
+  try {
+    const raw = localStorage.getItem(LEARNING_EFFECT_ASSESSMENT_STORAGE);
+    if (!raw) return null;
+    return normalizeLearningAssessment(JSON.parse(raw));
+  } catch {
+    return null;
+  }
+}
+
+function saveLearningAssessment(assessment) {
+  state.learningAssessment = normalizeLearningAssessment(assessment);
+  try {
+    localStorage.setItem(LEARNING_EFFECT_ASSESSMENT_STORAGE, JSON.stringify(state.learningAssessment));
+  } catch (e) {
+    console.warn("保存学习效果评估失败", e);
+  }
+  renderAssessmentPage();
 }
 
 function isLikelyLearningDemand(text) {
@@ -3281,6 +3344,311 @@ function getPathTodoStats(path, topic) {
   };
 }
 
+function clampScore(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 0;
+  return Math.max(0, Math.min(100, Math.round(n)));
+}
+
+function percent(value, total) {
+  return total > 0 ? Math.round((value / total) * 100) : 0;
+}
+
+function summarizeLearningPathProgress() {
+  const categories = getPathCategories();
+  const byCategory = categories.map((category) => {
+    const data = state.learningPathLibrary?.[category];
+    const path = normalizeLearningPath(data?.learning_path, data?.topic, data?.resources || []);
+    const stats = getPathTodoStats(path, category);
+    return {
+      category,
+      topic: data?.topic || category,
+      total: stats.total,
+      done: stats.done,
+      percent: stats.percent,
+      next: stats.next ? `${stats.next.stage.stage} - ${stats.next.todo.label}` : "",
+    };
+  });
+  const total = byCategory.reduce((sum, item) => sum + item.total, 0);
+  const done = byCategory.reduce((sum, item) => sum + item.done, 0);
+  return {
+    total,
+    done,
+    percent: percent(done, total),
+    by_category: byCategory,
+  };
+}
+
+function summarizeResourceUsage() {
+  const events = state.learningBehaviorEvents || [];
+  const usageEvents = events.filter((item) =>
+    ["resource_open", "resource_download", "push_open", "video_render", "storage_open", "storage_download"].includes(item.type)
+  );
+  const typeCounts = usageEvents.reduce((acc, item) => {
+    const key = item.meta?.resourceType || item.type || "学习资源";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const recent = usageEvents.slice(0, 10).map((item) => ({
+    type: item.type,
+    title: item.title,
+    category: item.category,
+    created_at: item.createdAt,
+  }));
+  return {
+    total: usageEvents.length,
+    type_counts: typeCounts,
+    recent,
+  };
+}
+
+function summarizeMistakePerformance() {
+  const items = state.mistakeBookItems || [];
+  const byCategory = items.reduce((acc, item) => {
+    const key = item.category || "其他";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const byDifficulty = items.reduce((acc, item) => {
+    const key = item.difficulty || "未标难度";
+    acc[key] = (acc[key] || 0) + 1;
+    return acc;
+  }, {});
+  const recent = items.slice(0, 8).map((item) => ({
+    topic: item.topic,
+    category: item.category,
+    difficulty: item.difficulty,
+    type: item.type,
+    question: String(item.question || "").slice(0, 120),
+    added_at: item.addedAt,
+  }));
+  return {
+    total: items.length,
+    by_category: byCategory,
+    by_difficulty: byDifficulty,
+    recent,
+  };
+}
+
+function buildLearningEvidence() {
+  const pathProgress = summarizeLearningPathProgress();
+  const resourceUsage = summarizeResourceUsage();
+  const mistakePerformance = summarizeMistakePerformance();
+  const messageCount = state.messages.length;
+  const userQuestionCount = state.messages.filter((item) => item.role === "user").length;
+  const assistantReplyCount = state.messages.filter((item) => item.role === "assistant").length;
+  const generatedResources = state.learningResources?.resources || [];
+  const categories = getPathCategories();
+  const activeData = getActivePathData();
+  const demandTrace = summarizeDemandEvents(activeData?.topic || state.learningResources?.topic || "");
+  const recentBehavior = (state.learningBehaviorEvents || []).slice(0, 16).map((item) => ({
+    type: item.type,
+    category: item.category,
+    topic: item.topic,
+    title: item.title,
+    created_at: item.createdAt,
+  }));
+  return {
+    generated_at: new Date().toISOString(),
+    profile: state.studentProfile || createEmptyProfile(),
+    chat: {
+      message_count: messageCount,
+      user_question_count: userQuestionCount,
+      assistant_reply_count: assistantReplyCount,
+    },
+    demands: demandTrace,
+    path_progress: pathProgress,
+    resource_usage: resourceUsage,
+    mistake_performance: mistakePerformance,
+    resources: {
+      current_topic: state.learningResources?.topic || "",
+      current_category: state.learningResources?.category || "",
+      generated_count: generatedResources.length,
+      generated_types: generatedResources.map((item) => item.type).filter(Boolean),
+      path_categories: categories,
+      active_path_topic: activeData?.topic || "",
+      active_path_category: activeData?.category || state.activePathCategory || "",
+    },
+    recent_behavior: recentBehavior,
+  };
+}
+
+function normalizeAssessmentList(value, fallback = []) {
+  const source = Array.isArray(value) ? value : fallback;
+  return source.map((item) => String(item || "").trim()).filter(Boolean).slice(0, 8);
+}
+
+function normalizeDimensions(value, fallback) {
+  const source = Array.isArray(value) && value.length ? value : fallback;
+  return source.map((item, index) => ({
+    name: String(item?.name || item?.dimension || `维度 ${index + 1}`).trim(),
+    score: clampScore(item?.score),
+    level: String(item?.level || item?.status || "").trim() || (clampScore(item?.score) >= 80 ? "稳定" : clampScore(item?.score) >= 60 ? "发展中" : "需干预"),
+    evidence: String(item?.evidence || item?.reason || "暂无足够证据，需要继续跟踪学习行为。").trim(),
+    action: String(item?.action || item?.suggestion || "继续收集学习证据并安排诊断任务。").trim(),
+  })).slice(0, 6);
+}
+
+function normalizeLearningAssessment(input) {
+  const data = input && typeof input === "object" ? input : {};
+  const fallback = buildFallbackAssessment(buildLearningEvidence());
+  const dimensions = normalizeDimensions(data.dimensions, fallback.dimensions);
+  const overall = clampScore(data.overall_score ?? Math.round(dimensions.reduce((sum, item) => sum + item.score, 0) / Math.max(1, dimensions.length)));
+  return {
+    generated_at: String(data.generated_at || new Date().toISOString()),
+    overall_score: overall,
+    overall_level: String(data.overall_level || fallback.overall_level || (overall >= 80 ? "学习效果稳定" : overall >= 60 ? "正在形成有效学习闭环" : "需要加强诊断与练习反馈")),
+    summary: String(data.summary || fallback.summary || "系统已根据当前学习证据生成评估。"),
+    dimensions,
+    strengths: normalizeAssessmentList(data.strengths, fallback.strengths),
+    risks: normalizeAssessmentList(data.risks, fallback.risks),
+    resource_strategy: normalizeAssessmentList(data.resource_strategy, fallback.resource_strategy),
+    plan_adjustments: normalizeAssessmentList(data.plan_adjustments, fallback.plan_adjustments),
+    next_checkpoints: normalizeAssessmentList(data.next_checkpoints, fallback.next_checkpoints),
+  };
+}
+
+function buildFallbackAssessment(evidence) {
+  const chatScore = clampScore(35 + Math.min(30, evidence.chat.user_question_count * 6) + Math.min(20, Object.keys(evidence.demands.category_counts || {}).length * 5));
+  const pathScore = clampScore(evidence.path_progress.percent || (evidence.path_progress.total ? 30 : 18));
+  const resourceScore = clampScore(30 + Math.min(45, evidence.resource_usage.total * 9) + Math.min(15, evidence.resources.generated_count * 3));
+  const practiceScore = clampScore(50 + Math.min(20, evidence.mistake_performance.total * 4) - Math.min(25, evidence.mistake_performance.total * 2) + Math.min(20, evidence.path_progress.done * 3));
+  const adaptationScore = clampScore(35 + Math.min(30, evidence.resources.path_categories.length * 10) + Math.min(25, evidence.recent_behavior.length * 2));
+  const dimensions = [
+    {
+      name: "学习投入",
+      score: chatScore,
+      evidence: `累计 ${evidence.chat.user_question_count} 轮学习提问，沉淀 ${Object.keys(evidence.demands.category_counts || {}).length} 个知识大类需求。`,
+      action: chatScore >= 70 ? "保持连续提问，把问题拆到具体知识点和题型。" : "增加明确学习目标和课后追问，帮助系统更准确识别需求。",
+    },
+    {
+      name: "路径执行",
+      score: pathScore,
+      evidence: `学习路径待办完成 ${evidence.path_progress.done}/${evidence.path_progress.total} 项，整体进度 ${evidence.path_progress.percent}%。`,
+      action: pathScore >= 70 ? "继续按阶段推进，并在完成后生成下一轮资源。" : "优先完成当前路径的前 2 个待办，补足评估证据。",
+    },
+    {
+      name: "资源利用",
+      score: resourceScore,
+      evidence: `已生成 ${evidence.resources.generated_count} 类资源，记录到 ${evidence.resource_usage.total} 次资源使用行为。`,
+      action: resourceScore >= 70 ? "把高频资源与错题复盘绑定，形成闭环。" : "先打开题库、讲解文档或导图，并把关键资料保存到存储页。",
+    },
+    {
+      name: "练习反馈",
+      score: practiceScore,
+      evidence: `错题本当前有 ${evidence.mistake_performance.total} 条复盘项。`,
+      action: evidence.mistake_performance.total ? "按错题大类安排二次练习，关注相同错误是否复现。" : "完成诊断题并把不确定题加入错题本，避免只看不练。",
+    },
+    {
+      name: "动态优化",
+      score: adaptationScore,
+      evidence: `系统已维护 ${evidence.resources.path_categories.length} 个路径大类和 ${evidence.recent_behavior.length} 条近期行为证据。`,
+      action: "每次完成阶段待办后重新生成评估，用结果调整资源推送顺序。",
+    },
+  ];
+  const overall = clampScore(dimensions.reduce((sum, item) => sum + item.score, 0) / dimensions.length);
+  const weakCategories = Object.entries(evidence.mistake_performance.by_category || {})
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 3)
+    .map(([category]) => category);
+  const nextPath = evidence.path_progress.by_category.find((item) => item.next)?.next || "";
+  return {
+    generated_at: evidence.generated_at,
+    overall_score: overall,
+    overall_level: overall >= 80 ? "学习效果稳定" : overall >= 60 ? "正在形成有效学习闭环" : "需要加强诊断与练习反馈",
+    summary: "当前评估基于本地学习行为、路径完成度、资源使用与错题记录生成；接入 API 后会由大模型给出更细的诊断文本。",
+    dimensions,
+    strengths: [
+      evidence.resources.generated_count ? "已经具备可用于动态推送的学习资源池。" : "可以先通过资源页建立个性化资源池。",
+      evidence.path_progress.total ? "学习路径已可跟踪阶段完成度。" : "生成资源后会自动形成学习路径。",
+    ],
+    risks: [
+      evidence.mistake_performance.total ? `错题集中在：${weakCategories.join("、") || "待进一步分类"}。` : "练习反馈证据不足，难以判断真实掌握度。",
+      evidence.path_progress.percent < 50 ? "路径待办完成度偏低，学习计划还没有形成稳定执行节奏。" : "需要持续复盘，避免完成待办后不做迁移练习。",
+    ],
+    resource_strategy: [
+      weakCategories.length ? `优先推送 ${weakCategories[0]} 的题库、讲解文档和错题复盘任务。` : "先推送诊断题和核心讲解文档，建立掌握度基线。",
+      evidence.resource_usage.total ? "保留已打开资源，下一轮增加与错题主题匹配的练习。" : "将文档/导图放在前置推送，再衔接题库与实操。",
+    ],
+    plan_adjustments: [
+      nextPath ? `下一步先完成：${nextPath}` : "先生成或更新一个学习路径，再按待办推进。",
+      "每完成一组练习后立即更新错题本，并重新生成评估。",
+    ],
+    next_checkpoints: [
+      "本轮结束后能否复述核心概念和常见错误。",
+      "基础题正确率是否稳定，错题原因是否能被归类。",
+      "是否完成至少一个迁移应用或实操任务。",
+    ],
+  };
+}
+
+async function generateLearningAssessment() {
+  if (state.assessmentGenerating) return;
+  const evidence = buildLearningEvidence();
+  state.assessmentGenerating = true;
+  renderAssessmentPage();
+  const fallback = buildFallbackAssessment(evidence);
+  if (USE_BROWSER_API_KEY && !state.apiKey) state.apiKey = localStorage.getItem(API_KEY_STORAGE) || "";
+  if (USE_BROWSER_API_KEY && !state.apiKey) {
+    saveLearningAssessment(fallback);
+    state.assessmentGenerating = false;
+    renderAssessmentPage();
+    return;
+  }
+  const system = `你是学习效果评估与个性化学习优化 Agent。只输出合法 JSON，不要 Markdown 代码块。
+你要基于学习行为、练习测试、资源使用反馈、错题记录、路径完成度和学生画像，做多维度精准评估，并给出动态资源推送策略和学习计划调整。
+
+输出 JSON 格式：
+{
+  "generated_at": string,
+  "overall_score": number,
+  "overall_level": string,
+  "summary": string,
+  "dimensions": [{"name": string, "score": number, "level": string, "evidence": string, "action": string}],
+  "strengths": [string],
+  "risks": [string],
+  "resource_strategy": [string],
+  "plan_adjustments": [string],
+  "next_checkpoints": [string]
+}
+
+规则：
+- dimensions 必须覆盖学习投入、知识掌握、练习反馈、资源利用、路径执行、动态优化中的至少 5 个。
+- 每个 score 为 0-100，evidence 必须引用输入证据，不要编造不存在的测试成绩。
+- resource_strategy 要说明资源推送如何根据评估结果变化，例如先推题库、视频、导图、文档、实操或错题复盘。
+- plan_adjustments 要能直接改学习路径和下一步行动。
+- 如果证据不足，要明确说明缺口，并安排诊断题、错题记录或阶段待办来补证据。`;
+  try {
+    const res = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: buildChatHeaders(),
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: `学习证据包：\n${JSON.stringify(evidence, null, 2)}` },
+        ],
+        stream: false,
+        temperature: 0.25,
+      }),
+    });
+    if (!res.ok) throw new Error(await res.text().catch(() => "评估生成失败"));
+    const data = await res.json().catch(() => null);
+    const parsed = extractJsonObject(data?.choices?.[0]?.message?.content || "");
+    if (!parsed) throw new Error("模型未返回有效评估 JSON");
+    saveLearningAssessment(parsed);
+  } catch (e) {
+    console.warn("大模型评估失败，使用本地评估兜底", e);
+    saveLearningAssessment({
+      ...fallback,
+      summary: `${fallback.summary}（大模型评估暂不可用，已使用本地规则兜底。）`,
+    });
+  } finally {
+    state.assessmentGenerating = false;
+    renderAssessmentPage();
+  }
+}
+
 function getPathCategories() {
   reindexLearningPathLibrary();
   return Object.keys(state.learningPathLibrary || {})
@@ -3603,6 +3971,132 @@ function renderPushPage() {
   `;
 }
 
+function formatAssessmentTime(value) {
+  if (!value) return "尚未生成";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function renderAssessmentList(title, items, className = "") {
+  const list = normalizeAssessmentList(items);
+  return `
+    <section class="assessment-panel ${className}">
+      <h3>${escapeHtml(title)}</h3>
+      <ul>
+        ${list.length
+          ? list.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+          : `<li>暂无足够证据，继续学习后可重新生成。</li>`}
+      </ul>
+    </section>
+  `;
+}
+
+function renderAssessmentPage() {
+  if (!el.assessmentGrid) return;
+  const evidence = buildLearningEvidence();
+  const assessment = state.learningAssessment || buildFallbackAssessment(evidence);
+  const dimensions = normalizeDimensions(assessment.dimensions, []);
+  const weakDimensions = dimensions.filter((item) => item.score < 70).slice(0, 3);
+  const activeData = getActivePathData();
+  const pathProgress = evidence.path_progress;
+  const resourceUsage = evidence.resource_usage;
+  const mistakeTotal = evidence.mistake_performance.total;
+  if (state.assessmentGenerating) {
+    el.assessmentGrid.innerHTML = `
+      <section class="assessment-hero">
+        <div>
+          <div class="resource-type">大模型学习评估</div>
+          <h2>正在分析学习行为与练习反馈...</h2>
+          <p>系统正在整合画像、对话、资源使用、错题本和路径待办，生成下一轮动态优化建议。</p>
+        </div>
+        <div class="assessment-score-ring"><span>AI</span><small>分析中</small></div>
+      </section>
+    `;
+    return;
+  }
+  el.assessmentGrid.innerHTML = `
+    <section class="assessment-hero">
+      <div>
+        <div class="resource-type">综合学习效果</div>
+        <h2>${escapeHtml(assessment.overall_level)}</h2>
+        <p>${escapeHtml(assessment.summary)}</p>
+        <div class="assessment-meta">
+          <span>更新时间：${escapeHtml(formatAssessmentTime(assessment.generated_at))}</span>
+          <span>当前大类：${escapeHtml(activeData?.category || state.activePathCategory || "待生成路径")}</span>
+        </div>
+      </div>
+      <div class="assessment-score-ring" style="--score: ${clampScore(assessment.overall_score)}">
+        <span>${clampScore(assessment.overall_score)}</span>
+        <small>综合分</small>
+      </div>
+    </section>
+    <section class="assessment-signal-grid">
+      <article>
+        <span>路径完成</span>
+        <strong>${pathProgress.done}/${pathProgress.total}</strong>
+        <em>${pathProgress.percent}%</em>
+      </article>
+      <article>
+        <span>资源使用</span>
+        <strong>${resourceUsage.total}</strong>
+        <em>${evidence.resources.generated_count} 类资源</em>
+      </article>
+      <article>
+        <span>练习反馈</span>
+        <strong>${mistakeTotal}</strong>
+        <em>错题/疑惑</em>
+      </article>
+      <article>
+        <span>学习互动</span>
+        <strong>${evidence.chat.user_question_count}</strong>
+        <em>提问轮次</em>
+      </article>
+    </section>
+    <section class="assessment-panel assessment-dimensions">
+      <div class="assessment-panel-head">
+        <h3>多维度评估</h3>
+        <span>${dimensions.length} 个维度</span>
+      </div>
+      <div class="assessment-dimension-list">
+        ${dimensions.map((item) => `
+          <article class="assessment-dimension">
+            <div class="assessment-dimension-head">
+              <strong>${escapeHtml(item.name)}</strong>
+              <span>${item.score}</span>
+            </div>
+            <div class="assessment-bar"><div style="width: ${item.score}%"></div></div>
+            <div class="assessment-level">${escapeHtml(item.level)}</div>
+            <p>${escapeHtml(item.evidence)}</p>
+            <em>${escapeHtml(item.action)}</em>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+    <div class="assessment-two-col">
+      ${renderAssessmentList("优势信号", assessment.strengths, "assessment-good")}
+      ${renderAssessmentList("风险与薄弱点", assessment.risks, "assessment-risk")}
+    </div>
+    <div class="assessment-two-col">
+      ${renderAssessmentList("动态资源推送策略", assessment.resource_strategy)}
+      ${renderAssessmentList("学习计划调整", assessment.plan_adjustments)}
+    </div>
+    ${renderAssessmentList("下一次检查点", assessment.next_checkpoints, "assessment-checkpoints")}
+    ${weakDimensions.length ? `
+      <section class="assessment-panel assessment-next-action">
+        <h3>建议立即优化</h3>
+        <p>${escapeHtml(weakDimensions.map((item) => `${item.name}：${item.action}`).join("；"))}</p>
+        <button class="primary-btn" type="button" data-assessment-go-path>查看路径待办</button>
+      </section>
+    ` : ""}
+  `;
+}
+
 function renderLearningResources() {
   if (!el.resourceGrid) return;
   renderAgentPipeline(state.resourcesGenerating ? "running" : state.learningResources ? "done" : "idle");
@@ -3833,7 +4327,14 @@ ${JSON.stringify(learningSignals, null, 2)}
     const text = data?.choices?.[0]?.message?.content || "";
     const parsed = extractJsonObject(text);
     if (!parsed?.resources?.length) throw new Error("模型未返回有效资源 JSON");
-    saveLearningResources(normalizeGeneratedResources(parsed, demand));
+    const normalized = normalizeGeneratedResources(parsed, demand);
+    saveLearningResources(normalized);
+    recordLearningBehavior("resource_generated", {
+      category: normalized.category,
+      topic: normalized.topic,
+      title: demand,
+      meta: { resourceCount: normalized.resources.length },
+    });
   } catch (e) {
     console.error(e);
     el.resourceGrid.innerHTML = `<div class="resource-empty">资源生成失败：${escapeHtml(String(e?.message || e))}</div>`;
@@ -4262,6 +4763,7 @@ function ensureChatVisible() {
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
   if (el.mistakePage) el.mistakePage.hidden = true;
   el.home.hidden = true;
@@ -4271,6 +4773,7 @@ function ensureChatVisible() {
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
 }
@@ -4293,6 +4796,7 @@ function showHome() {
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
   if (el.mistakePage) el.mistakePage.hidden = true;
   if (el.home) el.home.hidden = false;
@@ -4301,6 +4805,7 @@ function showHome() {
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("");
@@ -4314,6 +4819,7 @@ function showProfilePage() {
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
   if (el.mistakePage) el.mistakePage.hidden = true;
   el.profilePage.hidden = false;
@@ -4322,6 +4828,7 @@ function showProfilePage() {
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("#profile");
@@ -4336,6 +4843,7 @@ function showResourcePage() {
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
   if (el.mistakePage) el.mistakePage.hidden = true;
   el.resourcePage.hidden = false;
@@ -4344,6 +4852,7 @@ function showResourcePage() {
   el.profilePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("#resources");
@@ -4358,6 +4867,7 @@ function showPushPage() {
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
   if (el.mistakePage) el.mistakePage.hidden = true;
   el.pushPage.hidden = false;
@@ -4366,6 +4876,7 @@ function showPushPage() {
   el.profilePageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("#push");
@@ -4380,6 +4891,7 @@ function showPathPage() {
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
   if (el.mistakePage) el.mistakePage.hidden = true;
   el.pathPage.hidden = false;
@@ -4388,10 +4900,35 @@ function showPathPage() {
   el.profilePageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("#path");
   renderLearningPathPanel();
+}
+
+function showAssessmentPage() {
+  if (!el.assessmentPage) return;
+  setComposerVisible(false);
+  if (el.home) el.home.hidden = true;
+  if (el.chat) el.chat.hidden = true;
+  if (el.profilePage) el.profilePage.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
+  if (el.pushPage) el.pushPage.hidden = true;
+  if (el.pathPage) el.pathPage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
+  if (el.mistakePage) el.mistakePage.hidden = true;
+  el.assessmentPage.hidden = false;
+  el.assessmentPageBtn?.classList.add("active");
+  el.chatPageBtn?.classList.remove("active");
+  el.profilePageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
+  el.pushPageBtn?.classList.remove("active");
+  el.pathPageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
+  el.mistakePageBtn?.classList.remove("active");
+  setPageHash("#assessment");
+  renderAssessmentPage();
 }
 
 function showStoragePage() {
@@ -4403,6 +4940,7 @@ function showStoragePage() {
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.mistakePage) el.mistakePage.hidden = true;
   el.storagePage.hidden = false;
   el.storagePageBtn?.classList.add("active");
@@ -4411,6 +4949,7 @@ function showStoragePage() {
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("#storage");
   renderStoragePage();
@@ -4425,6 +4964,7 @@ function showMistakePage() {
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
   el.mistakePage.hidden = false;
   el.mistakePageBtn?.classList.add("active");
@@ -4433,6 +4973,7 @@ function showMistakePage() {
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   setPageHash("#mistakes");
   renderMistakeBookPage();
@@ -4456,6 +4997,8 @@ function restoreViewFromHash() {
     showPushPage();
   } else if (window.location.hash === "#path") {
     showPathPage();
+  } else if (window.location.hash === "#assessment") {
+    showAssessmentPage();
   } else if (window.location.hash === "#storage") {
     showStoragePage();
   } else if (window.location.hash === "#mistakes") {
@@ -4903,6 +5446,12 @@ async function sendCurrentInput() {
   
   const attachedFiles = state.attachedFiles.slice();
   const attachedImagesPreview = state.attachedImages.slice();
+  recordLearningBehavior("chat_question", {
+    category: categorizeKnowledge(text, text),
+    topic: text,
+    title: compactDemandText(text || "图片学习问题"),
+    meta: { imageCount: attachedFiles.length },
+  });
 
   
   el.input.value = "";
@@ -4949,6 +5498,12 @@ function initEventHandlers() {
   el.pushGenerateResourcesBtn?.addEventListener("click", showResourcePage);
   el.pathPageBtn?.addEventListener("click", showPathPage);
   el.pathGenerateResourcesBtn?.addEventListener("click", showResourcePage);
+  el.assessmentPageBtn?.addEventListener("click", showAssessmentPage);
+  el.generateAssessmentBtn?.addEventListener("click", () => void generateLearningAssessment());
+  el.assessmentGrid?.addEventListener("click", (e) => {
+    const btn = e.target instanceof HTMLElement ? e.target.closest("[data-assessment-go-path]") : null;
+    if (btn) showPathPage();
+  });
   el.learningPathPanel?.addEventListener("change", (e) => {
     const input = e.target instanceof HTMLInputElement ? e.target : null;
     if (!input || !input.matches("[data-path-todo]")) return;
@@ -4956,8 +5511,18 @@ function initEventHandlers() {
     if (!key) return;
     if (input.checked) {
       state.learningPathTodoDone[key] = true;
+      recordLearningBehavior("path_todo_done", {
+        category: state.activePathCategory,
+        topic: getActivePathData()?.topic || "",
+        title: key,
+      });
     } else {
       delete state.learningPathTodoDone[key];
+      recordLearningBehavior("path_todo_reopen", {
+        category: state.activePathCategory,
+        topic: getActivePathData()?.topic || "",
+        title: key,
+      });
     }
     saveLearningPathTodoDone();
     renderLearningPathPanel();
@@ -4978,7 +5543,17 @@ function initEventHandlers() {
     const openBtn = e.target instanceof HTMLElement ? e.target.closest("[data-push-open-index], [data-push-resource-index]") : null;
     if (!openBtn) return;
     const index = Number(openBtn.getAttribute("data-push-open-index") || openBtn.getAttribute("data-push-resource-index"));
-    if (Number.isInteger(index)) openPushResourceDetail(index);
+    if (Number.isInteger(index)) {
+      const activeData = getActivePathData();
+      const resource = activeData?.resources?.[index];
+      recordLearningBehavior("push_open", {
+        category: activeData?.category,
+        topic: activeData?.topic,
+        title: resource?.title || "",
+        meta: { resourceType: resource?.type || "" },
+      });
+      openPushResourceDetail(index);
+    }
   });
   el.pushGrid?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
@@ -4986,7 +5561,17 @@ function initEventHandlers() {
     if (!card) return;
     e.preventDefault();
     const index = Number(card.getAttribute("data-push-resource-index"));
-    if (Number.isInteger(index)) openPushResourceDetail(index);
+    if (Number.isInteger(index)) {
+      const activeData = getActivePathData();
+      const resource = activeData?.resources?.[index];
+      recordLearningBehavior("push_open", {
+        category: activeData?.category,
+        topic: activeData?.topic,
+        title: resource?.title || "",
+        meta: { resourceType: resource?.type || "" },
+      });
+      openPushResourceDetail(index);
+    }
   });
   el.pushDetailClose?.addEventListener("click", closePushResourceDetail);
   el.pushDetailModal?.addEventListener("click", (e) => {
@@ -5017,6 +5602,12 @@ function initEventHandlers() {
       const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
       if (exercise) {
         addExerciseToMistakeBook(exercise, resource);
+        recordLearningBehavior("mistake_added", {
+          category: exercise.knowledge || resource?.category || activeData?.category,
+          topic: resource?.title || "",
+          title: exercise.question || "",
+          meta: { difficulty: exercise.difficulty || "", type: exercise.type || "" },
+        });
         mistakeBtn.textContent = "已加入错题本";
       }
     }
@@ -5034,7 +5625,16 @@ function initEventHandlers() {
     const renderVideoBtn = e.target instanceof HTMLElement ? e.target.closest("[data-render-video]") : null;
     if (renderVideoBtn) {
       const index = Number(renderVideoBtn.getAttribute("data-render-video"));
-      if (Number.isInteger(index)) void renderResourceVideo(index);
+      if (Number.isInteger(index)) {
+        const resource = state.learningResources?.resources?.[index];
+        recordLearningBehavior("video_render", {
+          category: state.learningResources?.category,
+          topic: state.learningResources?.topic,
+          title: resource?.title || "",
+          meta: { resourceType: resource?.type || "" },
+        });
+        void renderResourceVideo(index);
+      }
       return;
     }
     const downloadVideoBtn = e.target instanceof HTMLElement ? e.target.closest("[data-download-video]") : null;
@@ -5058,7 +5658,16 @@ function initEventHandlers() {
     const downloadBtn = e.target instanceof HTMLElement ? e.target.closest("[data-resource-download-index]") : null;
     if (downloadBtn) {
       const index = Number(downloadBtn.getAttribute("data-resource-download-index"));
-      if (Number.isInteger(index)) storeAndDownloadResource(index);
+      if (Number.isInteger(index)) {
+        const resource = state.learningResources?.resources?.[index];
+        recordLearningBehavior("resource_download", {
+          category: state.learningResources?.category,
+          topic: state.learningResources?.topic,
+          title: resource?.title || "",
+          meta: { resourceType: resource?.type || "" },
+        });
+        storeAndDownloadResource(index);
+      }
       return;
     }
     const mistakeBtn = e.target instanceof HTMLElement ? e.target.closest("[data-add-mistake]") : null;
@@ -5070,6 +5679,12 @@ function initEventHandlers() {
       const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
       if (exercise) {
         addExerciseToMistakeBook(exercise, resource);
+        recordLearningBehavior("mistake_added", {
+          category: exercise.knowledge || state.learningResources?.category,
+          topic: resource?.title || "",
+          title: exercise.question || "",
+          meta: { difficulty: exercise.difficulty || "", type: exercise.type || "" },
+        });
         mistakeBtn.textContent = "已加入错题本";
       }
       return;
@@ -5085,7 +5700,18 @@ function initEventHandlers() {
     preview.hidden = !expanded;
     btn.setAttribute("aria-expanded", String(!expanded));
     btn.textContent = expanded ? "展开全文" : "收起";
-    if (expanded) initMindmapCanvases(body);
+    if (!expanded) {
+      const cards = Array.from(el.resourceGrid?.querySelectorAll(".resource-card") || []);
+      const index = cards.indexOf(card);
+      const resource = state.learningResources?.resources?.[index];
+      recordLearningBehavior("resource_open", {
+        category: state.learningResources?.category,
+        topic: state.learningResources?.topic,
+        title: resource?.title || "",
+        meta: { resourceType: resource?.type || "" },
+      });
+      initMindmapCanvases(body);
+    }
   });
   el.resourceGrid?.addEventListener("input", (e) => {
     const slider = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-width]") : null;
@@ -5144,22 +5770,34 @@ function initEventHandlers() {
     const file = state.storedMarkdownFiles.find((item) => item.id === id);
     if (action === "rename-category" && category) renameStorageCategory(category);
     if (action === "delete-category" && category) deleteStorageCategory(category);
-    if (action === "open-file" && file) openStorageFile(file);
-    if (action === "download-file" && file) downloadMarkdownFile(file);
+    if (action === "open-file" && file) {
+      recordLearningBehavior("storage_open", { category: file.category, title: file.title || file.filename });
+      openStorageFile(file);
+    }
+    if (action === "download-file" && file) {
+      recordLearningBehavior("storage_download", { category: file.category, title: file.title || file.filename });
+      downloadMarkdownFile(file);
+    }
     if (action === "delete-file" && id) deleteStorageFile(id);
   });
   el.storageGrid?.addEventListener("dblclick", (e) => {
     const card = e.target instanceof HTMLElement ? e.target.closest("[data-storage-file-id]") : null;
     const id = card?.getAttribute("data-storage-file-id");
     const file = state.storedMarkdownFiles.find((item) => item.id === id);
-    if (file) openStorageFile(file);
+    if (file) {
+      recordLearningBehavior("storage_open", { category: file.category, title: file.title || file.filename });
+      openStorageFile(file);
+    }
   });
   el.storageGrid?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter") return;
     const card = e.target instanceof HTMLElement ? e.target.closest("[data-storage-file-id]") : null;
     const id = card?.getAttribute("data-storage-file-id");
     const file = state.storedMarkdownFiles.find((item) => item.id === id);
-    if (file) openStorageFile(file);
+    if (file) {
+      recordLearningBehavior("storage_open", { category: file.category, title: file.title || file.filename });
+      openStorageFile(file);
+    }
   });
   el.mistakeBookGrid?.addEventListener("click", (e) => {
     const target = e.target instanceof HTMLElement ? e.target : null;
@@ -5196,7 +5834,10 @@ function initEventHandlers() {
   });
   el.storageDownloadFileBtn?.addEventListener("click", () => {
     const file = getActiveStorageFile();
-    if (file) downloadMarkdownFile(file);
+    if (file) {
+      recordLearningBehavior("storage_download", { category: file.category, title: file.title || file.filename });
+      downloadMarkdownFile(file);
+    }
   });
   el.storageDeleteFileBtn?.addEventListener("click", () => {
     const file = getActiveStorageFile();
@@ -5421,6 +6062,7 @@ function init() {
   }
   state.studentProfile = loadStudentProfile();
   state.learningDemandEvents = loadLearningDemandEvents();
+  state.learningBehaviorEvents = loadLearningBehaviorEvents();
   state.learningPathLibrary = loadLearningPathLibrary();
   const persistedActivePathCategory = loadActivePathCategory();
   state.activePathCategory = persistedActivePathCategory;
@@ -5433,12 +6075,14 @@ function init() {
   state.storedMarkdownFiles = loadStoredMarkdownFiles();
   state.mistakeBookItems = loadMistakeBookItems();
   state.mistakeBookGroupBy = loadMistakeBookGroupBy();
+  state.learningAssessment = loadLearningAssessment();
   state.storageEditorSplit = loadStorageEditorSplit();
   applyStorageEditorSplit(state.storageEditorSplit);
   renderStudentProfile();
   renderLearningResources();
   renderStoragePage();
   renderMistakeBookPage();
+  renderAssessmentPage();
   initTheme();
   initApiKeyModal();
   initEventHandlers();
