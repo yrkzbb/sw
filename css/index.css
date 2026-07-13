@@ -898,6 +898,65 @@ button.agent-card:hover {
   margin: 9px 0;
 }
 
+.mindmap-view {
+  display: grid;
+  gap: 16px;
+  padding: 10px 0 4px;
+}
+
+.mindmap-center {
+  justify-self: center;
+  border: 1px solid rgba(33, 212, 165, 0.38);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(33, 212, 165, 0.18), rgba(120, 109, 255, 0.16));
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 950;
+  padding: 14px 22px;
+  text-align: center;
+}
+
+.mindmap-branches {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mindmap-branch {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.055);
+  position: relative;
+}
+
+[data-theme="light"] .mindmap-branch {
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.mindmap-branch-title {
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 950;
+  margin-bottom: 8px;
+}
+
+.mindmap-branch ul {
+  margin: 0;
+  padding-left: 18px;
+  color: var(--muted);
+  line-height: 1.65;
+}
+
+.mindmap-path {
+  border: 1px dashed rgba(120, 109, 255, 0.35);
+  border-radius: 14px;
+  color: var(--muted);
+  background: rgba(120, 109, 255, 0.08);
+  padding: 12px 14px;
+  line-height: 1.7;
+}
+
 .resource-body :where(ul, ol) {
   padding-left: 18px;
 }

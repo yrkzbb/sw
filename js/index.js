@@ -565,6 +565,88 @@ function renderResourceMarkdown(markdown) {
   return wrap.innerHTML;
 }
 
+function renderMindmapResource(content, title) {
+  const data = normalizeMindmapContent(content, title);
+  const branches = Array.isArray(data.branches) ? data.branches : [];
+  return `
+    <div class="mindmap-view">
+      <div class="mindmap-center">${escapeHtml(data.center || title || "知识图谱")}</div>
+      <div class="mindmap-branches">
+        ${branches.map((branch) => `
+          <section class="mindmap-branch">
+            <div class="mindmap-branch-title">${escapeHtml(branch.title || "分支")}</div>
+            <ul>
+              ${(branch.children || []).map((child) => `<li>${escapeHtml(child)}</li>`).join("")}
+            </ul>
+          </section>
+        `).join("")}
+      </div>
+      ${data.path ? `<div class="mindmap-path"><strong>复习路径：</strong>${escapeHtml(data.path)}</div>` : ""}
+    </div>
+  `;
+}
+
+function normalizeMindmapContent(content, title) {
+  if (content && typeof content === "object" && !Array.isArray(content)) {
+    return content;
+  }
+  const text = resourcePlainText(content);
+  const center = title || text.match(/根节点[:：]\s*(.+)/)?.[1] || "知识图谱";
+  if (!isPoorMindmap(text)) {
+    const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+    const branches = [];
+    let current = null;
+    for (const line of lines) {
+      const clean = line.replace(/^[-*#\s]+/, "").replace(/^子节点[:：]\s*/, "").replace(/^分支[:：]\s*/, "");
+      if (!clean || /^mindmap$/i.test(clean) || /^root/i.test(clean)) continue;
+      if (/^[一二三四五六七八九十\d]+[.、]|：|:$/.test(clean) || branches.length === 0) {
+        current = { title: clean.replace(/[:：]$/, ""), children: [] };
+        branches.push(current);
+      } else if (current) {
+        current.children.push(clean);
+      }
+    }
+    if (branches.length >= 3) return { center, branches: branches.slice(0, 6), path: "先抓主干概念，再补典型题型，最后用错题回查薄弱分支。" };
+  }
+  return buildFallbackMindmap(center);
+}
+
+function isPoorMindmap(text) {
+  if (!text || text.length < 80) return true;
+  if (/子节点[:：]\s*(定义|应用|计算方法|规则)/.test(text)) return true;
+  const repeated = (text.match(/子节点[:：]/g) || []).length;
+  return repeated >= 5 && !/[├└→]|Mermaid|:::|复习路径|关联/.test(text);
+}
+
+function buildFallbackMindmap(topic) {
+  const isMath = /高等数学|高数|微积分|大学.*数学|考研数学|极限|导数|积分/.test(topic || "");
+  if (isMath) {
+    return {
+      center: topic || "大学高等数学复习",
+      branches: [
+        { title: "函数与极限", children: ["函数性质：单调性、奇偶性、周期性", "极限计算：等价无穷小、洛必达、夹逼", "连续性：间断点分类、闭区间性质"] },
+        { title: "导数与微分", children: ["导数定义与几何意义", "求导法则：复合、隐函数、参数方程", "应用：单调性、极值、凹凸性、渐近线"] },
+        { title: "一元积分", children: ["不定积分：换元、分部、常见凑微分", "定积分：性质、变上限函数", "应用：面积、体积、物理量"] },
+        { title: "多元函数", children: ["偏导数与全微分", "多元复合函数求导", "极值与条件极值"] },
+        { title: "级数与微分方程", children: ["数项级数敛散性判别", "幂级数收敛域与展开", "一阶/二阶常微分方程解法"] },
+        { title: "易错回查", children: ["先判定义域和条件", "计算题检查等价替换范围", "应用题先画量和变量关系"] },
+      ],
+      path: "极限 -> 导数 -> 积分 -> 多元函数 -> 级数/微分方程；每章按“定义、公式、典型题、易错点”复习。",
+    };
+  }
+  return {
+    center: topic || "知识点复习",
+    branches: [
+      { title: "核心定义", children: ["概念边界", "关键对象", "适用条件"] },
+      { title: "基本规则", children: ["公式或语法", "步骤流程", "限制条件"] },
+      { title: "典型例题", children: ["基础题", "变式题", "综合题"] },
+      { title: "易错点", children: ["混淆概念", "条件遗漏", "计算或推理错误"] },
+      { title: "应用场景", children: ["课程作业", "考试题型", "项目实践"] },
+    ],
+    path: "先定义，再规则，再例题，最后用易错点反向检查。",
+  };
+}
+
 function resourcePlainText(markdown) {
   if (typeof markdown === "string") return markdown;
   if (Array.isArray(markdown)) {
@@ -819,6 +901,15 @@ function normalizeGeneratedResources(data, demand) {
       doc.content = buildFallbackKnowledgeDocument(subjectText.trim(), doc.title);
     }
   }
+  const mindmap = resources.find((item) => item.type === "知识点思维导图");
+  if (mindmap) {
+    mindmap.agent = "思维导图 Agent";
+    const subjectText = `${demand || ""} ${mindmap.title || ""}`;
+    const contentText = resourcePlainText(mindmap.content);
+    if (isPoorMindmap(contentText)) {
+      mindmap.content = buildFallbackMindmap(subjectText.trim() || mindmap.title);
+    }
+  }
   return { ...data, resources };
 }
 
@@ -851,7 +942,7 @@ function renderLearningResources() {
         <div class="resource-agent">${escapeHtml((SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.type === item.type)?.role || item.agent || "Agent").replace("课程讲解 Agent", "知识文档 Agent").replace("知识讲解 Agent", "知识文档 Agent"))}</div>
       </div>
       <div class="resource-preview">${escapeHtml(preview || "点击展开查看完整内容")}${rawText.length > 170 ? "..." : ""}</div>
-      <div class="resource-body" hidden>${renderResourceMarkdown(item.content || "")}</div>
+      <div class="resource-body" hidden>${item.type === "知识点思维导图" ? renderMindmapResource(item.content || "", item.title) : renderResourceMarkdown(item.content || "")}</div>
       <button class="resource-toggle" type="button" data-resource-index="${index}" aria-expanded="false">展开全文</button>
       ${
         item.type === "专业课程讲解文档"
@@ -887,7 +978,7 @@ async function generateLearningResources() {
 必须体现这些智能体分工：
 1. 需求分析师：解析本次输入的课程主题、知识短板和学习需求；只在相关时参考学生画像。
 2. 知识文档 Agent：生成完整、可直接阅读的专业课程知识正文文档。
-3. 思维导图 Agent：生成知识点思维导图。
+3. 思维导图 Agent：生成结构化知识图谱，不是普通列表。
 4. 练习命题 Agent：生成不同类型练习题。
 5. 阅读拓展 Agent：生成拓展阅读材料。
 6. 多模态脚本 Agent：生成教学视频/动画脚本。
@@ -915,7 +1006,8 @@ content 可以使用 Markdown。
 重要：专业课程讲解文档必须是“知识正文”，不是大纲，也不是“如何学习/如何讲解这个知识”的方法论。它必须直接讲用户指定知识点本身：定义、背景、规则/公式/结构、工作机制、例子、性质、应用边界、易错点、小结。正文控制在约 1300-1700 个中文字符，目标约 1500 字；不能少到只有提纲，也不要写成长篇论文。禁止出现“这份文档会先...”“学习这个主题时可以...”“一个合格的讲解文档应该...”这类元话术。
 如果主题是编译原理、文法、1 型文法、上下文有关文法，知识文档必须讲：乔姆斯基层次、1 型文法定义、产生式形式 αAβ -> αγβ、非收缩性质、S -> ε 例外、与上下文无关文法区别、上下文有关语言、线性有界自动机、典型语言 a^n b^n c^n、判断文法类型的易错点。
 如果主题是算法、数据结构或具体算法名（例如 Floyd、Dijkstra、动态规划、最短路），知识文档必须围绕该算法本身展开，必须包含：问题定义、输入输出、状态/变量含义、核心转移或关键步骤、正确性直觉、复杂度、手推例题、代码示例、易错点。禁止输出与该算法无关的多模态、前端或通用学习法内容。
-练习题必须包含基础题、易错题、迁移应用题；思维导图可用 Mermaid mindmap 或层级列表；视频/动画要包含分镜、旁白、画面元素和互动提问；代码案例要包含任务说明、代码骨架或完整示例、运行/调试提示。`;
+思维导图必须有中心主题、5-7 个一级分支、每个分支 3 个具体二级节点，并给出一条复习路径。禁止输出“子节点：定义/应用/计算方法”这类空泛占位词；每个节点必须是具体知识点或题型，例如“等价无穷小替换”“洛必达法则适用条件”“定积分几何应用”。优先输出结构清晰的层级内容。
+练习题必须包含基础题、易错题、迁移应用题；视频/动画要包含分镜、旁白、画面元素和互动提问；代码案例要包含任务说明、代码骨架或完整示例、运行/调试提示。`;
 
   const user = `本次资源生成主题，必须优先围绕它展开：
 ${demand}
