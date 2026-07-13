@@ -188,6 +188,8 @@ const state = {
   storageSvgZoom: 100,
   storageFullscreenZoom: 100,
   resourcesGenerating: false,
+  lastScrollY: 0,
+  navHidden: false,
   selectedResourceAgents: [],
   learningPathTodoDone: {},
   learningBehaviorEvents: [],
@@ -3592,7 +3594,7 @@ function buildFallbackAssessment(evidence) {
 function updateAssessmentRefreshUi() {
   if (el.generateAssessmentBtn) {
     el.generateAssessmentBtn.disabled = Boolean(state.assessmentGenerating);
-    el.generateAssessmentBtn.textContent = state.assessmentGenerating ? "刷新中..." : "刷新评估";
+    el.generateAssessmentBtn.textContent = state.assessmentGenerating ? "刷新中..." : "刷新复盘";
   }
 }
 
@@ -4021,10 +4023,10 @@ function setAssessmentPullStatus(distance = 0, armed = false, refreshing = false
   el.assessmentPullStatus.classList.toggle("refreshing", Boolean(refreshing));
   el.assessmentPullStatus.style.setProperty("--pull-distance", `${Math.min(72, Math.max(0, distance))}px`);
   el.assessmentPullStatus.textContent = refreshing
-    ? "正在刷新评估..."
+    ? "正在刷新复盘..."
     : armed
-      ? "松开刷新评估"
-      : "下拉刷新评估";
+      ? "松开刷新复盘"
+      : "下拉刷新复盘";
 }
 
 function resetAssessmentPullStatus(delay = 0) {
@@ -4056,7 +4058,7 @@ function renderAssessmentList(title, items, className = "") {
       <ul>
         ${list.length
           ? list.map((item) => `<li>${escapeHtml(studentFriendlyAssessmentText(item))}</li>`).join("")
-          : `<li>暂无足够证据，继续学习后可重新生成。</li>`}
+          : `<li>暂无足够线索，继续学习后可重新生成。</li>`}
       </ul>
     </section>
   `;
@@ -4066,6 +4068,11 @@ function studentFriendlyAssessmentText(text) {
   return String(text || "")
     .replace(/急需/g, "建议")
     .replace(/立即/g, "可以先")
+    .replace(/建议学生进行/g, "可以先")
+    .replace(/建议学生/g, "可以")
+    .replace(/建议你进行/g, "可以先")
+    .replace(/建议你/g, "可以")
+    .replace(/建议进行/g, "可以先")
     .replace(/没有任何/g, "还没有")
     .replace(/未进行任何/g, "还没有开始")
     .replace(/极低/g, "刚起步")
@@ -4075,6 +4082,15 @@ function studentFriendlyAssessmentText(text) {
     .replace(/风险/g, "提醒")
     .replace(/薄弱/g, "待补")
     .replace(/学生/g, "你")
+    .replace(/动机评估/g, "确认这轮为什么学、要学到哪一步")
+    .replace(/知识评估/g, "起步检测")
+    .replace(/诊断测试/g, "一两道起步题")
+    .replace(/诊断题/g, "起步题")
+    .replace(/学习效果/g, "学习情况")
+    .replace(/评估/g, "复盘")
+    .replace(/证据不足/g, "线索还不够")
+    .replace(/证据/g, "线索")
+    .replace(/用户/g, "你")
     .trim();
 }
 
@@ -4084,7 +4100,7 @@ function assessmentTone(score) {
     return {
       label: "节奏很好",
       title: "这轮学习已经比较稳了",
-      summary: "你已经积累了不少有效证据，可以继续做迁移练习，把知识用到更真实的任务里。",
+      summary: "你已经积累了不少有效线索，可以继续做迁移练习，把知识用到更真实的任务里。",
       mood: "steady",
     };
   }
@@ -4098,9 +4114,9 @@ function assessmentTone(score) {
   }
   if (n >= 35) {
     return {
-      label: "需要补证据",
+      label: "线索还不够",
       title: "先把下一步做小一点",
-      summary: "当前不是学得不好，而是系统还缺少足够的练习、路径完成和资源使用证据。先完成一两个小任务，评估会更准。",
+      summary: "当前不是学得不好，而是复盘还缺少足够的练习、路径完成和资料使用线索。先完成一两个小任务，复盘会更准。",
       mood: "warming",
     };
   }
@@ -4165,7 +4181,7 @@ function studentDimensionName(name) {
     .replace("路径执行", "计划推进")
     .replace("资源利用", "资料使用")
     .replace("练习反馈", "练习复盘")
-    .replace("知识掌握", "掌握证据")
+    .replace("知识掌握", "掌握线索")
     .replace("动态优化", "计划调整");
 }
 
@@ -4224,7 +4240,7 @@ function renderAssessmentPage() {
       <div class="assessment-student-status">
         <span>${escapeHtml(tone.label)}</span>
         <strong>${clampScore(assessment.overall_score)}%</strong>
-        <em>学习证据完整度</em>
+        <em>复盘线索完整度</em>
       </div>
     </section>
     <section class="assessment-focus-card">
@@ -4249,7 +4265,7 @@ function renderAssessmentPage() {
     </section>
     <div class="assessment-two-col">
       ${renderAssessmentList("已经做得不错的地方", assessment.strengths, "assessment-good")}
-      ${renderAssessmentList("接下来先补的证据", assessment.risks, "assessment-risk")}
+      ${renderAssessmentList("接下来先补一点", assessment.risks, "assessment-risk")}
     </div>
     <div class="assessment-two-col">
       ${renderAssessmentList("资源会怎么推给你", assessment.resource_strategy)}
@@ -5396,6 +5412,22 @@ function closeImageLightbox() {
   document.body.style.overflow = "";
 }
 
+function updateTopNavVisibility() {
+  if (!el.root) return;
+  const currentY = window.scrollY || 0;
+  const delta = currentY - state.lastScrollY;
+  const shouldHide = currentY > 170 && delta > 6;
+  const shouldShow = currentY < 80 || delta < -6;
+  if (shouldHide && !state.navHidden) {
+    state.navHidden = true;
+    document.body.classList.add("nav-hidden");
+  } else if (shouldShow && state.navHidden) {
+    state.navHidden = false;
+    document.body.classList.remove("nav-hidden");
+  }
+  state.lastScrollY = currentY;
+}
+
 /** 将 DashScope/OpenAI 兼容流式 data 行解析进 typingBuffer */
 function applyDashscopeSsePayload(payload) {
   if (payload === "[DONE]") {
@@ -6076,6 +6108,7 @@ function initEventHandlers() {
     const fullscreen = document.querySelector("#storageSvgFullscreen");
     if (fullscreen && !fullscreen.hidden) requestAnimationFrame(fitStorageFullscreenSvg);
   });
+  window.addEventListener("scroll", updateTopNavVisibility, { passive: true });
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);
 
