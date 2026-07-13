@@ -608,9 +608,11 @@ function renderMindmapResource(content, title) {
   const leftBranches = branches.filter((_, index) => index % 2 === 1);
   const rightBranches = branches.filter((_, index) => index % 2 === 0);
   const maxSide = Math.max(leftBranches.length, rightBranches.length, 2);
-  const height = Math.max(620, maxSide * 190 + 140);
-  const width = 1320;
-  const center = { x: 660, y: Math.round(height / 2), w: 290, h: 82 };
+  const maxBranchChildren = Math.max(1, ...branches.map((branch) => Math.min((branch.children || []).length, 4)));
+  const branchGap = Math.max(190, maxBranchChildren * 46 + 54);
+  const height = Math.max(680, maxSide * branchGap + 160);
+  const width = 1420;
+  const center = { x: Math.round(width / 2), y: Math.round(height / 2), w: 290, h: 82 };
   const branchColors = ["mint", "blue", "pink", "yellow", "green", "violet", "cyan"];
   const paths = [];
   const nodes = [
@@ -619,15 +621,15 @@ function renderMindmapResource(content, title) {
 
   function layoutSide(sideBranches, side) {
     const isLeft = side === "left";
-    const branchX = isLeft ? 350 : 970;
-    const childX = isLeft ? 80 : 1095;
-    const branchW = 220;
+    const branchX = isLeft ? 470 : 950;
+    const childX = isLeft ? 28 : 1222;
+    const branchW = 240;
     const branchH = 58;
     const childW = 170;
     const childH = 34;
-    const startY = center.y - ((sideBranches.length - 1) * 170) / 2;
+    const startY = center.y - ((sideBranches.length - 1) * branchGap) / 2;
     sideBranches.forEach((branch, index) => {
-      const y = Math.round(startY + index * 170);
+      const y = Math.round(startY + index * branchGap);
       const color = branchColors[index % branchColors.length];
       const branchLeft = isLeft ? branchX - branchW : branchX;
       const branchId = `${side}-branch-${index}`;
@@ -650,8 +652,9 @@ function renderMindmapResource(content, title) {
     <div class="mindmap-view" data-mindmap-id="${mapId}">
       <div class="mindmap-toolbar">
         <label class="mindmap-width-control">宽度
-          <input type="range" min="1000" max="1800" value="${width}" step="20" data-mindmap-width />
+          <input type="range" min="1320" max="1900" value="${width}" step="20" data-mindmap-width />
         </label>
+        <button class="resource-toggle" type="button" data-mindmap-layout>整理布局</button>
         <button class="resource-toggle" type="button" data-mindmap-export>导出 SVG</button>
       </div>
       <div class="mindmap-canvas-wrap">
@@ -756,6 +759,70 @@ function updateMindmapLines(canvas) {
 
 function initMindmapCanvases(root = document) {
   root.querySelectorAll(".mindmap-canvas").forEach(updateMindmapLines);
+}
+
+function autoLayoutMindmapCanvas(canvas, preferredWidth) {
+  if (!canvas) return;
+  const width = Math.max(1320, Math.round(preferredWidth || canvas.offsetWidth || 1420));
+  const centerNode = canvas.querySelector('[data-node-id="center"]');
+  const sides = ["left", "right"];
+  const branchGroups = Object.fromEntries(sides.map((side) => {
+    const branches = [...canvas.querySelectorAll(`.mindmap-node[data-node-id^="${side}-branch-"]:not([data-node-id*="-leaf-"])`)]
+      .sort((a, b) => Number(a.dataset.nodeId.match(/branch-(\d+)/)?.[1] || 0) - Number(b.dataset.nodeId.match(/branch-(\d+)/)?.[1] || 0));
+    return [side, branches];
+  }));
+  const maxSide = Math.max(branchGroups.left.length, branchGroups.right.length, 2);
+  const maxChildren = Math.max(1, ...sides.flatMap((side) => branchGroups[side].map((branch) => {
+    const id = branch.dataset.nodeId;
+    return canvas.querySelectorAll(`.mindmap-node[data-node-id^="${id}-leaf-"]`).length;
+  })));
+  const branchGap = Math.max(190, maxChildren * 46 + 54);
+  const height = Math.max(680, maxSide * branchGap + 160);
+  const centerW = centerNode?.offsetWidth || 290;
+  const centerH = centerNode?.offsetHeight || 82;
+  const centerX = Math.round(width / 2);
+  const centerY = Math.round(height / 2);
+  const branchW = 240;
+  const branchH = 58;
+  const childW = 170;
+  const childH = 34;
+  const sideInset = 28;
+  const leftBranchRight = Math.max(455, centerX - 240);
+  const rightBranchLeft = Math.min(width - 455, centerX + 240);
+  const rightChildLeft = width - sideInset - childW;
+
+  canvas.style.width = `${width}px`;
+  canvas.style.minWidth = `${width}px`;
+  canvas.style.height = `${height}px`;
+  const svg = canvas.querySelector(".mindmap-lines");
+  svg?.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  if (centerNode) {
+    centerNode.style.left = `${centerX - centerW / 2}px`;
+    centerNode.style.top = `${centerY - centerH / 2}px`;
+  }
+
+  sides.forEach((side) => {
+    const isLeft = side === "left";
+    const branches = branchGroups[side];
+    const startY = centerY - ((branches.length - 1) * branchGap) / 2;
+    branches.forEach((branch, index) => {
+      const y = Math.round(startY + index * branchGap);
+      branch.style.left = `${isLeft ? leftBranchRight - branchW : rightBranchLeft}px`;
+      branch.style.top = `${y - branchH / 2}px`;
+      branch.style.width = `${branchW}px`;
+      branch.style.minHeight = `${branchH}px`;
+      const children = [...canvas.querySelectorAll(`.mindmap-node[data-node-id^="${branch.dataset.nodeId}-leaf-"]`)]
+        .sort((a, b) => Number(a.dataset.nodeId.match(/leaf-(\d+)/)?.[1] || 0) - Number(b.dataset.nodeId.match(/leaf-(\d+)/)?.[1] || 0));
+      children.forEach((child, childIndex) => {
+        const childY = y + (childIndex - children.length / 2 + 0.5) * 46;
+        child.style.left = `${isLeft ? sideInset : rightChildLeft}px`;
+        child.style.top = `${childY - childH / 2}px`;
+        child.style.width = `${childW}px`;
+        child.style.minHeight = `${childH}px`;
+      });
+    });
+  });
+  updateMindmapLines(canvas);
 }
 
 function exportMindmapSvg(canvas) {
@@ -2269,7 +2336,7 @@ function initEventHandlers() {
     if (id) toggleResourceAgent(id);
   });
   el.resourceGrid?.addEventListener("click", (e) => {
-    if (e.target instanceof HTMLElement && e.target.closest("[data-mindmap-export]")) return;
+    if (e.target instanceof HTMLElement && e.target.closest("[data-mindmap-export], [data-mindmap-layout]")) return;
     const downloadBtn = e.target instanceof HTMLElement ? e.target.closest("[data-resource-download-index]") : null;
     if (downloadBtn) {
       const index = Number(downloadBtn.getAttribute("data-resource-download-index"));
@@ -2295,17 +2362,18 @@ function initEventHandlers() {
     const canvas = slider.closest(".mindmap-view")?.querySelector(".mindmap-canvas");
     const value = Number(slider.value);
     if (canvas && Number.isFinite(value)) {
-      canvas.style.width = `${value}px`;
-      canvas.style.minWidth = `${value}px`;
-      const svg = canvas.querySelector(".mindmap-lines");
-      svg?.setAttribute("viewBox", `0 0 ${value} ${canvas.offsetHeight || 620}`);
-      updateMindmapLines(canvas);
+      autoLayoutMindmapCanvas(canvas, value);
     }
   });
   el.resourceGrid?.addEventListener("click", (e) => {
     const exportBtn = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-export]") : null;
-    if (!exportBtn) return;
-    const canvas = exportBtn.closest(".mindmap-view")?.querySelector(".mindmap-canvas");
+    const layoutBtn = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-layout]") : null;
+    if (!exportBtn && !layoutBtn) return;
+    const canvas = (exportBtn || layoutBtn).closest(".mindmap-view")?.querySelector(".mindmap-canvas");
+    if (layoutBtn && canvas) {
+      autoLayoutMindmapCanvas(canvas);
+      return;
+    }
     if (canvas) storeAndDownloadMindmapSvg(canvas);
   });
   el.resourceGrid?.addEventListener("pointerdown", (e) => {
