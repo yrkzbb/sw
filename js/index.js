@@ -1032,6 +1032,111 @@ function renderResourceMarkdown(markdown) {
   return wrap.innerHTML;
 }
 
+function inferCodeLanguage(text) {
+  const source = String(text || "");
+  if (/^\s*#include\s+<|int\s+main\s*\(|using\s+namespace\s+std|std::/.test(source)) return "cpp";
+  if (/^\s*import\s+tensorflow|from\s+tensorflow|import\s+torch|from\s+torch|def\s+\w+\s*\(|print\s*\(|tf\.|model\.|layers\.|np\.|pd\./m.test(source)) return "python";
+  if (/^\s*(const|let|var)\s+|function\s+\w+\s*\(|console\.log|=>/m.test(source)) return "javascript";
+  if (/^\s*public\s+class|System\.out\.println|import\s+java\./m.test(source)) return "java";
+  return "";
+}
+
+function codeFence(value, lang = "") {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const safeLang = sanitizePrismLang(lang || inferCodeLanguage(text));
+  return `\`\`\`${safeLang}\n${text}\n\`\`\``;
+}
+
+function normalizeCodePracticeMarkdown(content) {
+  if (content && typeof content === "object" && !Array.isArray(content)) {
+    const entries = Object.entries(content);
+    const sections = [];
+    const labelMap = {
+      task: "任务目标",
+      task_description: "任务目标",
+      description: "任务说明",
+      input: "输入样例",
+      output: "输出样例",
+      expected_output: "期望输出",
+      code: "代码示例",
+      starter_code: "代码骨架",
+      skeleton: "代码骨架",
+      solution: "参考实现",
+      reference_solution: "参考实现",
+      run_hint: "运行/调试提示",
+      run_command: "运行命令",
+      tests: "测试用例",
+      test_cases: "测试用例",
+      debug_tips: "调试清单",
+      challenges: "修改挑战",
+    };
+    entries.forEach(([key, value]) => {
+      const title = labelMap[key] || key.replace(/_/g, " ");
+      if (value == null || value === "") return;
+      const isCodeKey = /code|solution|skeleton/i.test(key);
+      const isRunKey = /run_command/i.test(key);
+      if (Array.isArray(value)) {
+        sections.push(`## ${title}\n${value.map((item) => `- ${typeof item === "string" ? item : JSON.stringify(item)}`).join("\n")}`);
+      } else if (isCodeKey) {
+        sections.push(`## ${title}\n${codeFence(value)}`);
+      } else if (isRunKey) {
+        sections.push(`## ${title}\n${codeFence(value, "bash")}`);
+      } else {
+        sections.push(`## ${title}\n${String(value).trim()}`);
+      }
+    });
+    return sections.join("\n\n");
+  }
+
+  let text = resourcePlainText(content || "").trim();
+  if (!text || /```/.test(text)) return text;
+  const markers = [
+    "加载数据集",
+    "归一化",
+    "构建模型",
+    "编译模型",
+    "训练模型",
+    "评估模型",
+  ];
+  const hasBarePython = /(^|\n)\s*(import\s+\w+|from\s+\w+|[A-Za-z_][\w.]*\s*=|model\.(compile|fit|evaluate)\()/m.test(text);
+  if (!hasBarePython) return text;
+  const lines = text.split(/\n/);
+  const output = [];
+  let buffer = [];
+  let forcedLang = "";
+  function flushCode() {
+    if (!buffer.length) return;
+    output.push(codeFence(buffer.join("\n"), forcedLang));
+    buffer = [];
+    forcedLang = "";
+  }
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const isHeading = markers.includes(trimmed) || /^#{1,4}\s/.test(trimmed) || /^(task|code|run_hint)\s*$/i.test(trimmed);
+    const isCodeLine = /^\s*(import\s+\w+|from\s+\w+|pip\s+install|python\s+|[A-Za-z_][\w.]*\s*=|[\w(),\s]+\)\s*=|[A-Za-z_][\w.]*\(|\(|\)|\]|\[|,)/.test(line);
+    if (isHeading) {
+      flushCode();
+      if (/^code$/i.test(trimmed)) forcedLang = "python";
+      if (/^run_hint$/i.test(trimmed)) forcedLang = "bash";
+      const titleMap = { task: "任务说明", code: "代码示例", run_hint: "运行/调试提示" };
+      output.push(/^(task|code|run_hint)$/i.test(trimmed) ? `## ${titleMap[trimmed.toLowerCase()]}` : line);
+    } else if (isCodeLine || buffer.length) {
+      if (/^\s*(pip\s+install|python\s+)/.test(line)) forcedLang = "bash";
+      buffer.push(line);
+    } else {
+      flushCode();
+      output.push(line);
+    }
+  }
+  flushCode();
+  return output.join("\n");
+}
+
+function renderCodePracticeResource(content) {
+  return renderResourceMarkdown(normalizeCodePracticeMarkdown(content));
+}
+
 function renderMindmapResource(content, title) {
   const data = normalizeMindmapContent(content, title);
   const branches = Array.isArray(data.branches) ? data.branches : [];
@@ -2207,7 +2312,9 @@ function renderLearningResources() {
       ? renderMindmapResource(item.content || "", item.title)
       : item.type === "不同类型练习题目"
         ? renderExerciseResource(item.content || "", item.title, index)
-        : renderResourceMarkdown(item.content || "");
+        : item.type === "代码类实操案例"
+          ? renderCodePracticeResource(item.content || "")
+          : renderResourceMarkdown(item.content || "");
     return `
     <article class="resource-card ${item.type === "知识点思维导图" ? "mindmap-resource-card" : ""}">
       <div class="resource-card-head">
