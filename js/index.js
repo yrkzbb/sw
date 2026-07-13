@@ -264,8 +264,11 @@ function saveStoredMarkdownFiles(files) {
     localStorage.setItem(STORED_MARKDOWN_FILES_STORAGE, JSON.stringify(state.storedMarkdownFiles));
   } catch (e) {
     console.warn("保存 Markdown 文件库失败", e);
+    alert("保存失败：浏览器本地存储空间可能已满，请先删除一些旧文件后再试。");
+    return false;
   }
   renderStoragePage();
+  return true;
 }
 
 function categorizeKnowledge(title, content) {
@@ -325,12 +328,25 @@ function updateStoragePreview() {
   renderMarkdownInto(el.storagePreview, el.storageEditContent.value || "");
 }
 
+function markStorageEditorDirty() {
+  if (!el.storageSaveFileBtn) return;
+  el.storageSaveFileBtn.textContent = "保存修改";
+  el.storageSaveFileBtn.disabled = false;
+}
+
 function openStorageFile(file) {
   if (!file || !el.storageModal) return;
   state.activeStorageFileId = file.id;
+  const title = file.title || file.filename || "编辑文档";
+  const modalTitle = document.querySelector("#storageModalTitle");
+  if (modalTitle) modalTitle.textContent = title;
   if (el.storageEditTitle) el.storageEditTitle.value = file.title || "";
   if (el.storageEditCategory) el.storageEditCategory.value = file.category || "";
   if (el.storageEditContent) el.storageEditContent.value = file.content || "";
+  if (el.storageSaveFileBtn) {
+    el.storageSaveFileBtn.textContent = "保存修改";
+    el.storageSaveFileBtn.disabled = false;
+  }
   updateStoragePreview();
   el.storageModal.hidden = false;
 }
@@ -346,7 +362,10 @@ function getActiveStorageFile() {
 
 function saveActiveStorageFile() {
   const file = getActiveStorageFile();
-  if (!file || !el.storageEditTitle || !el.storageEditCategory || !el.storageEditContent) return;
+  if (!file || !el.storageEditTitle || !el.storageEditCategory || !el.storageEditContent) {
+    alert("没有找到当前正在编辑的文件，请重新打开文件后再保存。");
+    return;
+  }
   const title = el.storageEditTitle.value.trim() || file.title || "知识文档";
   const category = el.storageEditCategory.value.trim() || categorizeKnowledge(title, el.storageEditContent.value);
   const updated = {
@@ -358,8 +377,18 @@ function saveActiveStorageFile() {
     filename: `${safeFilename(title)}.md`,
     updatedAt: new Date().toISOString(),
   };
-  saveStoredMarkdownFiles(state.storedMarkdownFiles.map((item) => item.id === updated.id ? updated : item));
+  const saved = saveStoredMarkdownFiles(state.storedMarkdownFiles.map((item) => item.id === updated.id ? updated : item));
+  if (!saved) return;
   openStorageFile(updated);
+  if (el.storageSaveFileBtn) {
+    el.storageSaveFileBtn.textContent = "已保存";
+    el.storageSaveFileBtn.disabled = true;
+    setTimeout(() => {
+      if (!el.storageSaveFileBtn || state.activeStorageFileId !== updated.id) return;
+      el.storageSaveFileBtn.textContent = "保存修改";
+      el.storageSaveFileBtn.disabled = false;
+    }, 1100);
+  }
 }
 
 function deleteStorageFile(fileId) {
@@ -1939,8 +1968,16 @@ function initEventHandlers() {
   el.storageModal?.addEventListener("click", (e) => {
     if (e.target instanceof HTMLElement && e.target.hasAttribute("data-storage-close")) closeStorageModal();
   });
-  el.storageEditContent?.addEventListener("input", updateStoragePreview);
-  el.storageSaveFileBtn?.addEventListener("click", saveActiveStorageFile);
+  el.storageEditTitle?.addEventListener("input", markStorageEditorDirty);
+  el.storageEditCategory?.addEventListener("input", markStorageEditorDirty);
+  el.storageEditContent?.addEventListener("input", () => {
+    markStorageEditorDirty();
+    updateStoragePreview();
+  });
+  el.storageSaveFileBtn?.addEventListener("click", (e) => {
+    e.preventDefault();
+    saveActiveStorageFile();
+  });
   el.storageDownloadFileBtn?.addEventListener("click", () => {
     const file = getActiveStorageFile();
     if (file) downloadMarkdownFile(file);
