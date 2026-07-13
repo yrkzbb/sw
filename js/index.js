@@ -5,6 +5,7 @@ const MESSAGES_STORAGE = "LINGXI_MESSAGES";
 const STUDENT_PROFILE_STORAGE = "LINGXI_STUDENT_PROFILE";
 const LEARNING_RESOURCES_STORAGE = "LINGXI_LEARNING_RESOURCES";
 const STORED_MARKDOWN_FILES_STORAGE = "LINGXI_STORED_MARKDOWN_FILES";
+const STORAGE_EDITOR_SPLIT_STORAGE = "LINGXI_STORAGE_EDITOR_SPLIT";
 
 
 const CHAT_ENDPOINT = "/api/chat";
@@ -97,6 +98,8 @@ const el = {
   storageEditTitle: document.querySelector("#storageEditTitle"),
   storageEditCategory: document.querySelector("#storageEditCategory"),
   storageEditContent: document.querySelector("#storageEditContent"),
+  storageEditorBody: document.querySelector("#storageEditorBody"),
+  storageResizeHandle: document.querySelector("#storageResizeHandle"),
   storagePreview: document.querySelector("#storagePreview"),
   storageSaveFileBtn: document.querySelector("#storageSaveFileBtn"),
   storageDeleteFileBtn: document.querySelector("#storageDeleteFileBtn"),
@@ -140,6 +143,8 @@ const state = {
   learningResources: null,
   storedMarkdownFiles: [],
   activeStorageFileId: null,
+  storageEditorSplit: 50,
+  storageResizeActive: false,
   resourcesGenerating: false,
   selectedResourceAgents: [],
 };
@@ -334,6 +339,26 @@ function markStorageEditorDirty() {
   el.storageSaveFileBtn.disabled = false;
 }
 
+function loadStorageEditorSplit() {
+  const raw = Number(localStorage.getItem(STORAGE_EDITOR_SPLIT_STORAGE));
+  return Number.isFinite(raw) ? Math.min(72, Math.max(28, raw)) : 50;
+}
+
+function applyStorageEditorSplit(value) {
+  state.storageEditorSplit = Math.min(72, Math.max(28, Number(value) || 50));
+  if (el.storageEditorBody) {
+    el.storageEditorBody.style.setProperty("--editor-left", `${state.storageEditorSplit}%`);
+  }
+}
+
+function updateStorageEditorSplitFromPointer(clientX) {
+  if (!el.storageEditorBody) return;
+  const rect = el.storageEditorBody.getBoundingClientRect();
+  if (!rect.width) return;
+  const percent = ((clientX - rect.left) / rect.width) * 100;
+  applyStorageEditorSplit(percent);
+}
+
 function openStorageFile(file) {
   if (!file || !el.storageModal) return;
   state.activeStorageFileId = file.id;
@@ -348,6 +373,7 @@ function openStorageFile(file) {
     el.storageSaveFileBtn.disabled = false;
   }
   updateStoragePreview();
+  applyStorageEditorSplit(state.storageEditorSplit);
   el.storageModal.hidden = false;
 }
 
@@ -1986,6 +2012,25 @@ function initEventHandlers() {
     const file = getActiveStorageFile();
     if (file) deleteStorageFile(file.id);
   });
+  el.storageResizeHandle?.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    state.storageResizeActive = true;
+    el.storageResizeHandle?.setPointerCapture?.(e.pointerId);
+    updateStorageEditorSplitFromPointer(e.clientX);
+  });
+  el.storageResizeHandle?.addEventListener("pointermove", (e) => {
+    if (!state.storageResizeActive) return;
+    updateStorageEditorSplitFromPointer(e.clientX);
+  });
+  el.storageResizeHandle?.addEventListener("pointerup", () => {
+    if (!state.storageResizeActive) return;
+    state.storageResizeActive = false;
+    localStorage.setItem(STORAGE_EDITOR_SPLIT_STORAGE, String(state.storageEditorSplit));
+  });
+  el.storageResizeHandle?.addEventListener("dblclick", () => {
+    applyStorageEditorSplit(50);
+    localStorage.setItem(STORAGE_EDITOR_SPLIT_STORAGE, "50");
+  });
   window.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && el.storageModal && !el.storageModal.hidden) closeStorageModal();
   });
@@ -2177,6 +2222,8 @@ function init() {
   state.studentProfile = loadStudentProfile();
   state.learningResources = loadLearningResources();
   state.storedMarkdownFiles = loadStoredMarkdownFiles();
+  state.storageEditorSplit = loadStorageEditorSplit();
+  applyStorageEditorSplit(state.storageEditorSplit);
   renderStudentProfile();
   renderLearningResources();
   renderStoragePage();
