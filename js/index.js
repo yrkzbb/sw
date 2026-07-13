@@ -98,9 +98,12 @@ const el = {
   storageEditTitle: document.querySelector("#storageEditTitle"),
   storageEditCategory: document.querySelector("#storageEditCategory"),
   storageEditContent: document.querySelector("#storageEditContent"),
+  storageEditContentLabel: document.querySelector("#storageEditContentLabel"),
   storageEditorBody: document.querySelector("#storageEditorBody"),
   storageResizeHandle: document.querySelector("#storageResizeHandle"),
   storagePreview: document.querySelector("#storagePreview"),
+  storagePreviewTools: document.querySelector("#storagePreviewTools"),
+  storageSvgZoom: document.querySelector("#storageSvgZoom"),
   storageSaveFileBtn: document.querySelector("#storageSaveFileBtn"),
   storageDeleteFileBtn: document.querySelector("#storageDeleteFileBtn"),
   storageDownloadFileBtn: document.querySelector("#storageDownloadFileBtn"),
@@ -146,6 +149,7 @@ const state = {
   activeStorageFileId: null,
   storageEditorSplit: 50,
   storageResizeActive: false,
+  storageSvgZoom: 100,
   resourcesGenerating: false,
   selectedResourceAgents: [],
 };
@@ -332,13 +336,39 @@ function downloadMarkdownFile(file) {
 
 function updateStoragePreview() {
   if (!el.storagePreview || !el.storageEditContent) return;
-  renderMarkdownInto(el.storagePreview, el.storageEditContent.value || "");
+  const content = el.storageEditContent.value || "";
+  if (isSvgContent(content)) {
+    if (el.storagePreviewTools) el.storagePreviewTools.hidden = false;
+    el.storagePreview.classList.add("svg-preview");
+    el.storagePreview.innerHTML = `<div class="storage-svg-stage" style="transform:scale(${state.storageSvgZoom / 100})">${sanitizeSvgContent(content)}</div>`;
+    return;
+  }
+  if (el.storagePreviewTools) el.storagePreviewTools.hidden = true;
+  el.storagePreview.classList.remove("svg-preview");
+  renderMarkdownInto(el.storagePreview, content);
 }
 
 function markStorageEditorDirty() {
   if (!el.storageSaveFileBtn) return;
   el.storageSaveFileBtn.textContent = "保存修改";
   el.storageSaveFileBtn.disabled = false;
+}
+
+function isSvgContent(content) {
+  return /^\s*<svg[\s>]/i.test(content || "");
+}
+
+function sanitizeSvgContent(content) {
+  return String(content || "")
+    .replace(/<script[\s\S]*?>[\s\S]*?<\/script>/gi, "")
+    .replace(/\son[a-z]+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son[a-z]+\s*=\s*'[^']*'/gi, "");
+}
+
+function setStorageSvgZoom(value) {
+  state.storageSvgZoom = Math.min(220, Math.max(40, Number(value) || 100));
+  if (el.storageSvgZoom) el.storageSvgZoom.value = String(state.storageSvgZoom);
+  updateStoragePreview();
 }
 
 function loadStorageEditorSplit() {
@@ -370,6 +400,10 @@ function openStorageFile(file) {
   if (el.storageEditTitle) el.storageEditTitle.value = file.title || "";
   if (el.storageEditCategory) el.storageEditCategory.value = file.category || "";
   if (el.storageEditContent) el.storageEditContent.value = file.content || "";
+  if (el.storageEditContentLabel) el.storageEditContentLabel.textContent = isSvgContent(file.content) ? "SVG 内容" : "Markdown 内容";
+  if (el.storageDownloadFileBtn) el.storageDownloadFileBtn.textContent = isSvgContent(file.content) ? "下载 SVG" : "下载 Markdown";
+  state.storageSvgZoom = 100;
+  if (el.storageSvgZoom) el.storageSvgZoom.value = "100";
   if (el.storageSaveFileBtn) {
     el.storageSaveFileBtn.textContent = "保存修改";
     el.storageSaveFileBtn.disabled = false;
@@ -402,7 +436,8 @@ function saveActiveStorageFile() {
     category,
     categoryLocked: true,
     content: el.storageEditContent.value,
-    filename: `${safeFilename(title)}.md`,
+    filename: isSvgContent(el.storageEditContent.value) ? `${safeFilename(title)}.svg` : `${safeFilename(title)}.md`,
+    mimeType: isSvgContent(el.storageEditContent.value) ? "image/svg+xml;charset=utf-8" : "text/markdown;charset=utf-8",
     updatedAt: new Date().toISOString(),
   };
   const saved = saveStoredMarkdownFiles(state.storedMarkdownFiles.map((item) => item.id === updated.id ? updated : item));
@@ -2336,6 +2371,14 @@ function initEventHandlers() {
   el.storageEditContent?.addEventListener("input", () => {
     markStorageEditorDirty();
     updateStoragePreview();
+  });
+  el.storageSvgZoom?.addEventListener("input", () => setStorageSvgZoom(el.storageSvgZoom.value));
+  el.storagePreviewTools?.addEventListener("click", (e) => {
+    const action = e.target instanceof HTMLElement ? e.target.closest("[data-svg-zoom]")?.getAttribute("data-svg-zoom") : null;
+    if (!action) return;
+    if (action === "in") setStorageSvgZoom(state.storageSvgZoom + 20);
+    if (action === "out") setStorageSvgZoom(state.storageSvgZoom - 20);
+    if (action === "reset") setStorageSvgZoom(100);
   });
   el.storageSaveFileBtn?.addEventListener("click", (e) => {
     e.preventDefault();

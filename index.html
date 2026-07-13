@@ -9,7 +9,7 @@
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/index.js?v=20260713-full-width-resources" defer></script>
+    <script src="./js/index.js?v=20260713-storage-svg-zoom" defer></script>
   </head>
   <body data-theme="dark">
     <div id="app">
@@ -175,12 +175,20 @@
           </div>
           <div id="storageEditorBody" class="storage-editor-body">
             <label class="storage-edit-field storage-edit-markdown">
-              <span>Markdown 内容</span>
+              <span id="storageEditContentLabel">Markdown 内容</span>
               <textarea id="storageEditContent" class="storage-edit-textarea" spellcheck="false"></textarea>
             </label>
             <button id="storageResizeHandle" class="storage-resize-handle" type="button" aria-label="拖拽调整编辑区和预览区宽度" title="拖拽调整宽度，双击恢复默认"></button>
             <div class="storage-preview-panel">
-              <div class="storage-preview-title">预览</div>
+              <div class="storage-preview-head">
+                <div class="storage-preview-title">预览</div>
+                <div id="storagePreviewTools" class="storage-preview-tools" hidden>
+                  <button class="storage-mini-btn" type="button" data-svg-zoom="out">缩小</button>
+                  <input id="storageSvgZoom" class="storage-svg-zoom" type="range" min="40" max="220" value="100" step="10" aria-label="SVG 预览缩放" />
+                  <button class="storage-mini-btn" type="button" data-svg-zoom="in">放大</button>
+                  <button class="storage-mini-btn" type="button" data-svg-zoom="reset">重置</button>
+                </div>
+              </div>
               <div id="storagePreview" class="markdown-body storage-preview"></div>
             </div>
           </div>
