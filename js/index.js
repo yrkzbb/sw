@@ -568,22 +568,61 @@ function renderResourceMarkdown(markdown) {
 function renderMindmapResource(content, title) {
   const data = normalizeMindmapContent(content, title);
   const branches = Array.isArray(data.branches) ? data.branches : [];
+  const leftBranches = branches.filter((_, index) => index % 2 === 1);
+  const rightBranches = branches.filter((_, index) => index % 2 === 0);
+  const maxSide = Math.max(leftBranches.length, rightBranches.length, 2);
+  const height = Math.max(520, maxSide * 170 + 120);
+  const center = { x: 490, y: Math.round(height / 2), w: 250, h: 72 };
+  const branchColors = ["mint", "blue", "pink", "yellow", "green", "violet", "cyan"];
+  const paths = [];
+  const nodes = [
+    renderMindmapNode(data.center || title || "知识图谱", center.x - center.w / 2, center.y - center.h / 2, center.w, center.h, "center"),
+  ];
+
+  function layoutSide(sideBranches, side) {
+    const isLeft = side === "left";
+    const branchX = isLeft ? 238 : 742;
+    const childX = isLeft ? 48 : 842;
+    const branchW = 190;
+    const branchH = 52;
+    const childW = 126;
+    const childH = 34;
+    const startY = center.y - ((sideBranches.length - 1) * 150) / 2;
+    sideBranches.forEach((branch, index) => {
+      const y = Math.round(startY + index * 150);
+      const color = branchColors[index % branchColors.length];
+      const branchLeft = isLeft ? branchX - branchW : branchX;
+      nodes.push(renderMindmapNode(branch.title || "分支", branchLeft, y - branchH / 2, branchW, branchH, `branch ${color}`));
+      paths.push(`<path d="M ${center.x + (isLeft ? -center.w / 2 : center.w / 2)} ${center.y} C ${isLeft ? 380 : 600} ${center.y}, ${isLeft ? 350 : 630} ${y}, ${branchX} ${y}" />`);
+      (branch.children || []).slice(0, 4).forEach((child, childIndex) => {
+        const childY = y + (childIndex - Math.min((branch.children || []).length, 4) / 2 + 0.5) * 38;
+        const childLeft = isLeft ? childX : childX;
+        nodes.push(renderMindmapNode(child, childLeft, childY - childH / 2, childW, childH, `leaf ${color}`));
+        paths.push(`<path class="thin" d="M ${isLeft ? branchLeft : branchLeft + branchW} ${y} C ${isLeft ? 170 : 810} ${y}, ${isLeft ? 170 : 810} ${childY}, ${isLeft ? childX + childW : childX} ${childY}" />`);
+      });
+    });
+  }
+
+  layoutSide(leftBranches, "left");
+  layoutSide(rightBranches, "right");
+
   return `
     <div class="mindmap-view">
-      <div class="mindmap-center">${escapeHtml(data.center || title || "知识图谱")}</div>
-      <div class="mindmap-branches">
-        ${branches.map((branch) => `
-          <section class="mindmap-branch">
-            <div class="mindmap-branch-title">${escapeHtml(branch.title || "分支")}</div>
-            <ul>
-              ${(branch.children || []).map((child) => `<li>${escapeHtml(child)}</li>`).join("")}
-            </ul>
-          </section>
-        `).join("")}
+      <div class="mindmap-canvas-wrap">
+        <div class="mindmap-canvas" style="height:${height}px">
+          <svg class="mindmap-lines" viewBox="0 0 980 ${height}" preserveAspectRatio="none" aria-hidden="true">
+            ${paths.join("")}
+          </svg>
+          ${nodes.join("")}
+        </div>
       </div>
       ${data.path ? `<div class="mindmap-path"><strong>复习路径：</strong>${escapeHtml(data.path)}</div>` : ""}
     </div>
   `;
+}
+
+function renderMindmapNode(label, x, y, w, h, className) {
+  return `<div class="mindmap-node ${className}" style="left:${x}px;top:${y}px;width:${w}px;min-height:${h}px">${escapeHtml(label)}</div>`;
 }
 
 function parseMaybeJson(value) {
