@@ -92,6 +92,15 @@ const el = {
   agentPipeline: document.querySelector("#agentPipeline"),
   resourceGrid: document.querySelector("#resourceGrid"),
   storageGrid: document.querySelector("#storageGrid"),
+  storageModal: document.querySelector("#storageModal"),
+  storageModalClose: document.querySelector("#storageModalClose"),
+  storageEditTitle: document.querySelector("#storageEditTitle"),
+  storageEditCategory: document.querySelector("#storageEditCategory"),
+  storageEditContent: document.querySelector("#storageEditContent"),
+  storagePreview: document.querySelector("#storagePreview"),
+  storageSaveFileBtn: document.querySelector("#storageSaveFileBtn"),
+  storageDeleteFileBtn: document.querySelector("#storageDeleteFileBtn"),
+  storageDownloadFileBtn: document.querySelector("#storageDownloadFileBtn"),
   messages: document.querySelector("#messages"),
   input: document.querySelector("#input"),
   sendBtn: document.querySelector("#sendBtn"),
@@ -130,6 +139,7 @@ const state = {
   profileUpdateInFlight: null,
   learningResources: null,
   storedMarkdownFiles: [],
+  activeStorageFileId: null,
   resourcesGenerating: false,
   selectedResourceAgents: [],
 };
@@ -239,7 +249,9 @@ function loadStoredMarkdownFiles() {
       .filter((item) => item && item.content && item.filename)
       .map((item) => ({
         ...item,
-        category: categorizeKnowledge(`${item.title || ""} ${item.filename || ""}`, item.content || ""),
+        category: item.categoryLocked
+          ? (item.category || "其他")
+          : categorizeKnowledge(`${item.title || ""} ${item.filename || ""}`, item.content || ""),
       }));
   } catch {
     return [];
@@ -308,6 +320,75 @@ function downloadMarkdownFile(file) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function updateStoragePreview() {
+  if (!el.storagePreview || !el.storageEditContent) return;
+  renderMarkdownInto(el.storagePreview, el.storageEditContent.value || "");
+}
+
+function openStorageFile(file) {
+  if (!file || !el.storageModal) return;
+  state.activeStorageFileId = file.id;
+  if (el.storageEditTitle) el.storageEditTitle.value = file.title || "";
+  if (el.storageEditCategory) el.storageEditCategory.value = file.category || "";
+  if (el.storageEditContent) el.storageEditContent.value = file.content || "";
+  updateStoragePreview();
+  el.storageModal.hidden = false;
+}
+
+function closeStorageModal() {
+  state.activeStorageFileId = null;
+  if (el.storageModal) el.storageModal.hidden = true;
+}
+
+function getActiveStorageFile() {
+  return state.storedMarkdownFiles.find((item) => item.id === state.activeStorageFileId) || null;
+}
+
+function saveActiveStorageFile() {
+  const file = getActiveStorageFile();
+  if (!file || !el.storageEditTitle || !el.storageEditCategory || !el.storageEditContent) return;
+  const title = el.storageEditTitle.value.trim() || file.title || "知识文档";
+  const category = el.storageEditCategory.value.trim() || categorizeKnowledge(title, el.storageEditContent.value);
+  const updated = {
+    ...file,
+    title,
+    category,
+    categoryLocked: true,
+    content: el.storageEditContent.value,
+    filename: `${safeFilename(title)}.md`,
+    updatedAt: new Date().toISOString(),
+  };
+  saveStoredMarkdownFiles(state.storedMarkdownFiles.map((item) => item.id === updated.id ? updated : item));
+  openStorageFile(updated);
+}
+
+function deleteStorageFile(fileId) {
+  const file = state.storedMarkdownFiles.find((item) => item.id === fileId);
+  if (!file) return;
+  if (!confirm(`确定删除文件“${file.title || file.filename}”吗？`)) return;
+  saveStoredMarkdownFiles(state.storedMarkdownFiles.filter((item) => item.id !== fileId));
+  if (state.activeStorageFileId === fileId) closeStorageModal();
+}
+
+function renameStorageCategory(category) {
+  const nextName = prompt("新的知识大类名称", category);
+  if (!nextName) return;
+  const trimmed = nextName.trim();
+  if (!trimmed || trimmed === category) return;
+  saveStoredMarkdownFiles(state.storedMarkdownFiles.map((file) => (
+    (file.category || "其他") === category ? { ...file, category: trimmed, categoryLocked: true, updatedAt: new Date().toISOString() } : file
+  )));
+}
+
+function deleteStorageCategory(category) {
+  const files = state.storedMarkdownFiles.filter((file) => (file.category || "其他") === category);
+  if (!files.length) return;
+  if (!confirm(`确定删除“${category}”大类及其中 ${files.length} 个文件吗？`)) return;
+  const ids = new Set(files.map((file) => file.id));
+  saveStoredMarkdownFiles(state.storedMarkdownFiles.filter((file) => !ids.has(file.id)));
+  if (state.activeStorageFileId && ids.has(state.activeStorageFileId)) closeStorageModal();
+}
+
 function storeAndDownloadResource(index) {
   const item = state.learningResources?.resources?.[index];
   if (!item) return;
@@ -320,6 +401,7 @@ function storeAndDownloadResource(index) {
     type: item.type || "专业课程讲解文档",
     agent: "知识文档 Agent",
     category: categorizeKnowledge(title, content),
+    categoryLocked: false,
     filename: `${safeFilename(title)}.md`,
     content,
     createdAt: new Date().toISOString(),
@@ -346,16 +428,24 @@ function renderStoragePage() {
     <section class="storage-group">
       <div class="storage-group-head">
         <div class="storage-category">${escapeHtml(category)}</div>
-        <div class="storage-count">${items.length} 个文件</div>
+        <div class="storage-group-actions">
+          <span class="storage-count">${items.length} 个文件</span>
+          <button class="storage-mini-btn" type="button" data-storage-action="rename-category" data-storage-category="${escapeHtml(category)}">改名</button>
+          <button class="storage-mini-btn danger" type="button" data-storage-action="delete-category" data-storage-category="${escapeHtml(category)}">删除大类</button>
+        </div>
       </div>
       <div class="storage-file-list">
         ${items.map((file) => `
-          <article class="storage-file-card">
+          <article class="storage-file-card" data-storage-file-id="${escapeHtml(file.id)}" tabindex="0" title="双击打开">
             <div>
               <div class="storage-file-title">${escapeHtml(file.title)}</div>
               <div class="storage-file-meta">${escapeHtml(file.filename)} · ${escapeHtml(new Date(file.createdAt).toLocaleString())}</div>
             </div>
-            <button class="resource-toggle storage-download-btn" type="button" data-storage-id="${escapeHtml(file.id)}">下载</button>
+            <div class="storage-file-actions">
+              <button class="resource-toggle storage-download-btn" type="button" data-storage-action="open-file" data-storage-id="${escapeHtml(file.id)}">打开</button>
+              <button class="resource-toggle storage-download-btn" type="button" data-storage-action="download-file" data-storage-id="${escapeHtml(file.id)}">下载</button>
+              <button class="storage-mini-btn danger" type="button" data-storage-action="delete-file" data-storage-id="${escapeHtml(file.id)}">删除</button>
+            </div>
           </article>
         `).join("")}
       </div>
@@ -1819,10 +1909,48 @@ function initEventHandlers() {
     btn.textContent = expanded ? "展开全文" : "收起";
   });
   el.storageGrid?.addEventListener("click", (e) => {
-    const btn = e.target instanceof HTMLElement ? e.target.closest("[data-storage-id]") : null;
-    const id = btn?.getAttribute("data-storage-id");
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    const actionEl = target?.closest("[data-storage-action]");
+    const action = actionEl?.getAttribute("data-storage-action");
+    if (!action) return;
+    const category = actionEl.getAttribute("data-storage-category");
+    const id = actionEl.getAttribute("data-storage-id");
     const file = state.storedMarkdownFiles.find((item) => item.id === id);
+    if (action === "rename-category" && category) renameStorageCategory(category);
+    if (action === "delete-category" && category) deleteStorageCategory(category);
+    if (action === "open-file" && file) openStorageFile(file);
+    if (action === "download-file" && file) downloadMarkdownFile(file);
+    if (action === "delete-file" && id) deleteStorageFile(id);
+  });
+  el.storageGrid?.addEventListener("dblclick", (e) => {
+    const card = e.target instanceof HTMLElement ? e.target.closest("[data-storage-file-id]") : null;
+    const id = card?.getAttribute("data-storage-file-id");
+    const file = state.storedMarkdownFiles.find((item) => item.id === id);
+    if (file) openStorageFile(file);
+  });
+  el.storageGrid?.addEventListener("keydown", (e) => {
+    if (e.key !== "Enter") return;
+    const card = e.target instanceof HTMLElement ? e.target.closest("[data-storage-file-id]") : null;
+    const id = card?.getAttribute("data-storage-file-id");
+    const file = state.storedMarkdownFiles.find((item) => item.id === id);
+    if (file) openStorageFile(file);
+  });
+  el.storageModalClose?.addEventListener("click", closeStorageModal);
+  el.storageModal?.addEventListener("click", (e) => {
+    if (e.target instanceof HTMLElement && e.target.hasAttribute("data-storage-close")) closeStorageModal();
+  });
+  el.storageEditContent?.addEventListener("input", updateStoragePreview);
+  el.storageSaveFileBtn?.addEventListener("click", saveActiveStorageFile);
+  el.storageDownloadFileBtn?.addEventListener("click", () => {
+    const file = getActiveStorageFile();
     if (file) downloadMarkdownFile(file);
+  });
+  el.storageDeleteFileBtn?.addEventListener("click", () => {
+    const file = getActiveStorageFile();
+    if (file) deleteStorageFile(file.id);
+  });
+  window.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && el.storageModal && !el.storageModal.hidden) closeStorageModal();
   });
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);
