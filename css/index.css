@@ -1392,6 +1392,10 @@ button.agent-card:hover {
   pointer-events: none;
 }
 
+.composer[hidden] {
+  display: none;
+}
+
 .composer-inner {
   pointer-events: auto;
   position: relative;

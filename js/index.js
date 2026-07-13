@@ -104,6 +104,7 @@ const el = {
   storageSaveFileBtn: document.querySelector("#storageSaveFileBtn"),
   storageDeleteFileBtn: document.querySelector("#storageDeleteFileBtn"),
   storageDownloadFileBtn: document.querySelector("#storageDownloadFileBtn"),
+  composer: document.querySelector("#composer"),
   messages: document.querySelector("#messages"),
   input: document.querySelector("#input"),
   sendBtn: document.querySelector("#sendBtn"),
@@ -1354,8 +1355,13 @@ function adjustTextareaHeight() {
   el.input.style.height = `${next}px`;
 }
 
+function setComposerVisible(visible) {
+  if (el.composer) el.composer.hidden = !visible;
+}
+
 function ensureChatVisible() {
   if (!el.chat || !el.home) return;
+  setComposerVisible(true);
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.storagePage) el.storagePage.hidden = true;
@@ -1373,6 +1379,7 @@ function setPageHash(hash) {
 }
 
 function showHome() {
+  setComposerVisible(true);
   state.messages = [];
   try {
     localStorage.removeItem(MESSAGES_STORAGE);
@@ -1393,6 +1400,7 @@ function showHome() {
 
 function showProfilePage() {
   if (!el.profilePage) return;
+  setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
@@ -1408,6 +1416,7 @@ function showProfilePage() {
 
 function showResourcePage() {
   if (!el.resourcePage) return;
+  setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
@@ -1423,6 +1432,7 @@ function showResourcePage() {
 
 function showStoragePage() {
   if (!el.storagePage) return;
+  setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
