@@ -14,6 +14,24 @@ const LEARNING_PATH_LIBRARY_STORAGE = "LINGXI_LEARNING_PATH_LIBRARY";
 const ACTIVE_PATH_CATEGORY_STORAGE = "LINGXI_ACTIVE_PATH_CATEGORY";
 const LEARNING_BEHAVIOR_STORAGE = "LINGXI_LEARNING_BEHAVIOR";
 const LEARNING_EFFECT_ASSESSMENT_STORAGE = "LINGXI_LEARNING_EFFECT_ASSESSMENT";
+const AUTH_USERS_STORAGE = "LINGXI_AUTH_USERS";
+const ACTIVE_USER_STORAGE = "LINGXI_ACTIVE_USER";
+const AUTH_MODE_STORAGE = "LINGXI_AUTH_MODE";
+const USER_SCOPED_STORAGE_KEYS = new Set([
+  MESSAGES_STORAGE,
+  STUDENT_PROFILE_STORAGE,
+  LEARNING_RESOURCES_STORAGE,
+  STORED_MARKDOWN_FILES_STORAGE,
+  STORAGE_EDITOR_SPLIT_STORAGE,
+  MISTAKE_BOOK_STORAGE,
+  MISTAKE_BOOK_GROUP_STORAGE,
+  LEARNING_PATH_TODO_STORAGE,
+  LEARNING_DEMANDS_STORAGE,
+  LEARNING_PATH_LIBRARY_STORAGE,
+  ACTIVE_PATH_CATEGORY_STORAGE,
+  LEARNING_BEHAVIOR_STORAGE,
+  LEARNING_EFFECT_ASSESSMENT_STORAGE,
+]);
 
 
 const CHAT_ENDPOINT = "/api/chat";
@@ -156,11 +174,33 @@ const el = {
   lightboxImage: document.querySelector("#lightboxImage"),
   lightboxClose: document.querySelector(".lightbox-close"),
   lightboxBackdrop: document.querySelector(".lightbox-backdrop"),
+  authOverlay: document.querySelector("#authOverlay"),
+  authShell: document.querySelector("#authShell"),
+  authForm: document.querySelector("#authForm"),
+  authLoginForm: document.querySelector("#authLoginForm"),
+  authUsername: document.querySelector("#authUsername"),
+  authEmail: document.querySelector("#authEmail"),
+  authPassword: document.querySelector("#authPassword"),
+  authConfirmPassword: document.querySelector("#authConfirmPassword"),
+  authLoginAccount: document.querySelector("#authLoginAccount"),
+  authLoginPassword: document.querySelector("#authLoginPassword"),
+  authMessage: document.querySelector("#authMessage"),
+  authLoginMessage: document.querySelector("#authLoginMessage"),
+  authSubmitBtn: document.querySelector("#authSubmitBtn"),
+  authLoginSubmitBtn: document.querySelector("#authLoginSubmitBtn"),
+  loginTab: document.querySelector("#loginTab"),
+  registerTab: document.querySelector("#registerTab"),
+  userChip: document.querySelector("#userChip"),
+  userNameLabel: document.querySelector("#userNameLabel"),
+  logoutBtn: document.querySelector("#logoutBtn"),
 };
 
 const state = {
   theme: "dark",
   apiKey: "",
+  authMode: "login",
+  authUsers: [],
+  activeUser: null,
   messages: [], 
   attachedFiles: [],
   attachedImages: [], 
@@ -203,6 +243,289 @@ const state = {
   },
   renderedVideoUrls: {},
 };
+
+const storageNative = {
+  getItem: Storage.prototype.getItem,
+  setItem: Storage.prototype.setItem,
+  removeItem: Storage.prototype.removeItem,
+};
+
+function activeUserStorageId() {
+  return state.activeUser?.id || "";
+}
+
+function scopedStorageKey(key, userId = activeUserStorageId()) {
+  return userId && USER_SCOPED_STORAGE_KEYS.has(key)
+    ? `LINGXI_USER_${encodeURIComponent(userId)}__${key}`
+    : key;
+}
+
+function installUserStorageScope() {
+  if (Storage.prototype.__lingxiScoped) return;
+  Storage.prototype.getItem = function getItem(key) {
+    return storageNative.getItem.call(this, scopedStorageKey(String(key)));
+  };
+  Storage.prototype.setItem = function setItem(key, value) {
+    return storageNative.setItem.call(this, scopedStorageKey(String(key)), value);
+  };
+  Storage.prototype.removeItem = function removeItem(key) {
+    return storageNative.removeItem.call(this, scopedStorageKey(String(key)));
+  };
+  Object.defineProperty(Storage.prototype, "__lingxiScoped", { value: true });
+}
+
+function rawStorageGet(key) {
+  return storageNative.getItem.call(localStorage, key);
+}
+
+function rawStorageSet(key, value) {
+  storageNative.setItem.call(localStorage, key, value);
+}
+
+function rawStorageRemove(key) {
+  storageNative.removeItem.call(localStorage, key);
+}
+
+function normalizeUsername(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32);
+}
+
+function userIdFromName(name) {
+  return normalizeUsername(name).toLowerCase();
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase().slice(0, 80);
+}
+
+function encodePassword(username, password) {
+  return btoa(unescape(encodeURIComponent(`${userIdFromName(username)}:${password}:lingxi-local-account`)));
+}
+
+function loadAuthUsers() {
+  try {
+    const users = JSON.parse(rawStorageGet(AUTH_USERS_STORAGE) || "[]");
+    return Array.isArray(users) ? users.filter((user) => user?.id && user?.passwordHash) : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveAuthUsers(users) {
+  state.authUsers = users;
+  rawStorageSet(AUTH_USERS_STORAGE, JSON.stringify(users));
+}
+
+function getStoredAuthMode() {
+  return rawStorageGet(AUTH_MODE_STORAGE) === "login" ? "login" : "register";
+}
+
+function setAuthMode(mode) {
+  state.authMode = mode === "register" ? "register" : "login";
+  const isRegister = state.authMode === "register";
+  rawStorageSet(AUTH_MODE_STORAGE, state.authMode);
+  document.documentElement.classList.toggle("auth-boot-login", !isRegister);
+  document.documentElement.classList.toggle("auth-boot-register", isRegister);
+  el.authShell?.classList.toggle("right-panel-active", isRegister);
+  if (el.authPassword) el.authPassword.autocomplete = isRegister ? "new-password" : "current-password";
+  setAuthMessage("");
+  setAuthLoginMessage("");
+}
+
+function setAuthMessage(message, type = "error") {
+  if (!el.authMessage) return;
+  el.authMessage.textContent = message;
+  el.authMessage.classList.toggle("success", type === "success");
+}
+
+function setAuthLoginMessage(message, type = "error") {
+  if (!el.authLoginMessage) return;
+  el.authLoginMessage.textContent = message;
+  el.authLoginMessage.classList.toggle("success", type === "success");
+}
+
+function setActiveUser(user) {
+  state.activeUser = user || null;
+  if (user) {
+    rawStorageSet(ACTIVE_USER_STORAGE, user.id);
+  } else {
+    rawStorageRemove(ACTIVE_USER_STORAGE);
+  }
+  updateUserChrome();
+}
+
+function updateUserChrome() {
+  const user = state.activeUser;
+  document.documentElement.classList.toggle("auth-boot-user", !!user);
+  document.documentElement.classList.toggle("auth-boot-guest", !user);
+  if (el.userChip) el.userChip.hidden = !user;
+  if (el.userNameLabel) el.userNameLabel.textContent = user?.name || "未登录";
+  const avatar = el.userChip?.querySelector(".user-avatar");
+  if (avatar) avatar.textContent = (user?.name || "L").trim().slice(0, 1).toUpperCase();
+  if (el.authOverlay) el.authOverlay.hidden = !!user;
+}
+
+function readPersistedUser() {
+  const users = loadAuthUsers();
+  state.authUsers = users;
+  const activeId = rawStorageGet(ACTIVE_USER_STORAGE) || "";
+  return users.find((user) => user.id === activeId) || null;
+}
+
+function handleAuthSubmit(e) {
+  e.preventDefault();
+  const name = normalizeUsername(el.authUsername?.value);
+  const email = normalizeEmail(el.authEmail?.value);
+  const password = String(el.authPassword?.value || "");
+  const confirmPassword = String(el.authConfirmPassword?.value || "");
+  const id = userIdFromName(name);
+
+  if (!name || !email || !password) {
+    setAuthMessage("Please enter user, email and password.");
+    return;
+  }
+  if (name.length < 2) {
+    setAuthMessage("User name needs at least 2 characters.");
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setAuthMessage("Please enter a valid email.");
+    return;
+  }
+  if (password.length < 4) {
+    setAuthMessage("Password needs at least 4 characters.");
+    return;
+  }
+
+  const users = loadAuthUsers();
+  const existing = users.find((user) => user.id === id || normalizeEmail(user.email) === email);
+
+  if (existing) {
+    setAuthMessage("This user or email already exists. Please sign in.");
+    return;
+  }
+  if (password !== confirmPassword) {
+    setAuthMessage("Passwords do not match.");
+    return;
+  }
+  const user = {
+    id,
+    name,
+    email,
+    passwordHash: encodePassword(name, password),
+    createdAt: new Date().toISOString(),
+  };
+  saveAuthUsers([user].concat(users));
+  setActiveUser(user);
+  setAuthMessage("Signed up. Welcome to your workspace.", "success");
+  resetAuthForm();
+  reloadUserWorkspace();
+}
+
+function handleAuthLoginSubmit(e) {
+  e.preventDefault();
+  const account = normalizeUsername(el.authLoginAccount?.value);
+  const accountEmail = normalizeEmail(account);
+  const password = String(el.authLoginPassword?.value || "");
+
+  if (!account || !password) {
+    setAuthLoginMessage("Please enter account and password.");
+    return;
+  }
+
+  const users = loadAuthUsers();
+  const existing = users.find((user) =>
+    user.id === userIdFromName(account) ||
+    normalizeEmail(user.email) === accountEmail ||
+    normalizeUsername(user.name).toLowerCase() === account.toLowerCase()
+  );
+
+  if (!existing || existing.passwordHash !== encodePassword(existing.name, password)) {
+    setAuthLoginMessage("Account or password is incorrect.");
+    return;
+  }
+
+  setActiveUser(existing);
+  setAuthLoginMessage("Signed in.", "success");
+  resetAuthForm();
+  reloadUserWorkspace();
+}
+
+function resetAuthForm() {
+  if (el.authUsername) el.authUsername.value = "";
+  if (el.authEmail) el.authEmail.value = "";
+  if (el.authPassword) el.authPassword.value = "";
+  if (el.authConfirmPassword) el.authConfirmPassword.value = "";
+  if (el.authLoginAccount) el.authLoginAccount.value = "";
+  if (el.authLoginPassword) el.authLoginPassword.value = "";
+}
+
+function logoutCurrentUser() {
+  if (state.isGenerating && state.abortController) state.abortController.abort();
+  setActiveUser(null);
+  state.messages = [];
+  state.attachedFiles = [];
+  state.attachedImages = [];
+  state.studentProfile = null;
+  state.learningResources = null;
+  state.learningPathLibrary = {};
+  state.activePathCategory = "";
+  state.learningDemandEvents = [];
+  state.learningBehaviorEvents = [];
+  state.learningAssessment = null;
+  state.storedMarkdownFiles = [];
+  state.mistakeBookItems = [];
+  state.mistakeBookGroupBy = "category";
+  resetAttachment();
+  renderStudentProfile();
+  renderLearningResources();
+  renderStoragePage();
+  renderMistakeBookPage();
+  renderAssessmentPage();
+  setAuthMode("login");
+  showHome();
+}
+
+function initAuth() {
+  installUserStorageScope();
+  setAuthMode(getStoredAuthMode());
+  el.loginTab?.addEventListener("click", () => setAuthMode("login"));
+  el.registerTab?.addEventListener("click", () => setAuthMode("register"));
+  el.authForm?.addEventListener("submit", handleAuthSubmit);
+  el.authLoginForm?.addEventListener("submit", handleAuthLoginSubmit);
+  el.logoutBtn?.addEventListener("click", logoutCurrentUser);
+  const user = readPersistedUser();
+  setActiveUser(user);
+}
+
+function reloadUserWorkspace() {
+  state.studentProfile = loadStudentProfile();
+  state.learningDemandEvents = loadLearningDemandEvents();
+  state.learningBehaviorEvents = loadLearningBehaviorEvents();
+  state.learningPathLibrary = loadLearningPathLibrary();
+  const persistedActivePathCategory = loadActivePathCategory();
+  state.activePathCategory = persistedActivePathCategory;
+  state.learningResources = loadLearningResources();
+  if (state.learningResources?.resources?.length) upsertLearningPathLibrary(state.learningResources);
+  if (persistedActivePathCategory && state.learningPathLibrary?.[persistedActivePathCategory]) {
+    state.activePathCategory = persistedActivePathCategory;
+  }
+  state.learningPathTodoDone = loadLearningPathTodoDone();
+  state.storedMarkdownFiles = loadStoredMarkdownFiles();
+  state.mistakeBookItems = loadMistakeBookItems();
+  state.mistakeBookGroupBy = loadMistakeBookGroupBy();
+  state.learningAssessment = loadLearningAssessment();
+  state.storageEditorSplit = loadStorageEditorSplit();
+  applyStorageEditorSplit(state.storageEditorSplit);
+  renderStudentProfile();
+  renderLearningResources();
+  renderStoragePage();
+  renderMistakeBookPage();
+  renderAssessmentPage();
+  restorePersistedChat();
+  restoreViewFromHash();
+  initComposer();
+}
 
 function escapeHtml(text) {
   return String(text)
@@ -6294,38 +6617,23 @@ function init() {
     Prism.plugins.autoloader.languages_path =
       "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/";
   }
-  state.studentProfile = loadStudentProfile();
-  state.learningDemandEvents = loadLearningDemandEvents();
-  state.learningBehaviorEvents = loadLearningBehaviorEvents();
-  state.learningPathLibrary = loadLearningPathLibrary();
-  const persistedActivePathCategory = loadActivePathCategory();
-  state.activePathCategory = persistedActivePathCategory;
-  state.learningResources = loadLearningResources();
-  if (state.learningResources?.resources?.length) upsertLearningPathLibrary(state.learningResources);
-  if (persistedActivePathCategory && state.learningPathLibrary?.[persistedActivePathCategory]) {
-    state.activePathCategory = persistedActivePathCategory;
-  }
-  state.learningPathTodoDone = loadLearningPathTodoDone();
-  state.storedMarkdownFiles = loadStoredMarkdownFiles();
-  state.mistakeBookItems = loadMistakeBookItems();
-  state.mistakeBookGroupBy = loadMistakeBookGroupBy();
-  state.learningAssessment = loadLearningAssessment();
-  state.storageEditorSplit = loadStorageEditorSplit();
-  applyStorageEditorSplit(state.storageEditorSplit);
-  renderStudentProfile();
-  renderLearningResources();
-  renderStoragePage();
-  renderMistakeBookPage();
-  renderAssessmentPage();
   initTheme();
+  initAuth();
   initApiKeyModal();
   initEventHandlers();
   initImageLightbox();
-  restorePersistedChat();
-  restoreViewFromHash();
-  initComposer();
   initCopyDelegation();
-  if (shouldAutoRefreshAssessmentAfterReload() && !isAssessmentMobileViewport()) {
+  initComposer();
+  if (state.activeUser) {
+    reloadUserWorkspace();
+  } else {
+    renderStudentProfile();
+    renderLearningResources();
+    renderStoragePage();
+    renderMistakeBookPage();
+    renderAssessmentPage();
+  }
+  if (state.activeUser && shouldAutoRefreshAssessmentAfterReload() && !isAssessmentMobileViewport()) {
     window.setTimeout(() => {
       if (isAssessmentPageVisible()) void refreshLearningAssessment("desktop_browser_reload");
     }, 250);

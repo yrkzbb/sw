@@ -4,12 +4,26 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WPS 灵犀 · AI</title>
-    <link rel="stylesheet" href="./css/index.css?v=20260714-assessment-polish" />
+    <script>
+      (() => {
+        try {
+          const users = JSON.parse(localStorage.getItem("LINGXI_AUTH_USERS") || "[]");
+          const activeId = localStorage.getItem("LINGXI_ACTIVE_USER") || "";
+          const hasActiveUser = Array.isArray(users) && users.some((user) => user && user.id === activeId);
+          const authMode = localStorage.getItem("LINGXI_AUTH_MODE") === "login" ? "login" : "register";
+          document.documentElement.classList.add(hasActiveUser ? "auth-boot-user" : "auth-boot-guest");
+          document.documentElement.classList.add(`auth-boot-${authMode}`);
+        } catch {
+          document.documentElement.classList.add("auth-boot-guest", "auth-boot-register");
+        }
+      })();
+    </script>
+    <link rel="stylesheet" href="./css/index.css?v=20260714-auth-mode" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/index.js?v=20260714-assessment-polish" defer></script>
+    <script src="./js/index.js?v=20260714-auth-mode" defer></script>
   </head>
   <body data-theme="dark">
     <div id="app">
@@ -33,6 +47,14 @@
           </svg>
         </span>
       </button>
+      <div id="userChip" class="user-chip" hidden>
+        <div class="user-avatar" aria-hidden="true">L</div>
+        <div class="user-chip-text">
+          <span id="userNameLabel">未登录</span>
+          <small>个人学习空间</small>
+        </div>
+        <button id="logoutBtn" class="user-logout-btn" type="button">退出</button>
+      </div>
       <nav class="top-nav" aria-label="页面导航">
         <div class="nav-brand" aria-label="WPS 灵犀 AI">
           <img src="./assets/app-icons/app-icon-1.png" alt="" />
@@ -356,6 +378,45 @@
           </div>
         </div>
       </footer>
+    </div>
+
+    <div id="authOverlay" class="auth-overlay">
+      <section id="authShell" class="auth-demo-shell right-panel-active" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+        <div class="auth-demo-form auth-demo-signup">
+          <form id="authForm" class="auth-demo-form-inner">
+            <h2 id="authTitle" class="auth-demo-title">问阶</h2>
+            <p class="auth-demo-subtitle">你的个性化 AI 学习路径与资源工作台</p>
+            <input id="authUsername" class="auth-demo-input" type="text" autocomplete="username" placeholder="User" />
+            <input id="authEmail" class="auth-demo-input" type="email" autocomplete="email" placeholder="Email" />
+            <input id="authPassword" class="auth-demo-input" type="password" autocomplete="new-password" placeholder="Password" />
+            <input id="authConfirmPassword" class="auth-demo-input" type="password" autocomplete="new-password" placeholder="Confirm Password" />
+            <div id="authMessage" class="auth-message" aria-live="polite"></div>
+            <button id="authSubmitBtn" class="auth-demo-btn" type="submit">Sign Up</button>
+          </form>
+        </div>
+
+        <div class="auth-demo-form auth-demo-signin">
+          <form id="authLoginForm" class="auth-demo-form-inner">
+            <h2 class="auth-demo-title">问阶</h2>
+            <p class="auth-demo-subtitle">登录继续攀登你的学习高峰</p>
+            <input id="authLoginAccount" class="auth-demo-input" type="text" autocomplete="username" placeholder="User / Email" />
+            <input id="authLoginPassword" class="auth-demo-input" type="password" autocomplete="current-password" placeholder="Password" />
+            <div id="authLoginMessage" class="auth-message" aria-live="polite"></div>
+            <button id="authLoginSubmitBtn" class="auth-demo-btn" type="submit">Sign In</button>
+          </form>
+        </div>
+
+        <div class="auth-demo-overlay-wrap" aria-hidden="true">
+          <div class="auth-demo-overlay">
+            <div class="auth-demo-panel auth-demo-left">
+              <button id="loginTab" class="auth-demo-btn" type="button">Sign In</button>
+            </div>
+            <div class="auth-demo-panel auth-demo-right">
+              <button id="registerTab" class="auth-demo-btn" type="button">Sign Up</button>
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
 
     <div id="apiKeyModal" class="modal" hidden>
