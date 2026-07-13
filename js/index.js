@@ -318,7 +318,8 @@ function safeFilename(name) {
 }
 
 function downloadMarkdownFile(file) {
-  const blob = new Blob([file.content], { type: "text/markdown;charset=utf-8" });
+  const mime = file.mimeType || (String(file.filename || "").endsWith(".svg") ? "image/svg+xml;charset=utf-8" : "text/markdown;charset=utf-8");
+  const blob = new Blob([file.content], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -568,37 +569,41 @@ function renderResourceMarkdown(markdown) {
 function renderMindmapResource(content, title) {
   const data = normalizeMindmapContent(content, title);
   const branches = Array.isArray(data.branches) ? data.branches : [];
+  const mapId = `mindmap-${Math.random().toString(16).slice(2)}`;
   const leftBranches = branches.filter((_, index) => index % 2 === 1);
   const rightBranches = branches.filter((_, index) => index % 2 === 0);
   const maxSide = Math.max(leftBranches.length, rightBranches.length, 2);
-  const height = Math.max(520, maxSide * 170 + 120);
-  const center = { x: 490, y: Math.round(height / 2), w: 250, h: 72 };
+  const height = Math.max(620, maxSide * 190 + 140);
+  const width = 1320;
+  const center = { x: 660, y: Math.round(height / 2), w: 290, h: 82 };
   const branchColors = ["mint", "blue", "pink", "yellow", "green", "violet", "cyan"];
   const paths = [];
   const nodes = [
-    renderMindmapNode(data.center || title || "知识图谱", center.x - center.w / 2, center.y - center.h / 2, center.w, center.h, "center"),
+    renderMindmapNode("center", data.center || title || "知识图谱", center.x - center.w / 2, center.y - center.h / 2, center.w, center.h, "center"),
   ];
 
   function layoutSide(sideBranches, side) {
     const isLeft = side === "left";
-    const branchX = isLeft ? 238 : 742;
-    const childX = isLeft ? 48 : 842;
-    const branchW = 190;
-    const branchH = 52;
-    const childW = 126;
+    const branchX = isLeft ? 350 : 970;
+    const childX = isLeft ? 80 : 1095;
+    const branchW = 220;
+    const branchH = 58;
+    const childW = 170;
     const childH = 34;
-    const startY = center.y - ((sideBranches.length - 1) * 150) / 2;
+    const startY = center.y - ((sideBranches.length - 1) * 170) / 2;
     sideBranches.forEach((branch, index) => {
-      const y = Math.round(startY + index * 150);
+      const y = Math.round(startY + index * 170);
       const color = branchColors[index % branchColors.length];
       const branchLeft = isLeft ? branchX - branchW : branchX;
-      nodes.push(renderMindmapNode(branch.title || "分支", branchLeft, y - branchH / 2, branchW, branchH, `branch ${color}`));
-      paths.push(`<path d="M ${center.x + (isLeft ? -center.w / 2 : center.w / 2)} ${center.y} C ${isLeft ? 380 : 600} ${center.y}, ${isLeft ? 350 : 630} ${y}, ${branchX} ${y}" />`);
+      const branchId = `${side}-branch-${index}`;
+      nodes.push(renderMindmapNode(branchId, branch.title || "分支", branchLeft, y - branchH / 2, branchW, branchH, `branch ${color}`));
+      paths.push(`<path data-from="center" data-to="${branchId}" />`);
       (branch.children || []).slice(0, 4).forEach((child, childIndex) => {
         const childY = y + (childIndex - Math.min((branch.children || []).length, 4) / 2 + 0.5) * 38;
         const childLeft = isLeft ? childX : childX;
-        nodes.push(renderMindmapNode(child, childLeft, childY - childH / 2, childW, childH, `leaf ${color}`));
-        paths.push(`<path class="thin" d="M ${isLeft ? branchLeft : branchLeft + branchW} ${y} C ${isLeft ? 170 : 810} ${y}, ${isLeft ? 170 : 810} ${childY}, ${isLeft ? childX + childW : childX} ${childY}" />`);
+        const childId = `${side}-branch-${index}-leaf-${childIndex}`;
+        nodes.push(renderMindmapNode(childId, child, childLeft, childY - childH / 2, childW, childH, `leaf ${color}`));
+        paths.push(`<path class="thin" data-from="${branchId}" data-to="${childId}" />`);
       });
     });
   }
@@ -607,10 +612,16 @@ function renderMindmapResource(content, title) {
   layoutSide(rightBranches, "right");
 
   return `
-    <div class="mindmap-view">
+    <div class="mindmap-view" data-mindmap-id="${mapId}">
+      <div class="mindmap-toolbar">
+        <label class="mindmap-width-control">宽度
+          <input type="range" min="1000" max="1800" value="${width}" step="20" data-mindmap-width />
+        </label>
+        <button class="resource-toggle" type="button" data-mindmap-export>导出 SVG</button>
+      </div>
       <div class="mindmap-canvas-wrap">
-        <div class="mindmap-canvas" style="height:${height}px">
-          <svg class="mindmap-lines" viewBox="0 0 980 ${height}" preserveAspectRatio="none" aria-hidden="true">
+        <div class="mindmap-canvas" style="height:${height}px;width:${width}px;min-width:${width}px" data-mindmap-title="${escapeHtml(data.center || title || "知识图谱")}">
+          <svg class="mindmap-lines" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
             ${paths.join("")}
           </svg>
           ${nodes.join("")}
@@ -621,8 +632,8 @@ function renderMindmapResource(content, title) {
   `;
 }
 
-function renderMindmapNode(label, x, y, w, h, className) {
-  return `<div class="mindmap-node ${className}" style="left:${x}px;top:${y}px;width:${w}px;min-height:${h}px">${escapeHtml(label)}</div>`;
+function renderMindmapNode(id, label, x, y, w, h, className) {
+  return `<div class="mindmap-node ${className}" data-node-id="${id}" style="left:${x}px;top:${y}px;width:${w}px;min-height:${h}px" title="拖拽移动节点">${escapeHtml(label)}</div>`;
 }
 
 function parseMaybeJson(value) {
@@ -683,6 +694,81 @@ function mindmapPreviewText(content, title) {
   const branches = Array.isArray(data.branches) ? data.branches : [];
   const names = branches.map((branch) => branch.title).filter(Boolean).slice(0, 6).join("、");
   return `${data.center || title || "知识图谱"}：${branches.length} 个一级分支${names ? `（${names}）` : ""}`;
+}
+
+function updateMindmapLines(canvas) {
+  if (!canvas) return;
+  const nodes = Object.fromEntries([...canvas.querySelectorAll(".mindmap-node")].map((node) => {
+    const x = parseFloat(node.style.left) || 0;
+    const y = parseFloat(node.style.top) || 0;
+    const w = node.offsetWidth || parseFloat(node.style.width) || 120;
+    const h = node.offsetHeight || parseFloat(node.style.minHeight) || 34;
+    return [node.dataset.nodeId, { x, y, w, h, cx: x + w / 2, cy: y + h / 2 }];
+  }));
+  canvas.querySelectorAll(".mindmap-lines path").forEach((path) => {
+    const from = nodes[path.dataset.from];
+    const to = nodes[path.dataset.to];
+    if (!from || !to) return;
+    const fromRight = to.cx > from.cx;
+    const sx = from.cx + (fromRight ? from.w / 2 : -from.w / 2);
+    const sy = from.cy;
+    const tx = to.cx + (fromRight ? -to.w / 2 : to.w / 2);
+    const ty = to.cy;
+    const mid = Math.max(70, Math.abs(tx - sx) * 0.45);
+    path.setAttribute("d", `M ${sx} ${sy} C ${sx + (fromRight ? mid : -mid)} ${sy}, ${tx + (fromRight ? -mid : mid)} ${ty}, ${tx} ${ty}`);
+  });
+}
+
+function initMindmapCanvases(root = document) {
+  root.querySelectorAll(".mindmap-canvas").forEach(updateMindmapLines);
+}
+
+function exportMindmapSvg(canvas) {
+  if (!canvas) return "";
+  updateMindmapLines(canvas);
+  const width = Math.round(canvas.offsetWidth || 1320);
+  const height = Math.round(canvas.offsetHeight || 620);
+  const paths = [...canvas.querySelectorAll(".mindmap-lines path")].map((path) => {
+    const cls = path.classList.contains("thin") ? " thin" : "";
+    return `<path class="${cls.trim()}" d="${escapeHtml(path.getAttribute("d") || "")}" />`;
+  }).join("");
+  const nodes = [...canvas.querySelectorAll(".mindmap-node")].map((node) => {
+    const x = parseFloat(node.style.left) || 0;
+    const y = parseFloat(node.style.top) || 0;
+    const w = node.offsetWidth || parseFloat(node.style.width) || 120;
+    const h = node.offsetHeight || parseFloat(node.style.minHeight) || 40;
+    const label = escapeHtml(node.textContent.trim());
+    const bg = getComputedStyle(node).backgroundColor;
+    const color = getComputedStyle(node).color;
+    const fontSize = parseFloat(getComputedStyle(node).fontSize) || 13;
+    return `<g><rect x="${x}" y="${y}" width="${w}" height="${h}" rx="8" fill="${bg}" stroke="rgba(40,50,80,.18)" /><foreignObject x="${x}" y="${y}" width="${w}" height="${h}"><div xmlns="http://www.w3.org/1999/xhtml" style="height:${h}px;display:flex;align-items:center;justify-content:center;text-align:center;font:800 ${fontSize}px Arial;color:${color};padding:6px;box-sizing:border-box;">${label}</div></foreignObject></g>`;
+  }).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+<style>path{fill:none;stroke:rgba(49,54,75,.58);stroke-width:2.2;stroke-linecap:round}.thin{stroke-width:1.3;stroke:rgba(49,54,75,.38)}</style>
+<rect width="100%" height="100%" fill="#ffffff"/>
+${paths}
+${nodes}
+</svg>`;
+}
+
+function storeAndDownloadMindmapSvg(canvas) {
+  const svg = exportMindmapSvg(canvas);
+  if (!svg) return;
+  const title = canvas.dataset.mindmapTitle || "思维导图";
+  const file = {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title: `${title} 矢量图`,
+    type: "思维导图矢量图",
+    agent: "思维导图 Agent",
+    category: categorizeKnowledge(title, svg),
+    categoryLocked: false,
+    filename: `${safeFilename(title)}.svg`,
+    mimeType: "image/svg+xml;charset=utf-8",
+    content: svg,
+    createdAt: new Date().toISOString(),
+  };
+  const saved = saveStoredMarkdownFiles([file].concat(state.storedMarkdownFiles || []));
+  if (saved) downloadMarkdownFile(file);
 }
 
 function normalizeMindmapContent(content, title) {
@@ -1034,7 +1120,7 @@ function renderLearningResources() {
       ? mindmapPreviewText(item.content || "", item.title)
       : rawText.replace(/\s+/g, " ").trim().slice(0, 170);
     return `
-    <article class="resource-card">
+    <article class="resource-card ${item.type === "知识点思维导图" ? "mindmap-resource-card" : ""}">
       <div class="resource-card-head">
         <div>
           <div class="resource-type">${escapeHtml(item.type || "学习资源")}</div>
@@ -2148,6 +2234,7 @@ function initEventHandlers() {
     if (id) toggleResourceAgent(id);
   });
   el.resourceGrid?.addEventListener("click", (e) => {
+    if (e.target instanceof HTMLElement && e.target.closest("[data-mindmap-export]")) return;
     const downloadBtn = e.target instanceof HTMLElement ? e.target.closest("[data-resource-download-index]") : null;
     if (downloadBtn) {
       const index = Number(downloadBtn.getAttribute("data-resource-download-index"));
@@ -2165,6 +2252,53 @@ function initEventHandlers() {
     preview.hidden = !expanded;
     btn.setAttribute("aria-expanded", String(!expanded));
     btn.textContent = expanded ? "展开全文" : "收起";
+    if (expanded) initMindmapCanvases(body);
+  });
+  el.resourceGrid?.addEventListener("input", (e) => {
+    const slider = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-width]") : null;
+    if (!slider) return;
+    const canvas = slider.closest(".mindmap-view")?.querySelector(".mindmap-canvas");
+    const value = Number(slider.value);
+    if (canvas && Number.isFinite(value)) {
+      canvas.style.width = `${value}px`;
+      canvas.style.minWidth = `${value}px`;
+      const svg = canvas.querySelector(".mindmap-lines");
+      svg?.setAttribute("viewBox", `0 0 ${value} ${canvas.offsetHeight || 620}`);
+      updateMindmapLines(canvas);
+    }
+  });
+  el.resourceGrid?.addEventListener("click", (e) => {
+    const exportBtn = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-export]") : null;
+    if (!exportBtn) return;
+    const canvas = exportBtn.closest(".mindmap-view")?.querySelector(".mindmap-canvas");
+    if (canvas) storeAndDownloadMindmapSvg(canvas);
+  });
+  el.resourceGrid?.addEventListener("pointerdown", (e) => {
+    const node = e.target instanceof HTMLElement ? e.target.closest(".mindmap-node") : null;
+    if (!node) return;
+    const canvas = node.closest(".mindmap-canvas");
+    if (!canvas) return;
+    e.preventDefault();
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const baseX = parseFloat(node.style.left) || 0;
+    const baseY = parseFloat(node.style.top) || 0;
+    node.setPointerCapture?.(e.pointerId);
+    node.classList.add("dragging");
+    const move = (event) => {
+      node.style.left = `${baseX + event.clientX - startX}px`;
+      node.style.top = `${baseY + event.clientY - startY}px`;
+      updateMindmapLines(canvas);
+    };
+    const up = () => {
+      node.classList.remove("dragging");
+      node.removeEventListener("pointermove", move);
+      node.removeEventListener("pointerup", up);
+      node.removeEventListener("pointercancel", up);
+    };
+    node.addEventListener("pointermove", move);
+    node.addEventListener("pointerup", up);
+    node.addEventListener("pointercancel", up);
   });
   el.storageGrid?.addEventListener("click", (e) => {
     const target = e.target instanceof HTMLElement ? e.target : null;
