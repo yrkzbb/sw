@@ -476,7 +476,7 @@ function migrateLearningPathLibrary(library) {
   const next = {};
   for (const [key, value] of Object.entries(library || {})) {
     const inferred = inferPathCategory(value);
-    const category = normalizePathCategory((value?.category && value.category !== "其他") ? value.category : (inferred || key));
+    const category = normalizePathCategory(inferred && inferred !== "其他" ? inferred : (value?.category || key));
     next[category] = {
       ...(next[category] || {}),
       ...value,
@@ -492,6 +492,38 @@ function saveLearningPathLibrary() {
   } catch (e) {
     console.warn("保存学习路径库失败", e);
   }
+}
+
+function reindexLearningPathLibrary() {
+  const library = state.learningPathLibrary || {};
+  const entries = Object.entries(library);
+  if (!entries.length) return;
+  const next = {};
+  const keyMap = {};
+  let changed = false;
+  for (const [key, value] of entries) {
+    const inferred = inferPathCategory(value);
+    const category = normalizePathCategory(inferred && inferred !== "其他" ? inferred : (value?.category || key));
+    keyMap[key] = category;
+    if (category !== key || value?.category !== category) changed = true;
+    const candidate = { ...value, category };
+    const existing = next[category];
+    const existingTime = existing?.updatedAt ? new Date(existing.updatedAt).getTime() : 0;
+    const candidateTime = candidate?.updatedAt ? new Date(candidate.updatedAt).getTime() : 0;
+    if (!existing || candidateTime >= existingTime) {
+      next[category] = candidate;
+    }
+  }
+  if (!changed) return;
+  state.learningPathLibrary = next;
+  if (state.activePathCategory && keyMap[state.activePathCategory]) {
+    state.activePathCategory = keyMap[state.activePathCategory];
+    try {
+      localStorage.setItem(ACTIVE_PATH_CATEGORY_STORAGE, state.activePathCategory);
+    } catch {
+    }
+  }
+  saveLearningPathLibrary();
 }
 
 function loadActivePathCategory() {
@@ -515,7 +547,7 @@ function setActivePathCategory(category) {
 function upsertLearningPathLibrary(pathData) {
   if (!pathData?.resources?.length) return;
   const inferred = inferPathCategory(pathData);
-  const category = normalizePathCategory(pathData.category && pathData.category !== "其他" ? pathData.category : inferred);
+  const category = normalizePathCategory(inferred && inferred !== "其他" ? inferred : pathData.category);
   const previous = state.learningPathLibrary?.[category] || {};
   state.learningPathLibrary = {
     ...(state.learningPathLibrary || {}),
@@ -784,13 +816,18 @@ function renderMistakeGroupTabs(items) {
 function categorizeKnowledge(title, content) {
   const titleText = `${title || ""}`.toLowerCase();
   const contentText = `${content || ""}`.toLowerCase();
+  const programmingLanguageTopic =
+    /(编程语言|程序设计|语法|函数|方法|变量|类型|类|对象|接口|模块|库|包|框架|依赖|环境|解释器|编译器|运行时|异常|线程|泛型|装饰器|迭代器|数组|循环|条件语句|import|package|library|framework|runtime|compiler)/i.test(titleText) &&
+    /(python|java|javascript|typescript|c\+\+|cpp|c语言|c 语言|c#|go语言|golang|rust|swift|kotlin|php|ruby|node|npm|maven|gradle|cargo|pip|conda|jupyter)/i.test(titleText);
+  if (programmingLanguageTopic) return "编程语言";
+
   const strongTitleRules = [
     ["编译原理", /编译原理|文法|语法分析|词法分析|乔姆斯基|chomsky|type-?1|1型|一型|上下文有关|context.?sensitive/],
     ["数据结构", /floyd|弗洛伊德|dijkstra|最短路|图论|动态规划|dp|算法|数据结构|链表|栈|队列|树|堆|排序|查找|并查集/],
+    ["编程语言", /python|java|javascript|typescript|c\+\+|cpp|c语言|c 语言|c#|go语言|golang|rust|swift|kotlin|php|ruby|node|编程语言|程序设计/],
     ["多模态", /多模态|multimodal|图文|文本.*图像|图像.*文本|音频|视频|clip|vlm/],
     ["计算机视觉", /计算机视觉|图像识别|目标检测|分割|opencv|cnn|视觉/],
     ["前端", /前端|html|css|javascript|typescript|react|vue|浏览器|dom|页面/],
-    ["Java", /java|jvm|spring|面向对象|集合|泛型|异常|线程/],
     ["后端", /后端|node|express|spring|django|flask|api|服务器|数据库|mysql|redis/],
     ["软件工程", /软件工程|需求分析|设计模式|uml|测试|架构|项目管理|敏捷/],
     ["考研数学", /考研数学|高等数学|线性代数|概率论|微积分|极限|导数|积分/],
@@ -801,9 +838,9 @@ function categorizeKnowledge(title, content) {
 
   const rules = [
     ["编译原理", /编译原理|文法|语法分析|词法分析|乔姆斯基|chomsky|type-?1|1型|一型|上下文有关|context.?sensitive|产生式|非收缩|线性有界/],
-    ["数据结构", /floyd|弗洛伊德|dijkstra|最短路|图论|动态规划|dp|算法|数据结构|链表|栈|队列|树|堆|排序|查找|并查集/],
     ["前端", /前端|html|css|javascript|typescript|react|vue|浏览器|dom|页面/],
-    ["Java", /java|jvm|spring|面向对象|集合|泛型|异常|线程/],
+    ["编程语言", /python|java|javascript|typescript|c\+\+|cpp|c语言|c 语言|c#|go语言|golang|rust|swift|kotlin|php|ruby|node|npm|maven|gradle|cargo|pip|conda|jupyter|编程语言|程序设计/],
+    ["数据结构", /floyd|弗洛伊德|dijkstra|最短路|图论|动态规划|dp|算法|数据结构|链表|栈|队列|树|堆|排序|查找|并查集/],
     ["后端", /后端|node|express|spring|django|flask|api|服务器|数据库|mysql|redis/],
     ["软件工程", /软件工程|需求分析|设计模式|uml|测试|架构|项目管理|敏捷/],
     ["多模态", /多模态|multimodal|图文|文本.*图像|图像.*文本|音频|视频|clip|vlm/],
@@ -3245,6 +3282,7 @@ function getPathTodoStats(path, topic) {
 }
 
 function getPathCategories() {
+  reindexLearningPathLibrary();
   return Object.keys(state.learningPathLibrary || {})
     .filter((category) => state.learningPathLibrary?.[category]?.resources?.length)
     .sort((a, b) => a.localeCompare(b, "zh-CN"));
