@@ -1643,8 +1643,8 @@ async function adminListAuditLogs(req, res, url) {
       params.push(action);
     }
     if (q) {
-      where.push("(a.username LIKE ? OR a.email LIKE ? OR t.username LIKE ? OR t.email LIKE ?)");
-      params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+      where.push("(a.username LIKE ? OR a.email LIKE ? OR t.username LIKE ? OR t.email LIKE ? OR l.detail LIKE ?)");
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
     }
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const [[countRow]] = await pool.query(
@@ -1697,8 +1697,8 @@ function buildAuditFilter(url) {
     params.push(action);
   }
   if (q) {
-    where.push("(a.username LIKE ? OR a.email LIKE ? OR t.username LIKE ? OR t.email LIKE ?)");
-    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    where.push("(a.username LIKE ? OR a.email LIKE ? OR t.username LIKE ? OR t.email LIKE ? OR l.detail LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
   }
   return {
     params,
@@ -1731,7 +1731,7 @@ async function adminExportAuditLogsCsv(req, res, url) {
       log.created_at instanceof Date ? log.created_at.toISOString() : log.created_at,
       log.admin_username || "未知管理员",
       log.action,
-      log.target_username || "已删除用户",
+      renderAuditTarget(log),
       renderAuditCsvDetail(log.detail),
     ]);
     const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
@@ -1746,6 +1746,29 @@ function renderAuditCsvDetail(detail) {
   if (!detail) return "";
   if (typeof detail === "string") return detail;
   return JSON.stringify(detail);
+}
+
+function parseAuditDetail(detail) {
+  if (!detail) return {};
+  if (typeof detail === "object") return detail;
+  try {
+    return JSON.parse(detail);
+  } catch {
+    return {};
+  }
+}
+
+function renderAuditTarget(log) {
+  const detail = parseAuditDetail(log.detail);
+  if (String(log.action || "").includes("announcement")) {
+    const title = detail.title ? `：${detail.title}` : "";
+    const id = detail.announcementId ? ` #${detail.announcementId}` : "";
+    return `公告${title}${id}`;
+  }
+  if (["export_users_csv", "export_audit_csv", "cleanup_expired_sessions"].includes(log.action)) {
+    return "系统";
+  }
+  return log.target_username || "已删除用户";
 }
 
 function publicAnnouncement(row) {

@@ -1033,11 +1033,34 @@ function renderAuditActionOptions(actions) {
   el.auditActionFilter.value = actions.includes(current) ? current : "";
 }
 
+function parseAuditDetail(detail) {
+  if (!detail) return {};
+  if (typeof detail === "object") return detail;
+  try {
+    return JSON.parse(detail);
+  } catch {
+    return {};
+  }
+}
+
+function auditTargetText(log) {
+  const detail = parseAuditDetail(log.detail);
+  if (String(log.action || "").includes("announcement")) {
+    const title = detail.title ? `：${detail.title}` : "";
+    const id = detail.announcementId ? ` #${detail.announcementId}` : "";
+    return `公告${title}${id}`;
+  }
+  if (["export_users_csv", "export_audit_csv", "cleanup_expired_sessions"].includes(log.action)) {
+    return "系统";
+  }
+  return log.target_username || "已删除用户";
+}
+
 function renderAuditListItem(log) {
   return `
     <div>
       <strong>${escapeHtml(auditActionText(log.action))}</strong>
-      <span>${escapeHtml(log.admin_username || "未知管理员")} → ${escapeHtml(log.target_username || "已删除用户")} · ${escapeHtml(formatDate(log.created_at))}</span>
+      <span>${escapeHtml(log.admin_username || "未知管理员")} → ${escapeHtml(auditTargetText(log))} · ${escapeHtml(formatDate(log.created_at))}</span>
     </div>
   `;
 }
@@ -1153,7 +1176,7 @@ async function loadAuditLogs() {
       <td>${escapeHtml(formatDate(log.created_at))}</td>
       <td>${escapeHtml(log.admin_username || "未知管理员")}</td>
       <td>${escapeHtml(auditActionText(log.action))}</td>
-      <td>${escapeHtml(log.target_username || "已删除用户")}</td>
+      <td>${escapeHtml(auditTargetText(log))}</td>
       <td class="audit-detail">${escapeHtml(renderAuditDetail(log.detail))}</td>
     </tr>
   `).join("") : `<tr><td colspan="5" class="muted">暂无操作日志</td></tr>`;

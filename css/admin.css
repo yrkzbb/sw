@@ -2231,3 +2231,273 @@ tbody tr.selected {
     grid-template-columns: 1fr;
   }
 }
+
+/* Quiet operations polish: flatter, denser, less generated-looking. */
+:root {
+  --paper: #f5f1e8;
+  --paper-panel: #fbfaf6;
+  --paper-line: #ddd5c7;
+  --paper-grid: rgba(47, 67, 59, 0.035);
+  --deep-green: #18362f;
+  --deep-green-2: #112821;
+  --teal: #3c8176;
+  --coral: #b95c4f;
+  --gold: #b79a48;
+  --ink: #17211f;
+  --muted: #6f776f;
+}
+
+body {
+  background:
+    linear-gradient(var(--paper-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--paper-grid) 1px, transparent 1px),
+    #f3efe6;
+  background-size: 48px 48px;
+}
+
+.dashboard {
+  max-width: none;
+  box-shadow: none;
+}
+
+.sidebar {
+  padding: 30px 28px 28px;
+  background: var(--deep-green);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.brand {
+  align-items: center;
+  padding-bottom: 22px;
+}
+
+.brand-mark {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+.brand strong {
+  font-size: 15px;
+  letter-spacing: 0;
+}
+
+.brand span {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.nav-list {
+  gap: 0;
+}
+
+.nav-item {
+  min-height: 42px;
+  padding: 0;
+  border-bottom-color: rgba(248, 246, 239, 0.12);
+  font-size: 13px;
+  letter-spacing: 0;
+}
+
+.nav-item.active,
+.nav-item:hover {
+  color: #fffdf7;
+}
+
+.nav-item::before {
+  width: 5px;
+  height: 5px;
+  margin-right: 12px;
+}
+
+.sidebar-summary {
+  margin-top: 24px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.045);
+  border-color: rgba(255, 255, 255, 0.14);
+}
+
+.sidebar-summary strong {
+  margin-top: 8px;
+  font-size: 20px;
+}
+
+.sidebar .ghost-btn {
+  min-height: 42px;
+  margin-top: 22px;
+  color: rgba(255, 253, 247, 0.76);
+}
+
+.sidebar-resizer {
+  width: 10px;
+  background:
+    linear-gradient(90deg, transparent 0 4px, rgba(60, 129, 118, 0.42) 4px 5px, transparent 5px 100%),
+    #f4f0e7;
+}
+
+.sidebar-resizer::after {
+  height: 42px;
+  background: rgba(60, 129, 118, 0.72);
+}
+
+.content {
+  padding: 32px 42px 48px;
+  background: var(--paper-panel);
+}
+
+.topbar {
+  margin-bottom: 22px;
+  padding-bottom: 22px;
+}
+
+.topbar h2 {
+  font-size: 30px;
+  letter-spacing: 0;
+}
+
+.eyebrow {
+  color: var(--coral);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+
+.toolbar {
+  gap: 10px;
+  padding: 14px 0;
+}
+
+input,
+select,
+.modal-field textarea {
+  min-height: 40px;
+  background: #fffdf8;
+}
+
+.icon-text-btn,
+.primary-btn,
+.ghost-btn,
+.action-btn,
+.announcement-toolbar button {
+  min-height: 40px;
+  border-color: #d6cebf;
+  font-size: 13px;
+}
+
+.primary-btn {
+  background: #3c8176;
+}
+
+.primary-btn:hover {
+  background: #2f675e;
+}
+
+.status-card,
+.status-section,
+.table-shell,
+.detail-panel,
+.announcement-card,
+.modal-panel {
+  background: #fffdf8;
+  border-color: var(--paper-line);
+}
+
+.overview-stats,
+.status-grid {
+  gap: 10px;
+}
+
+.status-card {
+  min-height: 84px;
+  padding: 14px 16px;
+}
+
+.status-card span {
+  color: #71786f;
+  font-size: 12px;
+}
+
+.status-card strong {
+  margin-top: 7px;
+  font-size: 24px;
+  letter-spacing: 0;
+}
+
+.status-card p,
+.status-card .muted {
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.status-section {
+  padding: 18px;
+}
+
+.status-section h3 {
+  font-size: 16px;
+}
+
+th {
+  padding: 11px 12px;
+  background: #f2ede3;
+  font-size: 12px;
+}
+
+td {
+  padding: 12px;
+  font-size: 13px;
+}
+
+tbody tr:hover,
+tbody tr.selected {
+  background: #eef4ef;
+}
+
+.badge {
+  min-height: 22px;
+  padding: 0 7px;
+  font-size: 11px;
+}
+
+.announcement-card {
+  padding: 16px 18px;
+}
+
+.announcement-card h3 {
+  font-size: 17px;
+}
+
+.announcement-actions {
+  align-items: flex-start;
+}
+
+.announcement-editor-grid {
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.86fr);
+}
+
+.announcement-toolbar,
+.announcement-preview-panel,
+.modal-hint {
+  background: #fbf4e6;
+  border-color: var(--paper-line);
+}
+
+.modal-overlay {
+  background: rgba(31, 50, 43, 0.58);
+}
+
+.modal-panel {
+  box-shadow: 0 24px 70px rgba(31, 50, 43, 0.18);
+}
+
+@media (max-width: 1080px) {
+  .sidebar {
+    border-right: 0;
+  }
+}
+
+@media (max-width: 680px) {
+  .content {
+    padding: 22px 16px 34px;
+  }
+}
