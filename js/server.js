@@ -155,6 +155,26 @@ async function initMysqlSchema(pool) {
         ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("admin_audit_logs")} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      admin_id BIGINT UNSIGNED NULL,
+      target_user_id BIGINT UNSIGNED NULL,
+      action VARCHAR(64) NOT NULL,
+      detail JSON NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_admin_audit_created_at (created_at),
+      KEY idx_admin_audit_admin_id (admin_id),
+      KEY idx_admin_audit_target_user_id (target_user_id),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}audit_admin
+        FOREIGN KEY (admin_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE SET NULL,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}audit_target_user
+        FOREIGN KEY (target_user_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
   await ensureUserColumn(pool, "role", "ENUM('user', 'admin') NOT NULL DEFAULT 'user'");
   await ensureUserColumn(pool, "status", "ENUM('active', 'disabled') NOT NULL DEFAULT 'active'");
   await ensureUserColumn(pool, "last_login_at", "DATETIME NULL");
@@ -624,6 +644,25 @@ function adminPublicUser(row, dataRows = []) {
   };
 }
 
+function normalizePositiveInt(value, fallback, min, max) {
+  const number = Number.parseInt(String(value || ""), 10);
+  if (!Number.isFinite(number)) return fallback;
+  return Math.min(max, Math.max(min, number));
+}
+
+async function writeAdminAuditLog(pool, admin, action, targetUserId = null, detail = {}) {
+  await pool.query(
+    `INSERT INTO ${tableName("admin_audit_logs")} (admin_id, target_user_id, action, detail)
+     VALUES (?, ?, ?, ?)`,
+    [
+      admin?.id || null,
+      targetUserId || null,
+      action,
+      JSON.stringify(detail || {}),
+    ]
+  );
+}
+
 async function getUserDataRows(pool, userIds) {
   if (!userIds.length) return new Map();
   const placeholders = userIds.map(() => "?").join(",");
@@ -655,6 +694,19 @@ async function adminListUsers(req, res, url) {
     const pool = await getMysql();
     const q = String(url.searchParams.get("q") || "").trim();
     const status = String(url.searchParams.get("status") || "").trim();
+    const role = String(url.searchParams.get("role") || "").trim();
+    const page = normalizePositiveInt(url.searchParams.get("page"), 1, 1, 10000);
+    const pageSize = normalizePositiveInt(url.searchParams.get("pageSize"), 20, 5, 100);
+    const offset = (page - 1) * pageSize;
+    const sortMap = {
+      created_desc: "created_at DESC",
+      created_asc: "created_at ASC",
+      login_desc: "last_login_at IS NULL ASC, last_login_at DESC",
+      login_asc: "last_login_at IS NULL ASC, last_login_at ASC",
+      name_asc: "username ASC",
+      name_desc: "username DESC",
+    };
+    const sort = sortMap[String(url.searchParams.get("sort") || "created_desc")] || sortMap.created_desc;
     const params = [];
     const where = [];
     if (q) {
@@ -665,17 +717,32 @@ async function adminListUsers(req, res, url) {
       where.push("status = ?");
       params.push(status);
     }
+    if (role === "user" || role === "admin") {
+      where.push("role = ?");
+      params.push(role);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const [[countRow]] = await pool.query(
+      `SELECT COUNT(*) AS total FROM ${tableName("users")} ${whereSql}`,
+      params
+    );
     const [users] = await pool.query(
       `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
          FROM ${tableName("users")}
-        ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-        ORDER BY created_at DESC
-        LIMIT 500`,
-      params
+        ${whereSql}
+        ORDER BY ${sort}
+        LIMIT ? OFFSET ?`,
+      params.concat([pageSize, offset])
     );
     const dataRows = await getUserDataRows(pool, users.map((user) => user.id));
     sendJson(res, 200, {
       users: users.map((user) => adminPublicUser(user, dataRows.get(String(user.id)) || [])),
+      pagination: {
+        page,
+        pageSize,
+        total: Number(countRow.total || 0),
+        totalPages: Math.max(1, Math.ceil(Number(countRow.total || 0) / pageSize)),
+      },
     });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
@@ -725,6 +792,7 @@ async function adminCreateUser(req, res) {
         LIMIT 1`,
       [result.insertId]
     );
+    await writeAdminAuditLog(pool, admin, "create_user", result.insertId, { username, email, role, status });
     sendJson(res, 201, { user: publicUser(rows[0]) });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
@@ -762,6 +830,124 @@ async function adminGetUser(req, res, userId) {
   }
 }
 
+async function adminExportUserData(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const [users] = await pool.query(
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+         FROM ${tableName("users")}
+        WHERE id = ?
+        LIMIT 1`,
+      [userId]
+    );
+    if (!users.length) {
+      sendJson(res, 404, { error: "用户不存在。" });
+      return;
+    }
+    const dataRows = await getUserDataRows(pool, [userId]);
+    const rows = dataRows.get(String(userId)) || [];
+    const data = {};
+    rows.forEach((row) => {
+      data[row.data_key] = row.data_value;
+    });
+    await writeAdminAuditLog(pool, admin, "export_user_data", userId, { dataKeyCount: rows.length });
+    sendJson(res, 200, {
+      exportedAt: new Date().toISOString(),
+      user: adminPublicUser(users[0], rows),
+      data,
+      dataKeys: rows.map((row) => ({
+        key: row.data_key,
+        bytes: Buffer.byteLength(String(row.data_value || ""), "utf8"),
+        updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+      })),
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+function normalizeUserIds(value) {
+  const raw = Array.isArray(value) ? value : [];
+  return [...new Set(raw.map((id) => String(id || "").trim()).filter((id) => /^\d+$/.test(id)))].slice(0, 100);
+}
+
+async function adminBulkUsers(req, res) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const userIds = normalizeUserIds(body.userIds);
+  const action = String(body.action || "").trim();
+  if (!userIds.length) {
+    sendJson(res, 400, { error: "请选择用户。" });
+    return;
+  }
+  if (!["enable", "disable", "clear_data"].includes(action)) {
+    sendJson(res, 400, { error: "批量操作无效。" });
+    return;
+  }
+  if (action === "disable" && userIds.includes(String(admin.id))) {
+    sendJson(res, 400, { error: "不能禁用当前登录的管理员。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const placeholders = userIds.map(() => "?").join(",");
+    const [users] = await pool.query(
+      `SELECT id, username FROM ${tableName("users")} WHERE id IN (${placeholders})`,
+      userIds
+    );
+    if (!users.length) {
+      sendJson(res, 404, { error: "没有找到可操作的用户。" });
+      return;
+    }
+    const foundIds = users.map((user) => String(user.id));
+    if (action === "enable" || action === "disable") {
+      const status = action === "enable" ? "active" : "disabled";
+      await pool.query(
+        `UPDATE ${tableName("users")} SET status = ? WHERE id IN (${foundIds.map(() => "?").join(",")})`,
+        [status].concat(foundIds)
+      );
+      if (status === "disabled") {
+        await pool.query(
+          `DELETE FROM ${tableName("sessions")} WHERE user_id IN (${foundIds.map(() => "?").join(",")})`,
+          foundIds
+        );
+      }
+      await Promise.all(foundIds.map((id) => writeAdminAuditLog(
+        pool,
+        admin,
+        status === "disabled" ? "bulk_disable_user" : "bulk_enable_user",
+        id,
+        { status }
+      )));
+      sendJson(res, 200, { ok: true, affectedUsers: foundIds.length });
+      return;
+    }
+    if (action === "clear_data") {
+      const [result] = await pool.query(
+        `DELETE FROM ${tableName("user_data")} WHERE user_id IN (${foundIds.map(() => "?").join(",")})`,
+        foundIds
+      );
+      await Promise.all(foundIds.map((id) => writeAdminAuditLog(
+        pool,
+        admin,
+        "bulk_clear_user_data",
+        id,
+        { affectedUsers: foundIds.length }
+      )));
+      sendJson(res, 200, { ok: true, affectedUsers: foundIds.length, deletedRows: result.affectedRows || 0 });
+    }
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
 async function adminSetUserStatus(req, res, userId) {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
@@ -792,6 +978,7 @@ async function adminSetUserStatus(req, res, userId) {
     if (status === "disabled") {
       await pool.query(`DELETE FROM ${tableName("sessions")} WHERE user_id = ?`, [userId]);
     }
+    await writeAdminAuditLog(pool, admin, status === "disabled" ? "disable_user" : "enable_user", userId, { status });
     sendJson(res, 200, { ok: true, status });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
@@ -825,6 +1012,7 @@ async function adminSetUserRole(req, res, userId) {
       sendJson(res, 404, { error: "用户不存在。" });
       return;
     }
+    await writeAdminAuditLog(pool, admin, "set_user_role", userId, { role });
     sendJson(res, 200, { ok: true, role });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
@@ -862,6 +1050,7 @@ async function adminResetPassword(req, res, userId) {
       return;
     }
     await pool.query(`DELETE FROM ${tableName("sessions")} WHERE user_id = ?`, [userId]);
+    await writeAdminAuditLog(pool, admin, "reset_password", userId, { generated: !String(body.password || "").trim() });
     sendJson(res, 200, { ok: true, temporaryPassword: password });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
@@ -874,6 +1063,7 @@ async function adminClearUserData(req, res, userId) {
   try {
     const pool = await getMysql();
     const [result] = await pool.query(`DELETE FROM ${tableName("user_data")} WHERE user_id = ?`, [userId]);
+    await writeAdminAuditLog(pool, admin, "clear_user_data", userId, { deletedRows: result.affectedRows || 0 });
     sendJson(res, 200, { ok: true, deletedRows: result.affectedRows || 0 });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
@@ -907,6 +1097,10 @@ async function adminDeleteUser(req, res, userId) {
       sendJson(res, 400, { error: "请输入该用户的用户名或邮箱作为删除确认。" });
       return;
     }
+    await writeAdminAuditLog(pool, admin, "delete_user", userId, {
+      username: users[0].username,
+      email: users[0].email,
+    });
     await pool.query(`DELETE FROM ${tableName("users")} WHERE id = ?`, [userId]);
     sendJson(res, 200, { ok: true });
   } catch (e) {
@@ -932,10 +1126,29 @@ async function adminGetSystemStatus(req, res) {
       `SELECT COUNT(*) AS dataRows, COALESCE(SUM(CHAR_LENGTH(data_value)), 0) AS dataBytes
          FROM ${tableName("user_data")}`
     );
+    const [recentLogins] = await pool.query(
+      `SELECT id, username, email, role, status, last_login_at
+         FROM ${tableName("users")}
+        WHERE last_login_at IS NOT NULL
+        ORDER BY last_login_at DESC
+        LIMIT 6`
+    );
+    const [recentAuditLogs] = await pool.query(
+      `SELECT l.id, l.action, l.detail, l.created_at,
+              a.username AS admin_username,
+              t.username AS target_username
+         FROM ${tableName("admin_audit_logs")} l
+         LEFT JOIN ${tableName("users")} a ON a.id = l.admin_id
+         LEFT JOIN ${tableName("users")} t ON t.id = l.target_user_id
+        ORDER BY l.created_at DESC
+        LIMIT 8`
+    );
     sendJson(res, 200, {
       mysql: { connected: true },
       users: userCounts,
       data: dataCounts,
+      recentLogins: recentLogins.map(publicUser),
+      recentAuditLogs,
       checkedAt: new Date().toISOString(),
     });
   } catch (e) {
@@ -948,8 +1161,42 @@ async function adminGetSystemStatus(req, res) {
   }
 }
 
+async function adminListAuditLogs(req, res, url) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const page = normalizePositiveInt(url.searchParams.get("page"), 1, 1, 10000);
+    const pageSize = normalizePositiveInt(url.searchParams.get("pageSize"), 20, 5, 100);
+    const offset = (page - 1) * pageSize;
+    const [[countRow]] = await pool.query(`SELECT COUNT(*) AS total FROM ${tableName("admin_audit_logs")}`);
+    const [logs] = await pool.query(
+      `SELECT l.id, l.action, l.detail, l.created_at,
+              a.username AS admin_username,
+              t.username AS target_username
+         FROM ${tableName("admin_audit_logs")} l
+         LEFT JOIN ${tableName("users")} a ON a.id = l.admin_id
+         LEFT JOIN ${tableName("users")} t ON t.id = l.target_user_id
+        ORDER BY l.created_at DESC
+        LIMIT ? OFFSET ?`,
+      [pageSize, offset]
+    );
+    sendJson(res, 200, {
+      logs,
+      pagination: {
+        page,
+        pageSize,
+        total: Number(countRow.total || 0),
+        totalPages: Math.max(1, Math.ceil(Number(countRow.total || 0) / pageSize)),
+      },
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
 function handleAdminRoute(req, res, url) {
-  const userMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)(?:\/(status|role|reset-password|data))?$/);
+  const userMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)(?:\/(status|role|reset-password|data|export))?$/);
   if (url.pathname === "/api/admin/me" && req.method === "GET") {
     void adminGetMe(req, res);
     return true;
@@ -962,8 +1209,16 @@ function handleAdminRoute(req, res, url) {
     void adminCreateUser(req, res);
     return true;
   }
+  if (url.pathname === "/api/admin/users/bulk" && req.method === "POST") {
+    void adminBulkUsers(req, res);
+    return true;
+  }
   if (userMatch && req.method === "GET" && !userMatch[2]) {
     void adminGetUser(req, res, userMatch[1]);
+    return true;
+  }
+  if (userMatch && req.method === "GET" && userMatch[2] === "export") {
+    void adminExportUserData(req, res, userMatch[1]);
     return true;
   }
   if (userMatch && req.method === "PATCH" && userMatch[2] === "status") {
@@ -988,6 +1243,10 @@ function handleAdminRoute(req, res, url) {
   }
   if (url.pathname === "/api/admin/status" && req.method === "GET") {
     void adminGetSystemStatus(req, res);
+    return true;
+  }
+  if (url.pathname === "/api/admin/audit-logs" && req.method === "GET") {
+    void adminListAuditLogs(req, res, url);
     return true;
   }
   return false;
