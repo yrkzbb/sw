@@ -3591,10 +3591,52 @@ code {
   font-size: 13px;
 }
 
-.announcement-banner span {
+.announcement-banner span,
+.announcement-banner .announcement-markdown {
   color: rgba(235, 246, 255, 0.84);
   font-size: 13px;
   line-height: 1.6;
+}
+
+.announcement-banner .announcement-markdown {
+  min-width: 0;
+}
+
+.announcement-banner .announcement-markdown :where(p, ul, blockquote, h4) {
+  margin: 0;
+}
+
+.announcement-banner .announcement-markdown :where(p + p, p + ul, ul + p, blockquote + p) {
+  margin-top: 6px;
+}
+
+.announcement-banner .announcement-markdown ul {
+  padding-left: 18px;
+}
+
+.announcement-banner .announcement-markdown h4 {
+  color: rgba(235, 246, 255, 0.96);
+  font-size: 13px;
+}
+
+.announcement-banner .announcement-markdown a {
+  color: #aee8ff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.announcement-banner .announcement-markdown code {
+  padding: 1px 5px;
+  border: 1px solid rgba(174, 232, 255, 0.22);
+  border-radius: 5px;
+  background: rgba(174, 232, 255, 0.1);
+  font-size: 12px;
+}
+
+.announcement-banner .announcement-markdown blockquote {
+  padding: 6px 8px;
+  border-left: 3px solid rgba(174, 232, 255, 0.45);
+  background: rgba(174, 232, 255, 0.08);
 }
 
 .announcement-success {

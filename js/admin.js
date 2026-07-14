@@ -1,7 +1,16 @@
 const ADMIN_LAST_ACCOUNT_STORAGE = "WENJIE_ADMIN_LAST_ACCOUNT";
 const ADMIN_SIDEBAR_WIDTH_STORAGE = "WENJIE_ADMIN_SIDEBAR_WIDTH";
+const ADMIN_ACTIVE_PANEL_STORAGE = "WENJIE_ADMIN_ACTIVE_PANEL";
 const SIDEBAR_MIN_WIDTH = 224;
 const SIDEBAR_MAX_WIDTH = 380;
+const ADMIN_PANEL_TITLES = {
+  overviewPanel: "运营总览",
+  usersPanel: "用户管理",
+  announcementPanel: "公告管理",
+  securityPanel: "安全中心",
+  statusPanel: "系统状态",
+  auditPanel: "操作日志",
+};
 
 const state = {
   admin: null,
@@ -33,6 +42,7 @@ const el = {
   logoutBtn: document.querySelector("#logoutBtn"),
   refreshBtn: document.querySelector("#refreshBtn"),
   panelTitle: document.querySelector("#panelTitle"),
+  sidebarSummaryTitle: document.querySelector(".sidebar-summary strong"),
   overviewPanel: document.querySelector("#overviewPanel"),
   overviewStats: document.querySelector("#overviewStats"),
   attentionUsers: document.querySelector("#attentionUsers"),
@@ -151,11 +161,16 @@ function showDashboard(admin) {
   el.dashboardView.hidden = false;
 }
 
+function getSavedPanel() {
+  const panelId = localStorage.getItem(ADMIN_ACTIVE_PANEL_STORAGE) || "overviewPanel";
+  return ADMIN_PANEL_TITLES[panelId] ? panelId : "overviewPanel";
+}
+
 async function checkSession() {
   try {
     const payload = await api("/api/admin/me");
     showDashboard(payload.user);
-    await Promise.all([loadOverview(), loadUsers(), loadSystemStatus()]);
+    switchPanel(getSavedPanel(), { persist: false });
   } catch {
     showLogin();
   }
@@ -177,7 +192,7 @@ async function login(e) {
     const payload = await api("/api/admin/me");
     showDashboard(payload.user);
     el.loginPassword.value = "";
-    await Promise.all([loadOverview(), loadUsers(), loadSystemStatus()]);
+    switchPanel(getSavedPanel(), { persist: false });
   } catch (err) {
     showLogin(String(err?.message || err));
   }
@@ -398,10 +413,12 @@ function showModal({ title, eyebrow = "ADMIN ACTION", body, confirmText = "确�
   el.modalEyebrow.textContent = eyebrow;
   el.modalTitle.textContent = title;
   el.modalBody.innerHTML = body;
+  el.modalOverlay.querySelector(".modal-panel")?.classList.toggle("wide-modal", !!el.modalBody.querySelector(".announcement-editor"));
   el.modalMessage.textContent = "";
   el.modalConfirmBtn.textContent = confirmText;
   el.modalConfirmBtn.classList.toggle("danger-primary", danger);
   el.modalOverlay.hidden = false;
+  setupAnnouncementEditor();
   window.setTimeout(() => {
     el.modalOverlay.querySelector("input, select, textarea, button")?.focus();
   }, 0);
@@ -411,6 +428,7 @@ function closeModal() {
   state.modalConfirm = null;
   state.modalKeepOpen = false;
   el.modalOverlay.hidden = true;
+  el.modalOverlay.querySelector(".modal-panel")?.classList.remove("wide-modal");
   el.modalBody.innerHTML = "";
   el.modalMessage.textContent = "";
 }
@@ -748,15 +766,67 @@ function renderAnnouncements() {
           <span>${escapeHtml(formatDate(item.updatedAt))}</span>
         </div>
         <h3>${escapeHtml(item.title)}</h3>
-        <p>${escapeHtml(item.content)}</p>
+        <div class="announcement-markdown">${renderAnnouncementMarkdown(item.content)}</div>
         <small>${item.startsAt ? `开始 ${escapeHtml(formatDate(item.startsAt))}` : "立即生效"} · ${item.endsAt ? `结束 ${escapeHtml(formatDate(item.endsAt))}` : "长期有效"}</small>
       </div>
       <div class="announcement-actions">
+        ${item.status === "published"
+          ? `<button class="ghost-btn" type="button" data-announcement-action="archive">下架</button>`
+          : `<button class="primary-btn compact-primary" type="button" data-announcement-action="publish">发布</button>`}
         <button class="ghost-btn" type="button" data-announcement-action="edit">编辑</button>
         <button class="ghost-btn danger-text" type="button" data-announcement-action="delete">删除</button>
       </div>
     </article>
   `).join("") : `<div class="empty-detail">暂无公告</div>`;
+}
+
+function renderAnnouncementInlineMarkdown(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_\n]+)_/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_match, label, href) => {
+      const rawHref = href.replace(/&amp;/g, "&");
+      if (!/^(https?:\/\/|mailto:|\/|#)/i.test(rawHref)) return label;
+      return `<a href="${escapeHtml(rawHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+}
+
+function renderAnnouncementMarkdown(markdown) {
+  const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+  const html = [];
+  let listItems = [];
+  const flushList = () => {
+    if (!listItems.length) return;
+    html.push(`<ul>${listItems.map((item) => `<li>${renderAnnouncementInlineMarkdown(item)}</li>`).join("")}</ul>`);
+    listItems = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (listMatch) {
+      listItems.push(listMatch[1]);
+      continue;
+    }
+    flushList();
+    if (!trimmed) continue;
+    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      html.push(`<h4>${renderAnnouncementInlineMarkdown(heading[2])}</h4>`);
+      continue;
+    }
+    const quote = trimmed.match(/^>\s?(.+)$/);
+    if (quote) {
+      html.push(`<blockquote>${renderAnnouncementInlineMarkdown(quote[1])}</blockquote>`);
+      continue;
+    }
+    html.push(`<p>${renderAnnouncementInlineMarkdown(trimmed)}</p>`);
+  }
+  flushList();
+  return html.join("") || `<p class="muted">暂无公告内容</p>`;
 }
 
 function announcementStatusText(status) {
@@ -769,7 +839,7 @@ function announcementLevelText(level) {
 
 function announcementFormBody(item = {}) {
   return `
-    <p class="modal-hint">发布后会显示在已登录用户首页顶部；草稿不展示。开始时间为空表示立即生效，结束时间为空表示长期有效。</p>
+    <p class="modal-hint">发布后会显示在已登录用户首页顶部；草稿不展示。可直接输入文字，也可以用下方按钮快速排版。</p>
     <div class="modal-grid">
       <label class="modal-field"><span>标题</span><input name="title" type="text" value="${escapeHtml(item.title || "")}" /></label>
       <label class="modal-field"><span>状态</span><select name="status">
@@ -781,8 +851,76 @@ function announcementFormBody(item = {}) {
       <label class="modal-field"><span>开始时间</span><input name="startsAt" type="datetime-local" value="${escapeHtml(toDateTimeLocalValue(item.startsAt))}" /></label>
       <label class="modal-field"><span>结束时间</span><input name="endsAt" type="datetime-local" value="${escapeHtml(toDateTimeLocalValue(item.endsAt))}" /></label>
     </div>
-    <label class="modal-field"><span>公告内容</span><textarea name="content" rows="5">${escapeHtml(item.content || "")}</textarea></label>
+    <section class="announcement-editor" aria-label="公告内容编辑器">
+      <div class="announcement-toolbar" aria-label="公告排版工具">
+        <button type="button" data-md-action="bold">加粗</button>
+        <button type="button" data-md-action="heading">标题</button>
+        <button type="button" data-md-action="list">列表</button>
+        <button type="button" data-md-action="quote">引用</button>
+        <button type="button" data-md-action="code">代码</button>
+        <button type="button" data-md-action="link">链接</button>
+      </div>
+      <div class="announcement-editor-grid">
+        <label class="modal-field"><span>公告内容</span><textarea name="content" rows="9" placeholder="直接输入公告内容，或用上方按钮快速排版。">${escapeHtml(item.content || "")}</textarea></label>
+        <section class="announcement-preview-panel" aria-live="polite">
+          <span>实时预览</span>
+          <div class="announcement-markdown" data-announcement-preview></div>
+        </section>
+      </div>
+    </section>
   `;
+}
+
+function setupAnnouncementEditor() {
+  const editor = el.modalBody.querySelector(".announcement-editor");
+  if (!editor) return;
+  const textarea = editor.querySelector("textarea[name='content']");
+  const preview = editor.querySelector("[data-announcement-preview]");
+  if (!textarea || !preview) return;
+
+  const updatePreview = () => {
+    preview.innerHTML = renderAnnouncementMarkdown(textarea.value);
+  };
+
+  const replaceSelection = (before, after = "", fallback = "内容") => {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const selected = textarea.value.slice(start, end) || fallback;
+    const next = `${before}${selected}${after}`;
+    textarea.setRangeText(next, start, end, "end");
+    textarea.focus();
+    updatePreview();
+  };
+
+  const insertLinePrefix = (prefix, fallback = "内容") => {
+    const start = textarea.selectionStart;
+    const lineStart = textarea.value.lastIndexOf("\n", Math.max(0, start - 1)) + 1;
+    const end = textarea.selectionEnd;
+    const selected = textarea.value.slice(lineStart, end) || fallback;
+    const lines = selected.split("\n").map((line) => `${prefix}${line || fallback}`);
+    textarea.setRangeText(lines.join("\n"), lineStart, end, "end");
+    textarea.focus();
+    updatePreview();
+  };
+
+  editor.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-md-action]");
+    if (!button) return;
+    const action = button.getAttribute("data-md-action");
+    if (action === "bold") replaceSelection("**", "**", "重点内容");
+    if (action === "heading") insertLinePrefix("### ", "公告标题");
+    if (action === "list") insertLinePrefix("- ", "列表项");
+    if (action === "quote") insertLinePrefix("> ", "提示内容");
+    if (action === "code") replaceSelection("`", "`", "关键词");
+    if (action === "link") {
+      const url = window.prompt("请输入链接地址", "https://");
+      if (!url) return;
+      replaceSelection("[", `](${url})`, "查看详情");
+    }
+  });
+
+  textarea.addEventListener("input", updatePreview);
+  updatePreview();
 }
 
 function toDateTimeLocalValue(value) {
@@ -832,6 +970,21 @@ function editAnnouncement(item) {
       await loadAnnouncements();
     },
   });
+}
+
+async function updateAnnouncementStatus(item, status) {
+  await api(`/api/admin/announcements/${encodeURIComponent(item.id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({
+      title: item.title,
+      content: item.content,
+      level: item.level,
+      status,
+      startsAt: item.startsAt ? toDateTimeLocalValue(item.startsAt) : "",
+      endsAt: item.endsAt ? toDateTimeLocalValue(item.endsAt) : "",
+    }),
+  });
+  await loadAnnouncements();
 }
 
 function deleteAnnouncement(item) {
@@ -1016,24 +1169,21 @@ async function refreshActivePanel() {
   if (state.activePanel === "auditPanel") await loadAuditLogs();
 }
 
-function switchPanel(panelId) {
-  state.activePanel = panelId;
-  el.overviewPanel.hidden = panelId !== "overviewPanel";
-  el.usersPanel.hidden = panelId !== "usersPanel";
-  el.announcementPanel.hidden = panelId !== "announcementPanel";
-  el.securityPanel.hidden = panelId !== "securityPanel";
-  el.statusPanel.hidden = panelId !== "statusPanel";
-  el.auditPanel.hidden = panelId !== "auditPanel";
-  el.panelTitle.textContent = ({
-    overviewPanel: "运营总览",
-    usersPanel: "用户管理",
-    announcementPanel: "公告管理",
-    securityPanel: "安全中心",
-    statusPanel: "系统状态",
-    auditPanel: "操作日志",
-  })[panelId] || "运营总览";
+function switchPanel(panelId, options = {}) {
+  const nextPanel = ADMIN_PANEL_TITLES[panelId] ? panelId : "overviewPanel";
+  const shouldPersist = options.persist !== false;
+  if (shouldPersist) localStorage.setItem(ADMIN_ACTIVE_PANEL_STORAGE, nextPanel);
+  state.activePanel = nextPanel;
+  el.overviewPanel.hidden = nextPanel !== "overviewPanel";
+  el.usersPanel.hidden = nextPanel !== "usersPanel";
+  el.announcementPanel.hidden = nextPanel !== "announcementPanel";
+  el.securityPanel.hidden = nextPanel !== "securityPanel";
+  el.statusPanel.hidden = nextPanel !== "statusPanel";
+  el.auditPanel.hidden = nextPanel !== "auditPanel";
+  el.panelTitle.textContent = ADMIN_PANEL_TITLES[nextPanel];
+  if (el.sidebarSummaryTitle) el.sidebarSummaryTitle.textContent = ADMIN_PANEL_TITLES[nextPanel];
   document.querySelectorAll(".nav-item").forEach((btn) => {
-    btn.classList.toggle("active", btn.getAttribute("data-panel") === panelId);
+    btn.classList.toggle("active", btn.getAttribute("data-panel") === nextPanel);
   });
   refreshActivePanel().catch((err) => window.alert(String(err?.message || err)));
 }
@@ -1145,8 +1295,11 @@ el.announcementList.addEventListener("click", (e) => {
   if (!button || !card) return;
   const item = state.announcements.find((announcement) => String(announcement.id) === String(card.getAttribute("data-announcement-id")));
   if (!item) return;
-  if (button.getAttribute("data-announcement-action") === "edit") editAnnouncement(item);
-  if (button.getAttribute("data-announcement-action") === "delete") deleteAnnouncement(item);
+  const action = button.getAttribute("data-announcement-action");
+  if (action === "publish") updateAnnouncementStatus(item, "published").catch((err) => window.alert(String(err?.message || err)));
+  if (action === "archive") updateAnnouncementStatus(item, "archived").catch((err) => window.alert(String(err?.message || err)));
+  if (action === "edit") editAnnouncement(item);
+  if (action === "delete") deleteAnnouncement(item);
 });
 el.searchInput.addEventListener("input", debounce(() => {
   state.usersPage = 1;

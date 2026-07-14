@@ -618,8 +618,57 @@ function renderAnnouncements(announcements) {
   el.announcementBanner.className = `announcement-banner announcement-${item.level || "info"}`;
   el.announcementBanner.innerHTML = `
     <strong>${escapeHtml(item.title || "公告")}</strong>
-    <span>${escapeHtml(item.content || "")}</span>
+    <div class="announcement-markdown">${renderAnnouncementMarkdown(item.content || "")}</div>
   `;
+}
+
+function renderAnnouncementInlineMarkdown(text) {
+  return escapeHtml(text)
+    .replace(/`([^`]+)`/g, "<code>$1</code>")
+    .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
+    .replace(/__([^_]+)__/g, "<strong>$1</strong>")
+    .replace(/\*([^*\n]+)\*/g, "<em>$1</em>")
+    .replace(/_([^_\n]+)_/g, "<em>$1</em>")
+    .replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (_match, label, href) => {
+      const rawHref = href.replace(/&amp;/g, "&");
+      if (!/^(https?:\/\/|mailto:|\/|#)/i.test(rawHref)) return label;
+      return `<a href="${escapeHtml(rawHref)}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+    });
+}
+
+function renderAnnouncementMarkdown(markdown) {
+  const lines = String(markdown || "").replace(/\r\n?/g, "\n").split("\n");
+  const html = [];
+  let listItems = [];
+  const flushList = () => {
+    if (!listItems.length) return;
+    html.push(`<ul>${listItems.map((item) => `<li>${renderAnnouncementInlineMarkdown(item)}</li>`).join("")}</ul>`);
+    listItems = [];
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    const listMatch = trimmed.match(/^[-*]\s+(.+)$/);
+    if (listMatch) {
+      listItems.push(listMatch[1]);
+      continue;
+    }
+    flushList();
+    if (!trimmed) continue;
+    const heading = trimmed.match(/^(#{1,3})\s+(.+)$/);
+    if (heading) {
+      html.push(`<h4>${renderAnnouncementInlineMarkdown(heading[2])}</h4>`);
+      continue;
+    }
+    const quote = trimmed.match(/^>\s?(.+)$/);
+    if (quote) {
+      html.push(`<blockquote>${renderAnnouncementInlineMarkdown(quote[1])}</blockquote>`);
+      continue;
+    }
+    html.push(`<p>${renderAnnouncementInlineMarkdown(trimmed)}</p>`);
+  }
+  flushList();
+  return html.join("") || `<p>暂无公告内容</p>`;
 }
 
 function reloadUserWorkspace() {
