@@ -23,6 +23,7 @@ const USER_DATA_KEYS = {
   resources: "LINGXI_LEARNING_RESOURCES",
   mistakes: "LINGXI_MISTAKE_BOOK",
   pathLibrary: "LINGXI_LEARNING_PATH_LIBRARY",
+  accountProfile: "LINGXI_ACCOUNT_PROFILE",
 };
 const OPENAI_PROXY_BASE_URL = (
   process.env.OPENAI_PROXY_BASE_URL ||
@@ -389,6 +390,37 @@ function publicUser(row) {
   };
 }
 
+function publicUserWithProfile(row, profile = null) {
+  return {
+    ...publicUser(row),
+    profile: normalizeAccountProfile(profile),
+  };
+}
+
+function normalizeAccountProfile(profile = {}) {
+  const source = profile && typeof profile === "object" ? profile : {};
+  const avatarInitial = String(source.avatarInitial || "")
+    .trim()
+    .slice(0, 2)
+    .toUpperCase();
+  const bio = String(source.bio || "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const accent = String(source.accent || "teal").trim();
+  const theme = String(source.theme || "system").trim();
+  const defaultPage = String(source.defaultPage || "chat").trim();
+  const replyStyle = String(source.replyStyle || "").trim().replace(/\s+/g, " ").slice(0, 180);
+  const allowedAccents = new Set(["teal", "blue", "violet", "gold", "rose"]);
+  const allowedThemes = new Set(["system", "light", "dark"]);
+  const allowedPages = new Set(["chat", "profile", "resource", "storage"]);
+  return {
+    avatarInitial,
+    bio,
+    accent: allowedAccents.has(accent) ? accent : "teal",
+    theme: allowedThemes.has(theme) ? theme : "system",
+    defaultPage: allowedPages.has(defaultPage) ? defaultPage : "chat",
+    replyStyle,
+  };
+}
+
 function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
   const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 48, "sha256").toString("hex");
   return { salt, hash };
@@ -565,7 +597,119 @@ async function logoutUser(req, res) {
 async function getAuthMe(req, res) {
   const user = await requireUser(req, res);
   if (!user) return;
-  sendJson(res, 200, { user: publicUser(user) });
+  try {
+    const pool = await getMysql();
+    const profile = await loadAccountProfile(pool, user.id);
+    sendJson(res, 200, { user: publicUserWithProfile(user, profile) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function loadAccountProfile(pool, userId) {
+  const [rows] = await pool.query(
+    `SELECT data_value FROM ${tableName("user_data")} WHERE user_id = ? AND data_key = ? LIMIT 1`,
+    [userId, USER_DATA_KEYS.accountProfile]
+  );
+  return parseStoredJson(rows[0]?.data_value, {});
+}
+
+async function updateAuthProfile(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+
+  const username = normalizeUsername(body.name || body.username || user.username);
+  const email = normalizeEmail(body.email || user.email);
+  const existingProfile = await getMysql()
+    .then((pool) => loadAccountProfile(pool, user.id))
+    .catch(() => ({}));
+  const profile = normalizeAccountProfile({ ...existingProfile, ...(body.profile || {}) });
+  if (!username || username.length < 2) {
+    sendJson(res, 400, { error: "昵称至少需要 2 个字符。" });
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    sendJson(res, 400, { error: "请输入有效邮箱。" });
+    return;
+  }
+
+  try {
+    const pool = await getMysql();
+    const [existing] = await pool.query(
+      `SELECT id FROM ${tableName("users")} WHERE (username = ? OR email = ?) AND id <> ? LIMIT 1`,
+      [username, email, user.id]
+    );
+    if (existing.length) {
+      sendJson(res, 409, { error: "昵称或邮箱已被其他账号使用。" });
+      return;
+    }
+    await pool.query(`UPDATE ${tableName("users")} SET username = ?, email = ? WHERE id = ?`, [username, email, user.id]);
+    await pool.query(
+      `INSERT INTO ${tableName("user_data")} (user_id, data_key, data_value)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE data_value = VALUES(data_value)`,
+      [user.id, USER_DATA_KEYS.accountProfile, JSON.stringify(profile)]
+    );
+    const [rows] = await pool.query(
+      `SELECT id, username, email, role, status, created_at, last_login_at FROM ${tableName("users")} WHERE id = ? LIMIT 1`,
+      [user.id]
+    );
+    sendJson(res, 200, { user: publicUserWithProfile(rows[0], profile) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function updateAuthPassword(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+
+  const currentPassword = String(body.currentPassword || "");
+  const newPassword = String(body.newPassword || "");
+  const confirmPassword = String(body.confirmPassword || "");
+  if (!currentPassword || !newPassword) {
+    sendJson(res, 400, { error: "请填写当前密码和新密码。" });
+    return;
+  }
+  if (newPassword.length < 8) {
+    sendJson(res, 400, { error: "新密码至少需要 8 位。" });
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    sendJson(res, 400, { error: "两次输入的新密码不一致。" });
+    return;
+  }
+
+  try {
+    const pool = await getMysql();
+    const [rows] = await pool.query(
+      `SELECT id, password_salt, password_hash FROM ${tableName("users")} WHERE id = ? LIMIT 1`,
+      [user.id]
+    );
+    const record = rows[0];
+    if (!record || !verifyPassword(currentPassword, record.password_salt, record.password_hash)) {
+      sendJson(res, 401, { error: "当前密码不正确。" });
+      return;
+    }
+    const passwordData = hashPassword(newPassword);
+    await pool.query(
+      `UPDATE ${tableName("users")} SET password_salt = ?, password_hash = ? WHERE id = ?`,
+      [passwordData.salt, passwordData.hash, user.id]
+    );
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
 }
 
 async function getUserData(req, res) {
@@ -1795,10 +1939,8 @@ async function getPublicAnnouncements(req, res) {
       `SELECT id, title, content, level, status, starts_at, ends_at, created_at, updated_at
          FROM ${tableName("announcements")}
         WHERE status = 'published'
-          AND (starts_at IS NULL OR starts_at <= NOW())
-          AND (ends_at IS NULL OR ends_at >= NOW())
         ORDER BY COALESCE(starts_at, created_at) DESC, id DESC
-        LIMIT 3`
+        LIMIT 50`
     );
     sendJson(res, 200, { announcements: rows.map(publicAnnouncement) });
   } catch (e) {
@@ -2335,6 +2477,14 @@ const server = http.createServer((req, res) => {
     }
     if (url.pathname === "/api/auth/me" && req.method === "GET") {
       void getAuthMe(req, res);
+      return;
+    }
+    if (url.pathname === "/api/auth/profile" && req.method === "PUT") {
+      void updateAuthProfile(req, res);
+      return;
+    }
+    if (url.pathname === "/api/auth/password" && req.method === "PUT") {
+      void updateAuthPassword(req, res);
       return;
     }
     if (url.pathname === "/api/announcements" && req.method === "GET") {

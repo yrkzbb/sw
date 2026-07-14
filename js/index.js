@@ -14,6 +14,7 @@ const LEARNING_PATH_LIBRARY_STORAGE = "LINGXI_LEARNING_PATH_LIBRARY";
 const ACTIVE_PATH_CATEGORY_STORAGE = "LINGXI_ACTIVE_PATH_CATEGORY";
 const LEARNING_BEHAVIOR_STORAGE = "LINGXI_LEARNING_BEHAVIOR";
 const LEARNING_EFFECT_ASSESSMENT_STORAGE = "LINGXI_LEARNING_EFFECT_ASSESSMENT";
+const ANNOUNCEMENT_READ_STORAGE = "LINGXI_ANNOUNCEMENT_READ";
 const AUTH_USERS_STORAGE = "LINGXI_AUTH_USERS";
 const ACTIVE_USER_STORAGE = "LINGXI_ACTIVE_USER";
 const AUTH_MODE_STORAGE = "LINGXI_AUTH_MODE";
@@ -194,9 +195,42 @@ const el = {
   loginTab: document.querySelector("#loginTab"),
   registerTab: document.querySelector("#registerTab"),
   userChip: document.querySelector("#userChip"),
+  userProfileBtn: document.querySelector("#userProfileBtn"),
+  userMenuBtn: document.querySelector("#userMenuBtn"),
+  userMenu: document.querySelector("#userMenu"),
   userNameLabel: document.querySelector("#userNameLabel"),
+  userBioLabel: document.querySelector("#userBioLabel"),
   logoutBtn: document.querySelector("#logoutBtn"),
-  announcementBanner: document.querySelector("#announcementBanner"),
+  accountModal: document.querySelector("#accountModal"),
+  accountProfileForm: document.querySelector("#accountProfileForm"),
+  closeAccountModalBtn: document.querySelector("#closeAccountModalBtn"),
+  accountSaveBtn: document.querySelector("#accountSaveBtn"),
+  accountMessage: document.querySelector("#accountMessage"),
+  accountTitle: document.querySelector("#accountTitle"),
+  accountNameInput: document.querySelector("#accountNameInput"),
+  accountEmailInput: document.querySelector("#accountEmailInput"),
+  accountAvatarInput: document.querySelector("#accountAvatarInput"),
+  accountAccentInput: document.querySelector("#accountAccentInput"),
+  accountBioInput: document.querySelector("#accountBioInput"),
+  accountThemeInput: document.querySelector("#accountThemeInput"),
+  accountDefaultPageInput: document.querySelector("#accountDefaultPageInput"),
+  accountReplyStyleInput: document.querySelector("#accountReplyStyleInput"),
+  accountCurrentPasswordInput: document.querySelector("#accountCurrentPasswordInput"),
+  accountNewPasswordInput: document.querySelector("#accountNewPasswordInput"),
+  accountConfirmPasswordInput: document.querySelector("#accountConfirmPasswordInput"),
+  accountSecurityEmail: document.querySelector("#accountSecurityEmail"),
+  accountSecurityRole: document.querySelector("#accountSecurityRole"),
+  accountPreviewAvatar: document.querySelector("#accountPreviewAvatar"),
+  accountPreviewName: document.querySelector("#accountPreviewName"),
+  accountPreviewBio: document.querySelector("#accountPreviewBio"),
+  announcementCenter: document.querySelector("#announcementCenter"),
+  announcementToggle: document.querySelector("#announcementToggle"),
+  announcementUnreadCount: document.querySelector("#announcementUnreadCount"),
+  announcementPanel: document.querySelector("#announcementPanel"),
+  announcementSummary: document.querySelector("#announcementSummary"),
+  announcementShowAll: document.querySelector("#announcementShowAll"),
+  announcementMarkAllRead: document.querySelector("#announcementMarkAllRead"),
+  announcementList: document.querySelector("#announcementList"),
 };
 
 const state = {
@@ -205,6 +239,8 @@ const state = {
   authMode: "login",
   authUsers: [],
   activeUser: null,
+  announcements: [],
+  showAllAnnouncements: false,
   remoteStorageHydrating: false,
   messages: [], 
   attachedFiles: [],
@@ -437,15 +473,209 @@ function setActiveUser(user) {
   updateUserChrome();
 }
 
+function accountAccentGradient(accent = "teal") {
+  const gradients = {
+    teal: "linear-gradient(135deg, #4d7cff, #21d4a5)",
+    blue: "linear-gradient(135deg, #2f80ed, #56ccf2)",
+    violet: "linear-gradient(135deg, #7c5cff, #d59cff)",
+    gold: "linear-gradient(135deg, #d59b35, #f2d16b)",
+    rose: "linear-gradient(135deg, #e85d75, #ffb199)",
+  };
+  return gradients[accent] || gradients.teal;
+}
+
+function accountProfileFor(user = state.activeUser) {
+  const profile = user?.profile || {};
+  return {
+    avatarInitial: String(profile.avatarInitial || user?.name || "L").trim().slice(0, 2).toUpperCase(),
+    bio: String(profile.bio || "个人学习空间").trim(),
+    accent: profile.accent || "teal",
+    theme: profile.theme || "system",
+    defaultPage: profile.defaultPage || "chat",
+    replyStyle: profile.replyStyle || "",
+  };
+}
+
 function updateUserChrome() {
   const user = state.activeUser;
   document.documentElement.classList.toggle("auth-boot-user", !!user);
   document.documentElement.classList.toggle("auth-boot-guest", !user);
   if (el.userChip) el.userChip.hidden = !user;
   if (el.userNameLabel) el.userNameLabel.textContent = user?.name || "未登录";
+  if (el.userBioLabel) el.userBioLabel.textContent = user ? accountProfileFor(user).bio : "个人学习空间";
   const avatar = el.userChip?.querySelector(".user-avatar");
-  if (avatar) avatar.textContent = (user?.name || "L").trim().slice(0, 1).toUpperCase();
+  if (avatar) {
+    const profile = accountProfileFor(user);
+    avatar.textContent = profile.avatarInitial || "L";
+    avatar.style.background = accountAccentGradient(profile.accent);
+  }
   if (el.authOverlay) el.authOverlay.hidden = !!user;
+}
+
+function setUserMenuOpen(open) {
+  if (!el.userMenu || !el.userMenuBtn || !el.userProfileBtn) return;
+  el.userMenu.hidden = !open;
+  el.userMenuBtn.setAttribute("aria-expanded", String(open));
+  el.userProfileBtn.setAttribute("aria-expanded", String(open));
+}
+
+function setAccountMessage(message = "", type = "error") {
+  if (!el.accountMessage) return;
+  el.accountMessage.textContent = message;
+  el.accountMessage.classList.toggle("success", type === "success");
+}
+
+function syncAccountPreview() {
+  const name = normalizeUsername(el.accountNameInput?.value || state.activeUser?.name || "");
+  const bio = String(el.accountBioInput?.value || "个人学习空间").trim() || "个人学习空间";
+  const initial = String(el.accountAvatarInput?.value || name || "L").trim().slice(0, 2).toUpperCase();
+  const accent = el.accountAccentInput?.value || "teal";
+  if (el.accountPreviewName) el.accountPreviewName.textContent = name || "未命名";
+  if (el.accountPreviewBio) el.accountPreviewBio.textContent = bio;
+  if (el.accountPreviewAvatar) {
+    el.accountPreviewAvatar.textContent = initial || "L";
+    el.accountPreviewAvatar.style.background = accountAccentGradient(accent);
+  }
+}
+
+function openAccountModal(section = "profile") {
+  if (!state.activeUser || !el.accountModal) return;
+  const profile = accountProfileFor();
+  if (el.accountNameInput) el.accountNameInput.value = state.activeUser.name || "";
+  if (el.accountEmailInput) el.accountEmailInput.value = state.activeUser.email || "";
+  if (el.accountAvatarInput) el.accountAvatarInput.value = profile.avatarInitial || "";
+  if (el.accountAccentInput) el.accountAccentInput.value = profile.accent || "teal";
+  if (el.accountBioInput) el.accountBioInput.value = profile.bio || "";
+  if (el.accountThemeInput) el.accountThemeInput.value = profile.theme || "system";
+  if (el.accountDefaultPageInput) el.accountDefaultPageInput.value = profile.defaultPage || "chat";
+  if (el.accountReplyStyleInput) el.accountReplyStyleInput.value = profile.replyStyle || "";
+  if (el.accountSecurityEmail) el.accountSecurityEmail.textContent = state.activeUser.email || "-";
+  if (el.accountSecurityRole) el.accountSecurityRole.textContent = state.activeUser.role === "admin" ? "管理员" : "用户";
+  clearAccountPasswordFields();
+  setAccountMessage("");
+  syncAccountPreview();
+  el.accountModal.hidden = false;
+  setUserMenuOpen(false);
+  switchAccountSection(section);
+}
+
+function closeAccountModal() {
+  if (el.accountModal) el.accountModal.hidden = true;
+  setAccountMessage("");
+  clearAccountPasswordFields();
+}
+
+function clearAccountPasswordFields() {
+  if (el.accountCurrentPasswordInput) el.accountCurrentPasswordInput.value = "";
+  if (el.accountNewPasswordInput) el.accountNewPasswordInput.value = "";
+  if (el.accountConfirmPasswordInput) el.accountConfirmPasswordInput.value = "";
+}
+
+function switchAccountSection(section = "profile") {
+  const nextSection = ["profile", "personalize", "security"].includes(section) ? section : "profile";
+  document.querySelectorAll("[data-account-section]").forEach((button) => {
+    button.classList.toggle("active", button.getAttribute("data-account-section") === nextSection);
+  });
+  document.querySelectorAll("[data-account-panel]").forEach((panel) => {
+    panel.hidden = panel.getAttribute("data-account-panel") !== nextSection;
+  });
+  const profileVisible = nextSection === "profile";
+  if (el.accountTitle) {
+    el.accountTitle.textContent = profileVisible ? "个人资料" : (nextSection === "personalize" ? "个性化" : "账户安全");
+  }
+  if (el.accountSaveBtn) {
+    el.accountSaveBtn.textContent = nextSection === "security" ? "保存安全设置" : "保存";
+  }
+  const profileCard = document.querySelector(".account-profile-card");
+  const profileGrid = document.querySelector(".account-form-grid");
+  if (profileCard) profileCard.hidden = !profileVisible;
+  if (profileGrid) profileGrid.hidden = !profileVisible;
+}
+
+async function handleAccountProfileSubmit(event) {
+  event.preventDefault();
+  const section = document.querySelector("[data-account-section].active")?.getAttribute("data-account-section") || "profile";
+  if (section === "security") {
+    await handleAccountPasswordSubmit();
+    return;
+  }
+  const name = normalizeUsername(el.accountNameInput?.value);
+  const email = normalizeEmail(el.accountEmailInput?.value);
+  const avatarInitial = String(el.accountAvatarInput?.value || "").trim().slice(0, 2).toUpperCase();
+  const accent = String(el.accountAccentInput?.value || "teal");
+  const bio = String(el.accountBioInput?.value || "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const theme = String(el.accountThemeInput?.value || "system");
+  const defaultPage = String(el.accountDefaultPageInput?.value || "chat");
+  const replyStyle = String(el.accountReplyStyleInput?.value || "").trim().replace(/\s+/g, " ").slice(0, 180);
+  if (!name || name.length < 2) {
+    setAccountMessage("昵称至少需要 2 个字符。");
+    return;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    setAccountMessage("请输入有效邮箱。");
+    return;
+  }
+  if (el.accountSaveBtn) el.accountSaveBtn.disabled = true;
+  setAccountMessage("正在保存...", "success");
+  try {
+    const payload = await apiJson(`${AUTH_ENDPOINT}/profile`, {
+      method: "PUT",
+      body: JSON.stringify({ name, email, profile: { avatarInitial, accent, bio, theme, defaultPage, replyStyle } }),
+    });
+    setActiveUser(payload.user);
+    applyAccountPreferences(payload.user?.profile);
+    setAccountMessage("已保存。", "success");
+    if (section === "profile") closeAccountModal();
+  } catch (err) {
+    setAccountMessage(String(err?.message || err));
+  } finally {
+    if (el.accountSaveBtn) el.accountSaveBtn.disabled = false;
+  }
+}
+
+function applyAccountPreferences(profile = accountProfileFor()) {
+  if (!profile) return;
+  if (profile.theme === "light" || profile.theme === "dark") {
+    document.body.dataset.theme = profile.theme;
+    if (el.root) el.root.dataset.theme = profile.theme;
+    localStorage.setItem(THEME_STORAGE, profile.theme);
+  }
+}
+
+async function handleAccountPasswordSubmit() {
+  const currentPassword = String(el.accountCurrentPasswordInput?.value || "");
+  const newPassword = String(el.accountNewPasswordInput?.value || "");
+  const confirmPassword = String(el.accountConfirmPasswordInput?.value || "");
+  if (!currentPassword && !newPassword && !confirmPassword) {
+    setAccountMessage("账户安全信息已查看，无需保存。", "success");
+    return;
+  }
+  if (!currentPassword || !newPassword) {
+    setAccountMessage("请填写当前密码和新密码。");
+    return;
+  }
+  if (newPassword.length < 8) {
+    setAccountMessage("新密码至少需要 8 位。");
+    return;
+  }
+  if (newPassword !== confirmPassword) {
+    setAccountMessage("两次输入的新密码不一致。");
+    return;
+  }
+  if (el.accountSaveBtn) el.accountSaveBtn.disabled = true;
+  setAccountMessage("正在更新密码...", "success");
+  try {
+    await apiJson(`${AUTH_ENDPOINT}/password`, {
+      method: "PUT",
+      body: JSON.stringify({ currentPassword, newPassword, confirmPassword }),
+    });
+    clearAccountPasswordFields();
+    setAccountMessage("密码已更新。", "success");
+  } catch (err) {
+    setAccountMessage(String(err?.message || err));
+  } finally {
+    if (el.accountSaveBtn) el.accountSaveBtn.disabled = false;
+  }
 }
 
 async function readPersistedUser() {
@@ -585,6 +815,37 @@ async function initAuth() {
   el.authForm?.addEventListener("submit", handleAuthSubmit);
   el.authLoginForm?.addEventListener("submit", handleAuthLoginSubmit);
   el.logoutBtn?.addEventListener("click", logoutCurrentUser);
+  el.userProfileBtn?.addEventListener("click", () => setUserMenuOpen(el.userMenu?.hidden !== false));
+  el.userMenuBtn?.addEventListener("click", () => setUserMenuOpen(el.userMenu?.hidden !== false));
+  el.userMenu?.addEventListener("click", (event) => {
+    const button = event.target instanceof HTMLElement ? event.target.closest("[data-account-action]") : null;
+    if (!button) return;
+    const action = button.getAttribute("data-account-action");
+    if (action === "profile" || action === "personalize" || action === "settings") openAccountModal(action);
+    if (action === "logout") void logoutCurrentUser();
+  });
+  document.addEventListener("click", (event) => {
+    if (!el.userChip || el.userMenu?.hidden) return;
+    if (event.target instanceof Node && el.userChip.contains(event.target)) return;
+    setUserMenuOpen(false);
+  });
+  el.accountProfileForm?.addEventListener("submit", handleAccountProfileSubmit);
+  el.closeAccountModalBtn?.addEventListener("click", closeAccountModal);
+  document.querySelectorAll("[data-account-section]").forEach((button) => {
+    button.addEventListener("click", () => {
+      setAccountMessage("");
+      switchAccountSection(button.getAttribute("data-account-section") || "profile");
+    });
+  });
+  el.accountModal?.addEventListener("click", (event) => {
+    if (event.target === el.accountModal || event.target === el.accountModal?.querySelector(".account-modal-backdrop")) {
+      closeAccountModal();
+    }
+  });
+  [el.accountNameInput, el.accountAvatarInput, el.accountAccentInput, el.accountBioInput].forEach((input) => {
+    input?.addEventListener("input", syncAccountPreview);
+    input?.addEventListener("change", syncAccountPreview);
+  });
   const cachedUser = readCachedUser();
   if (cachedUser) setActiveUser(cachedUser);
   const user = await readPersistedUser();
@@ -597,7 +858,7 @@ async function initAuth() {
 }
 
 async function loadAnnouncements() {
-  if (!state.activeUser || !el.announcementBanner) return;
+  if (!state.activeUser || !el.announcementCenter) return;
   try {
     const payload = await apiJson(ANNOUNCEMENT_ENDPOINT, { method: "GET" });
     renderAnnouncements(payload.announcements || []);
@@ -606,20 +867,110 @@ async function loadAnnouncements() {
   }
 }
 
+function announcementReadStorageKey() {
+  return `${ANNOUNCEMENT_READ_STORAGE}:${state.activeUser?.id || "guest"}`;
+}
+
+function announcementReadKey(item) {
+  return `${item.id}:${item.updatedAt || item.createdAt || ""}`;
+}
+
+function loadReadAnnouncements() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(announcementReadStorageKey()) || "[]"));
+  } catch {
+    return new Set();
+  }
+}
+
+function saveReadAnnouncements(readSet) {
+  localStorage.setItem(announcementReadStorageKey(), JSON.stringify([...readSet]));
+}
+
+function setAnnouncementPanelOpen(open) {
+  if (!el.announcementPanel || !el.announcementToggle) return;
+  el.announcementPanel.hidden = !open;
+  el.announcementToggle.setAttribute("aria-expanded", String(open));
+}
+
+function markAnnouncementRead(id) {
+  const item = state.announcements.find((announcement) => String(announcement.id) === String(id));
+  if (!item) return;
+  const readSet = loadReadAnnouncements();
+  readSet.add(announcementReadKey(item));
+  saveReadAnnouncements(readSet);
+  renderAnnouncements(state.announcements);
+}
+
+function markAllAnnouncementsRead() {
+  const readSet = loadReadAnnouncements();
+  state.announcements.forEach((item) => readSet.add(announcementReadKey(item)));
+  saveReadAnnouncements(readSet);
+  state.showAllAnnouncements = false;
+  renderAnnouncements(state.announcements);
+}
+
+function isAnnouncementActive(item) {
+  const now = Date.now();
+  const startsAt = item.startsAt ? new Date(item.startsAt).getTime() : 0;
+  const endsAt = item.endsAt ? new Date(item.endsAt).getTime() : Infinity;
+  return (!startsAt || startsAt <= now) && (!Number.isFinite(endsAt) || endsAt >= now);
+}
+
 function renderAnnouncements(announcements) {
-  if (!el.announcementBanner) return;
+  if (!el.announcementCenter) return;
+  state.announcements = announcements;
+  const readSet = loadReadAnnouncements();
+  const visibleAnnouncements = announcements.filter(isAnnouncementActive);
+  const unreadAnnouncements = visibleAnnouncements.filter((item) => !readSet.has(announcementReadKey(item)));
+  const unreadCount = unreadAnnouncements.length;
+
   if (!announcements.length) {
-    el.announcementBanner.hidden = true;
-    el.announcementBanner.innerHTML = "";
+    el.announcementCenter.hidden = true;
+    setAnnouncementPanelOpen(false);
     return;
   }
-  const item = announcements[0];
-  el.announcementBanner.hidden = false;
-  el.announcementBanner.className = `announcement-banner announcement-${item.level || "info"}`;
-  el.announcementBanner.innerHTML = `
-    <strong>${escapeHtml(item.title || "公告")}</strong>
-    <div class="announcement-markdown">${renderAnnouncementMarkdown(item.content || "")}</div>
-  `;
+  el.announcementCenter.hidden = false;
+  el.announcementToggle?.classList.toggle("has-unread", unreadCount > 0);
+  if (el.announcementUnreadCount) {
+    el.announcementUnreadCount.hidden = unreadCount === 0;
+    el.announcementUnreadCount.textContent = String(Math.min(99, unreadCount));
+  }
+  if (el.announcementSummary) {
+    el.announcementSummary.textContent = state.showAllAnnouncements
+      ? `${announcements.length} 条已发布`
+      : (unreadCount ? `${unreadCount} 条未读` : "暂无未读公告");
+  }
+  if (el.announcementShowAll) {
+    el.announcementShowAll.textContent = state.showAllAnnouncements ? "只看未读" : "查看全部";
+  }
+  if (!el.announcementList) return;
+  const displayedAnnouncements = state.showAllAnnouncements ? announcements : unreadAnnouncements;
+  if (!displayedAnnouncements.length) {
+    el.announcementList.innerHTML = `
+      <div class="announcement-empty">
+        <strong>没有未读公告</strong>
+        <span>已读公告可在“查看全部”中回看。</span>
+      </div>
+    `;
+    return;
+  }
+  el.announcementList.innerHTML = displayedAnnouncements.map((item) => {
+    const read = readSet.has(announcementReadKey(item));
+    const active = isAnnouncementActive(item);
+    return `
+      <article class="announcement-item announcement-${escapeHtml(item.level || "info")} ${read ? "is-read" : "is-unread"} ${active ? "" : "is-inactive"}" data-announcement-id="${escapeHtml(item.id)}">
+        <div class="announcement-item-head">
+          <div>
+            <strong>${escapeHtml(item.title || "公告")}</strong>
+            <span>${active ? (read ? "已读" : "未读") : "未到展示时间或已过期"}</span>
+          </div>
+          ${read ? "" : `<button type="button" data-announcement-read="${escapeHtml(item.id)}">已读</button>`}
+        </div>
+        <div class="announcement-markdown">${renderAnnouncementMarkdown(item.content || "")}</div>
+      </article>
+    `;
+  }).join("");
 }
 
 function renderAnnouncementInlineMarkdown(text) {
@@ -6175,6 +6526,26 @@ function initEventHandlers() {
       localStorage.setItem(THEME_STORAGE, next);
     });
   }
+
+  el.announcementToggle?.addEventListener("click", () => {
+    setAnnouncementPanelOpen(el.announcementPanel?.hidden !== false);
+  });
+  el.announcementShowAll?.addEventListener("click", () => {
+    state.showAllAnnouncements = !state.showAllAnnouncements;
+    renderAnnouncements(state.announcements);
+  });
+  el.announcementMarkAllRead?.addEventListener("click", markAllAnnouncementsRead);
+  el.announcementList?.addEventListener("click", (event) => {
+    const button = event.target instanceof HTMLElement ? event.target.closest("[data-announcement-read]") : null;
+    if (!button) return;
+    event.stopPropagation();
+    markAnnouncementRead(button.getAttribute("data-announcement-read"));
+  });
+  document.addEventListener("click", (event) => {
+    if (!el.announcementCenter || el.announcementCenter.hidden || el.announcementPanel?.hidden) return;
+    if (event.target instanceof Node && el.announcementCenter.contains(event.target)) return;
+    setAnnouncementPanelOpen(false);
+  });
 
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.chatPageBtn?.addEventListener("click", showChatPage);

@@ -48,12 +48,25 @@
         </span>
       </button>
       <div id="userChip" class="user-chip" hidden>
-        <div class="user-avatar" aria-hidden="true">L</div>
-        <div class="user-chip-text">
-          <span id="userNameLabel">未登录</span>
-          <small>个人学习空间</small>
+        <button id="userProfileBtn" class="user-profile-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+          <span class="user-avatar" aria-hidden="true">L</span>
+          <span class="user-chip-text">
+            <span id="userNameLabel">未登录</span>
+            <small id="userBioLabel">个人学习空间</small>
+          </span>
+        </button>
+        <button id="userMenuBtn" class="user-menu-btn" type="button" aria-label="账户菜单" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="m8 10 4 4 4-4" />
+          </svg>
+        </button>
+        <div id="userMenu" class="user-menu" role="menu" hidden>
+          <button type="button" role="menuitem" data-account-action="profile">个人资料</button>
+          <button type="button" role="menuitem" data-account-action="personalize">个性化</button>
+          <button type="button" role="menuitem" data-account-action="settings">设置</button>
+          <div class="user-menu-divider"></div>
+          <button id="logoutBtn" type="button" role="menuitem">退出登录</button>
         </div>
-        <button id="logoutBtn" class="user-logout-btn" type="button">退出</button>
       </div>
       <nav class="top-nav" aria-label="页面导航">
         <div class="nav-brand" aria-label="问阶 AI 学习工作台">
@@ -143,7 +156,25 @@
           错题本
         </button>
       </nav>
-      <div id="announcementBanner" class="announcement-banner" hidden></div>
+      <div id="announcementCenter" class="announcement-center" hidden>
+        <button id="announcementToggle" class="announcement-toggle" type="button" aria-expanded="false" aria-label="查看公告">
+          <span aria-hidden="true">告</span>
+          <em id="announcementUnreadCount" hidden>0</em>
+        </button>
+        <section id="announcementPanel" class="announcement-panel" hidden aria-label="公告中心">
+          <header>
+            <div>
+              <strong>公告</strong>
+              <span id="announcementSummary">暂无公告</span>
+            </div>
+            <div class="announcement-actions">
+              <button id="announcementShowAll" type="button">查看全部</button>
+              <button id="announcementMarkAllRead" type="button">全部已读</button>
+            </div>
+          </header>
+          <div id="announcementList" class="announcement-list"></div>
+        </section>
+      </div>
 
       <main class="main">
         <section id="home" class="home">
@@ -399,6 +430,124 @@
           <button id="closeApiKeyBtn" class="ghost-btn" type="button">稍后</button>
         </div>
       </div>
+    </div>
+
+    <div id="accountModal" class="account-modal" hidden>
+      <div class="account-modal-backdrop"></div>
+      <section class="account-panel" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+        <aside class="account-sidebar" aria-label="账户设置导航">
+          <button id="closeAccountModalBtn" class="account-close-btn" type="button" aria-label="关闭">×</button>
+          <button class="account-side-item active" type="button" data-account-section="profile">个人资料</button>
+          <button class="account-side-item" type="button" data-account-section="personalize">个性化</button>
+          <button class="account-side-item" type="button" data-account-section="security">账户安全</button>
+        </aside>
+        <form id="accountProfileForm" class="account-content">
+          <header class="account-header">
+            <div>
+              <span>ACCOUNT</span>
+              <h2 id="accountTitle">个人资料</h2>
+            </div>
+            <button id="accountSaveBtn" class="account-save-btn" type="submit">保存</button>
+          </header>
+          <div id="accountMessage" class="account-message" aria-live="polite"></div>
+          <div class="account-profile-card">
+            <div id="accountPreviewAvatar" class="account-preview-avatar">Y</div>
+            <div>
+              <strong id="accountPreviewName">yrk</strong>
+              <span id="accountPreviewBio">个人学习空间</span>
+            </div>
+          </div>
+          <div class="account-form-grid">
+            <label class="account-field">
+              <span>昵称</span>
+              <input id="accountNameInput" type="text" autocomplete="nickname" />
+            </label>
+            <label class="account-field">
+              <span>邮箱</span>
+              <input id="accountEmailInput" type="email" autocomplete="email" />
+            </label>
+            <label class="account-field">
+              <span>头像文字</span>
+              <input id="accountAvatarInput" type="text" maxlength="2" />
+            </label>
+            <label class="account-field">
+              <span>主题色</span>
+              <select id="accountAccentInput">
+                <option value="teal">湖蓝绿</option>
+                <option value="blue">海蓝</option>
+                <option value="violet">紫罗兰</option>
+                <option value="gold">暖金</option>
+                <option value="rose">玫瑰</option>
+              </select>
+            </label>
+            <label class="account-field account-field-wide">
+              <span>空间描述</span>
+              <input id="accountBioInput" type="text" maxlength="80" placeholder="例如：考研复习 / 算法训练 / 课程学习" />
+            </label>
+          </div>
+          <section class="account-section" data-account-panel="personalize" hidden>
+            <div class="account-section-card">
+              <h3>界面偏好</h3>
+              <div class="account-setting-row">
+                <div>
+                  <strong>外观</strong>
+                  <span>跟随当前工作台主题，保存后立即应用。</span>
+                </div>
+                <select id="accountThemeInput">
+                  <option value="system">系统</option>
+                  <option value="light">浅色</option>
+                  <option value="dark">深色</option>
+                </select>
+              </div>
+              <div class="account-setting-row">
+                <div>
+                  <strong>默认进入页面</strong>
+                  <span>登录后优先回到你最常用的工作区。</span>
+                </div>
+                <select id="accountDefaultPageInput">
+                  <option value="chat">对话</option>
+                  <option value="profile">画像</option>
+                  <option value="resource">资源</option>
+                  <option value="storage">存储</option>
+                </select>
+              </div>
+              <label class="account-field account-field-wide">
+                <span>回答偏好</span>
+                <textarea id="accountReplyStyleInput" rows="4" maxlength="180" placeholder="例如：解释时多给步骤、少一点废话、最后给练习题"></textarea>
+              </label>
+            </div>
+          </section>
+          <section class="account-section" data-account-panel="security" hidden>
+            <div class="account-section-card">
+              <h3>账户安全</h3>
+              <div class="account-security-summary">
+                <div>
+                  <strong id="accountSecurityEmail">-</strong>
+                  <span>当前登录邮箱</span>
+                </div>
+                <div>
+                  <strong id="accountSecurityRole">用户</strong>
+                  <span>账户角色</span>
+                </div>
+              </div>
+              <label class="account-field account-field-wide">
+                <span>当前密码</span>
+                <input id="accountCurrentPasswordInput" type="password" autocomplete="current-password" />
+              </label>
+              <div class="account-form-grid">
+                <label class="account-field">
+                  <span>新密码</span>
+                  <input id="accountNewPasswordInput" type="password" autocomplete="new-password" />
+                </label>
+                <label class="account-field">
+                  <span>确认新密码</span>
+                  <input id="accountConfirmPasswordInput" type="password" autocomplete="new-password" />
+                </label>
+              </div>
+            </div>
+          </section>
+        </form>
+      </section>
     </div>
 
     <div id="keyBanner" class="key-banner" hidden>
