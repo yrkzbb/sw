@@ -145,5 +145,18 @@ lingxi/
 
 ## 使用方式
 
-1. 在项目根目录创建 `.env`，配置 `OPENAI_PROXY_API_KEY`、`OPENAI_PROXY_BASE_URL`、`OPENAI_PROXY_MODEL`；如需 AI 视频，配置 `VIDEO_PROVIDER=dashscope_wan`、`DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、`DASHSCOPE_REGION`  
-2. 运行 `node js/server.js`，打开本地服务地址  
+1. 安装依赖：`npm install`
+2. 在 MySQL 中创建数据库，例如：`CREATE DATABASE wenjie CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;`
+3. 在项目根目录创建 `.env`，配置 `OPENAI_PROXY_API_KEY`、`OPENAI_PROXY_BASE_URL`、`OPENAI_PROXY_MODEL`，并配置正式版账号系统所需的 `DATABASE_URL` 或 `MYSQL_HOST` / `MYSQL_USER` / `MYSQL_PASSWORD` / `MYSQL_DATABASE`
+4. 如需 AI 视频，配置 `VIDEO_PROVIDER=dashscope_wan`、`DASHSCOPE_API_KEY`、`DASHSCOPE_WORKSPACE_ID`、`DASHSCOPE_REGION`
+5. 运行 `npm run dev` 或 `node js/server.js`，打开本地服务地址
+
+## 正式版账号系统
+
+注册、登录和个人学习数据已经改为服务端持久化：
+
+- `wj_users`：保存用户名、邮箱、加盐哈希后的密码
+- `wj_sessions`：保存登录会话，浏览器通过 HttpOnly Cookie 保持登录态
+- `wj_user_data`：按用户保存学习画像、资源、路径、错题本、对话历史等个人数据
+
+服务启动后会自动创建以上数据表。密码不会明文写入数据库；前端仍会使用浏览器缓存提升页面响应速度，但登录凭证和正式数据来源以 MySQL 为准。

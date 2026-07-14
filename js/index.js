@@ -36,6 +36,8 @@ const USER_SCOPED_STORAGE_KEYS = new Set([
 
 const CHAT_ENDPOINT = "/api/chat";
 const VIDEO_ENDPOINT = "/api/video";
+const AUTH_ENDPOINT = "/api/auth";
+const USER_DATA_ENDPOINT = "/api/user-data";
 const USE_BROWSER_API_KEY = /^https?:\/\//i.test(CHAT_ENDPOINT);
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -201,6 +203,7 @@ const state = {
   authMode: "login",
   authUsers: [],
   activeUser: null,
+  remoteStorageHydrating: false,
   messages: [], 
   attachedFiles: [],
   attachedImages: [], 
@@ -266,10 +269,16 @@ function installUserStorageScope() {
     return storageNative.getItem.call(this, scopedStorageKey(String(key)));
   };
   Storage.prototype.setItem = function setItem(key, value) {
-    return storageNative.setItem.call(this, scopedStorageKey(String(key)), value);
+    const baseKey = String(key);
+    const result = storageNative.setItem.call(this, scopedStorageKey(baseKey), value);
+    scheduleRemoteUserDataSave(baseKey, String(value));
+    return result;
   };
   Storage.prototype.removeItem = function removeItem(key) {
-    return storageNative.removeItem.call(this, scopedStorageKey(String(key)));
+    const baseKey = String(key);
+    const result = storageNative.removeItem.call(this, scopedStorageKey(baseKey));
+    scheduleRemoteUserDataDelete(baseKey);
+    return result;
   };
   Object.defineProperty(Storage.prototype, "__lingxiScoped", { value: true });
 }
@@ -298,26 +307,102 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase().slice(0, 80);
 }
 
-function encodePassword(username, password) {
-  return btoa(unescape(encodeURIComponent(`${userIdFromName(username)}:${password}:lingxi-local-account`)));
+function getStoredAuthMode() {
+  return rawStorageGet(AUTH_MODE_STORAGE) === "login" ? "login" : "register";
 }
 
-function loadAuthUsers() {
+async function apiJson(path, options = {}) {
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+    ...options,
+  });
+  let data = null;
   try {
-    const users = JSON.parse(rawStorageGet(AUTH_USERS_STORAGE) || "[]");
-    return Array.isArray(users) ? users.filter((user) => user?.id && user?.passwordHash) : [];
+    data = await res.json();
   } catch {
-    return [];
+  }
+  if (!res.ok) {
+    throw new Error(data?.error || `请求失败：${res.status}`);
+  }
+  return data || {};
+}
+
+function persistActiveUserCache(user) {
+  if (user) {
+    rawStorageSet(ACTIVE_USER_STORAGE, String(user.id));
+    rawStorageSet("WENJIE_ACTIVE_USER_CACHE", JSON.stringify(user));
+  } else {
+    rawStorageRemove(ACTIVE_USER_STORAGE);
+    rawStorageRemove("WENJIE_ACTIVE_USER_CACHE");
   }
 }
 
-function saveAuthUsers(users) {
-  state.authUsers = users;
-  rawStorageSet(AUTH_USERS_STORAGE, JSON.stringify(users));
+function readCachedUser() {
+  try {
+    const cached = JSON.parse(rawStorageGet("WENJIE_ACTIVE_USER_CACHE") || "null");
+    return cached?.id ? cached : null;
+  } catch {
+    return null;
+  }
 }
 
-function getStoredAuthMode() {
-  return rawStorageGet(AUTH_MODE_STORAGE) === "login" ? "login" : "register";
+function hydrateLocalUserData(data, userId = activeUserStorageId()) {
+  if (!userId || !data || typeof data !== "object") return;
+  state.remoteStorageHydrating = true;
+  try {
+    Object.entries(data).forEach(([key, value]) => {
+      if (USER_SCOPED_STORAGE_KEYS.has(key)) {
+        rawStorageSet(scopedStorageKey(key, userId), String(value ?? ""));
+      }
+    });
+  } finally {
+    state.remoteStorageHydrating = false;
+  }
+}
+
+async function loadRemoteUserData() {
+  const payload = await apiJson(USER_DATA_ENDPOINT, { method: "GET" });
+  hydrateLocalUserData(payload.data || {});
+}
+
+async function syncCurrentLocalUserDataToRemote() {
+  if (!state.activeUser) return;
+  await Promise.all(Array.from(USER_SCOPED_STORAGE_KEYS).map(async (key) => {
+    const value = rawStorageGet(scopedStorageKey(key));
+    if (value == null) return;
+    await apiJson(USER_DATA_ENDPOINT, {
+      method: "PUT",
+      body: JSON.stringify({ key, value }),
+    });
+  })).catch((e) => console.warn("迁移本地用户数据失败", e));
+}
+
+const remoteSaveTimers = new Map();
+
+function scheduleRemoteUserDataSave(key, value) {
+  if (!state.activeUser || state.remoteStorageHydrating || !USER_SCOPED_STORAGE_KEYS.has(key)) return;
+  window.clearTimeout(remoteSaveTimers.get(key));
+  remoteSaveTimers.set(key, window.setTimeout(() => {
+    remoteSaveTimers.delete(key);
+    void apiJson(USER_DATA_ENDPOINT, {
+      method: "PUT",
+      body: JSON.stringify({ key, value }),
+    }).catch((e) => console.warn("同步用户数据失败", e));
+  }, 260));
+}
+
+function scheduleRemoteUserDataDelete(key) {
+  if (!state.activeUser || state.remoteStorageHydrating || !USER_SCOPED_STORAGE_KEYS.has(key)) return;
+  window.clearTimeout(remoteSaveTimers.get(key));
+  remoteSaveTimers.delete(key);
+  void apiJson(USER_DATA_ENDPOINT, {
+    method: "DELETE",
+    body: JSON.stringify({ key }),
+  }).catch((e) => console.warn("删除云端用户数据失败", e));
 }
 
 function setAuthMode(mode) {
@@ -346,11 +431,7 @@ function setAuthLoginMessage(message, type = "error") {
 
 function setActiveUser(user) {
   state.activeUser = user || null;
-  if (user) {
-    rawStorageSet(ACTIVE_USER_STORAGE, user.id);
-  } else {
-    rawStorageRemove(ACTIVE_USER_STORAGE);
-  }
+  persistActiveUserCache(user);
   updateUserChrome();
 }
 
@@ -365,14 +446,17 @@ function updateUserChrome() {
   if (el.authOverlay) el.authOverlay.hidden = !!user;
 }
 
-function readPersistedUser() {
-  const users = loadAuthUsers();
-  state.authUsers = users;
-  const activeId = rawStorageGet(ACTIVE_USER_STORAGE) || "";
-  return users.find((user) => user.id === activeId) || null;
+async function readPersistedUser() {
+  try {
+    const payload = await apiJson(`${AUTH_ENDPOINT}/me`, { method: "GET" });
+    return payload.user || null;
+  } catch {
+    persistActiveUserCache(null);
+    return null;
+  }
 }
 
-function handleAuthSubmit(e) {
+async function handleAuthSubmit(e) {
   e.preventDefault();
   const name = normalizeUsername(el.authUsername?.value);
   const email = normalizeEmail(el.authEmail?.value);
@@ -392,40 +476,38 @@ function handleAuthSubmit(e) {
     setAuthMessage("Please enter a valid email.");
     return;
   }
-  if (password.length < 4) {
-    setAuthMessage("Password needs at least 4 characters.");
-    return;
-  }
-
-  const users = loadAuthUsers();
-  const existing = users.find((user) => user.id === id || normalizeEmail(user.email) === email);
-
-  if (existing) {
-    setAuthMessage("This user or email already exists. Please sign in.");
+  if (password.length < 8) {
+    setAuthMessage("Password needs at least 8 characters.");
     return;
   }
   if (password !== confirmPassword) {
     setAuthMessage("Passwords do not match.");
     return;
   }
-  const user = {
-    id,
-    name,
-    email,
-    passwordHash: encodePassword(name, password),
-    createdAt: new Date().toISOString(),
-  };
-  saveAuthUsers([user].concat(users));
-  setActiveUser(user);
-  setAuthMessage("Signed up. Welcome to your workspace.", "success");
-  resetAuthForm();
-  reloadUserWorkspace();
+
+  if (el.authSubmitBtn) el.authSubmitBtn.disabled = true;
+  setAuthMessage("正在创建正式账号...", "success");
+  try {
+    const payload = await apiJson(`${AUTH_ENDPOINT}/register`, {
+      method: "POST",
+      body: JSON.stringify({ username: name, email, password, confirmPassword }),
+    });
+    setActiveUser(payload.user);
+    await loadRemoteUserData();
+    await syncCurrentLocalUserDataToRemote();
+    setAuthMessage("注册成功，已进入你的学习空间。", "success");
+    resetAuthForm();
+    reloadUserWorkspace();
+  } catch (err) {
+    setAuthMessage(String(err?.message || err));
+  } finally {
+    if (el.authSubmitBtn) el.authSubmitBtn.disabled = false;
+  }
 }
 
-function handleAuthLoginSubmit(e) {
+async function handleAuthLoginSubmit(e) {
   e.preventDefault();
   const account = normalizeUsername(el.authLoginAccount?.value);
-  const accountEmail = normalizeEmail(account);
   const password = String(el.authLoginPassword?.value || "");
 
   if (!account || !password) {
@@ -433,22 +515,24 @@ function handleAuthLoginSubmit(e) {
     return;
   }
 
-  const users = loadAuthUsers();
-  const existing = users.find((user) =>
-    user.id === userIdFromName(account) ||
-    normalizeEmail(user.email) === accountEmail ||
-    normalizeUsername(user.name).toLowerCase() === account.toLowerCase()
-  );
-
-  if (!existing || existing.passwordHash !== encodePassword(existing.name, password)) {
-    setAuthLoginMessage("Account or password is incorrect.");
-    return;
+  if (el.authLoginSubmitBtn) el.authLoginSubmitBtn.disabled = true;
+  setAuthLoginMessage("正在登录...", "success");
+  try {
+    const payload = await apiJson(`${AUTH_ENDPOINT}/login`, {
+      method: "POST",
+      body: JSON.stringify({ account, password }),
+    });
+    setActiveUser(payload.user);
+    await loadRemoteUserData();
+    await syncCurrentLocalUserDataToRemote();
+    setAuthLoginMessage("登录成功。", "success");
+    resetAuthForm();
+    reloadUserWorkspace();
+  } catch (err) {
+    setAuthLoginMessage(String(err?.message || err));
+  } finally {
+    if (el.authLoginSubmitBtn) el.authLoginSubmitBtn.disabled = false;
   }
-
-  setActiveUser(existing);
-  setAuthLoginMessage("Signed in.", "success");
-  resetAuthForm();
-  reloadUserWorkspace();
 }
 
 function resetAuthForm() {
@@ -460,8 +544,10 @@ function resetAuthForm() {
   if (el.authLoginPassword) el.authLoginPassword.value = "";
 }
 
-function logoutCurrentUser() {
+async function logoutCurrentUser() {
   if (state.isGenerating && state.abortController) state.abortController.abort();
+  await syncCurrentLocalUserDataToRemote();
+  await apiJson(`${AUTH_ENDPOINT}/logout`, { method: "POST", body: "{}" }).catch(() => {});
   setActiveUser(null);
   state.messages = [];
   state.attachedFiles = [];
@@ -486,7 +572,7 @@ function logoutCurrentUser() {
   showHome();
 }
 
-function initAuth() {
+async function initAuth() {
   installUserStorageScope();
   setAuthMode(getStoredAuthMode());
   el.loginTab?.addEventListener("click", () => setAuthMode("login"));
@@ -494,8 +580,14 @@ function initAuth() {
   el.authForm?.addEventListener("submit", handleAuthSubmit);
   el.authLoginForm?.addEventListener("submit", handleAuthLoginSubmit);
   el.logoutBtn?.addEventListener("click", logoutCurrentUser);
-  const user = readPersistedUser();
+  const cachedUser = readCachedUser();
+  if (cachedUser) setActiveUser(cachedUser);
+  const user = await readPersistedUser();
   setActiveUser(user);
+  if (user) {
+    await loadRemoteUserData();
+    await syncCurrentLocalUserDataToRemote();
+  }
 }
 
 function reloadUserWorkspace() {
@@ -5991,18 +6083,6 @@ async function sendCurrentInput() {
   );
 }
 
-function startIfNeededFromCard(promptText) {
-  if (!promptText) return;
-  if (state.isGenerating) return;
-  if (!ensureApiKey("未配置 API Key，请打开 setup.html 保存到本地（键名：LINGXI_API_KEY）"))
-    return;
-  el.input.value = "";
-  adjustTextareaHeight();
-  resetAttachment();
-  ensureChatVisible();
-  void generateAssistantFromUserText(promptText, []);
-}
-
 function initEventHandlers() {
   
   if (el.themeToggle) {
@@ -6435,15 +6515,6 @@ function initEventHandlers() {
   el.profileBackBtn?.addEventListener("click", showChatPage);
   window.addEventListener("hashchange", restoreViewFromHash);
 
-  
-  document.querySelectorAll(".suggest-card[data-prompt]").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      const prompt = btn.getAttribute("data-prompt");
-      startIfNeededFromCard(prompt);
-    });
-  });
-
-  
   el.input.addEventListener("input", () => {
     adjustTextareaHeight();
     updateSendButton();
@@ -6612,13 +6683,13 @@ function initCopyDelegation() {
   });
 }
 
-function init() {
+async function init() {
   if (window.Prism?.plugins?.autoloader) {
     Prism.plugins.autoloader.languages_path =
       "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/";
   }
   initTheme();
-  initAuth();
+  await initAuth();
   initApiKeyModal();
   initEventHandlers();
   initImageLightbox();

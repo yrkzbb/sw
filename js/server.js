@@ -4,6 +4,7 @@ const path = require("path");
 const { URL } = require("url");
 const { pipeline } = require("stream/promises");
 const { Readable } = require("stream");
+const crypto = require("crypto");
 
 const ROOT_DIR = path.join(__dirname, "..");
 const JSON_UTF8 = "application/json; charset=utf-8";
@@ -12,6 +13,9 @@ loadDotEnv();
 
 const PORT = Number(process.env.PORT || 3000);
 const BODY_LIMIT = 10 * 1024 * 1024;
+const SESSION_COOKIE = "wenjie_session";
+const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 14);
+const AUTH_REQUIRED_MESSAGE = "请先登录。";
 const OPENAI_PROXY_BASE_URL = (
   process.env.OPENAI_PROXY_BASE_URL ||
   "https://api.openai-proxy.org/v1"
@@ -26,6 +30,28 @@ const DASHSCOPE_REGION = (process.env.DASHSCOPE_REGION || "cn-beijing").trim();
 const DASHSCOPE_VIDEO_MODEL = (process.env.DASHSCOPE_VIDEO_MODEL || "wan2.5-t2v-preview").trim();
 const DASHSCOPE_VIDEO_RESOLUTION = (process.env.DASHSCOPE_VIDEO_RESOLUTION || "480P").trim();
 const DASHSCOPE_VIDEO_DURATION = Number(process.env.DASHSCOPE_VIDEO_DURATION || 5);
+const MYSQL_TABLE_PREFIX = (process.env.MYSQL_TABLE_PREFIX || "wj_").replace(/[^\w]/g, "") || "wj_";
+const DATABASE_URL = (process.env.DATABASE_URL || "").trim();
+const MYSQL_SOCKET = (process.env.MYSQL_SOCKET || "").trim();
+const MYSQL_CONFIG = {
+  host: process.env.MYSQL_HOST || "127.0.0.1",
+  port: Number(process.env.MYSQL_PORT || 3306),
+  user: process.env.MYSQL_USER || "root",
+  password: process.env.MYSQL_PASSWORD || "",
+  database: process.env.MYSQL_DATABASE || "wenjie",
+  charset: "utf8mb4",
+  waitForConnections: true,
+  connectionLimit: Number(process.env.MYSQL_CONNECTION_LIMIT || 10),
+  queueLimit: 0,
+};
+if (MYSQL_SOCKET) {
+  MYSQL_CONFIG.socketPath = MYSQL_SOCKET;
+  delete MYSQL_CONFIG.host;
+  delete MYSQL_CONFIG.port;
+}
+
+let mysqlPool = null;
+let mysqlInitPromise = null;
 
 function loadDotEnv() {
   const envPath = path.join(ROOT_DIR, ".env");
@@ -47,6 +73,77 @@ function loadDotEnv() {
     }
     if (key && process.env[key] == null) process.env[key] = value;
   }
+}
+
+function hasDatabaseConfig() {
+  return !!DATABASE_URL || !!process.env.MYSQL_DATABASE || !!process.env.MYSQL_USER;
+}
+
+async function getMysql() {
+  if (!hasDatabaseConfig()) {
+    throw new Error("Missing MySQL config. Set DATABASE_URL or MYSQL_* in .env.");
+  }
+  if (!mysqlPool) {
+    let mysql;
+    try {
+      mysql = require("mysql2/promise");
+    } catch {
+      throw new Error("Missing dependency mysql2. Run npm install first.");
+    }
+    mysqlPool = DATABASE_URL
+      ? mysql.createPool(`${DATABASE_URL}${DATABASE_URL.includes("?") ? "&" : "?"}charset=utf8mb4`)
+      : mysql.createPool(MYSQL_CONFIG);
+  }
+  if (!mysqlInitPromise) mysqlInitPromise = initMysqlSchema(mysqlPool);
+  await mysqlInitPromise;
+  return mysqlPool;
+}
+
+function tableName(name) {
+  return `\`${MYSQL_TABLE_PREFIX}${name}\``;
+}
+
+async function initMysqlSchema(pool) {
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("users")} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      username VARCHAR(64) NOT NULL,
+      email VARCHAR(160) NOT NULL,
+      password_salt VARCHAR(64) NOT NULL,
+      password_hash VARCHAR(160) NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      UNIQUE KEY uniq_username (username),
+      UNIQUE KEY uniq_email (email)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("sessions")} (
+      id CHAR(64) NOT NULL,
+      user_id BIGINT UNSIGNED NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_user_id (user_id),
+      KEY idx_expires_at (expires_at),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}sessions_user
+        FOREIGN KEY (user_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("user_data")} (
+      user_id BIGINT UNSIGNED NOT NULL,
+      data_key VARCHAR(128) NOT NULL,
+      data_value LONGTEXT NOT NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, data_key),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}user_data_user
+        FOREIGN KEY (user_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
 }
 
 function loadApiKey() {
@@ -127,6 +224,287 @@ function sendJson(res, statusCode, data) {
   res.statusCode = statusCode;
   res.setHeader("Content-Type", JSON_UTF8);
   res.end(JSON.stringify(data));
+}
+
+function parseCookies(req) {
+  const header = req.headers.cookie || "";
+  return Object.fromEntries(
+    header.split(";").map((part) => {
+      const index = part.indexOf("=");
+      if (index < 0) return ["", ""];
+      return [
+        decodeURIComponent(part.slice(0, index).trim()),
+        decodeURIComponent(part.slice(index + 1).trim()),
+      ];
+    }).filter(([key]) => key)
+  );
+}
+
+function setSessionCookie(res, sessionId, expiresAt) {
+  const maxAge = Math.max(0, Math.floor((expiresAt.getTime() - Date.now()) / 1000));
+  res.setHeader("Set-Cookie", [
+    `${SESSION_COOKIE}=${encodeURIComponent(sessionId)}; Max-Age=${maxAge}; Path=/; HttpOnly; SameSite=Lax`,
+  ]);
+}
+
+function clearSessionCookie(res) {
+  res.setHeader("Set-Cookie", [
+    `${SESSION_COOKIE}=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax`,
+  ]);
+}
+
+function normalizeUsername(value) {
+  return String(value || "").trim().replace(/\s+/g, " ").slice(0, 32);
+}
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase().slice(0, 120);
+}
+
+function publicUser(row) {
+  if (!row) return null;
+  return {
+    id: String(row.id),
+    name: row.username,
+    email: row.email,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+  };
+}
+
+function hashPassword(password, salt = crypto.randomBytes(16).toString("hex")) {
+  const hash = crypto.pbkdf2Sync(String(password), salt, 120000, 48, "sha256").toString("hex");
+  return { salt, hash };
+}
+
+function verifyPassword(password, salt, expectedHash) {
+  const { hash } = hashPassword(password, salt);
+  const actual = Buffer.from(hash, "hex");
+  const expected = Buffer.from(String(expectedHash || ""), "hex");
+  return actual.length === expected.length && crypto.timingSafeEqual(actual, expected);
+}
+
+async function createSession(pool, userId, res) {
+  const sessionId = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 24 * 60 * 60 * 1000);
+  await pool.query(
+    `INSERT INTO ${tableName("sessions")} (id, user_id, expires_at) VALUES (?, ?, ?)`,
+    [sessionId, userId, expiresAt]
+  );
+  setSessionCookie(res, sessionId, expiresAt);
+}
+
+async function getCurrentUser(req) {
+  const sessionId = parseCookies(req)[SESSION_COOKIE];
+  if (!sessionId) return null;
+  const pool = await getMysql();
+  const [rows] = await pool.query(
+    `SELECT u.id, u.username, u.email, u.created_at
+       FROM ${tableName("sessions")} s
+       JOIN ${tableName("users")} u ON u.id = s.user_id
+      WHERE s.id = ? AND s.expires_at > NOW()
+      LIMIT 1`,
+    [sessionId]
+  );
+  if (!rows.length) return null;
+  return rows[0];
+}
+
+async function requireUser(req, res) {
+  try {
+    const user = await getCurrentUser(req);
+    if (user) return user;
+    sendJson(res, 401, { error: AUTH_REQUIRED_MESSAGE });
+    return null;
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+    return null;
+  }
+}
+
+function validateAuthInput({ username, email, password, confirmPassword }, mode) {
+  if (mode === "register") {
+    if (!username || !email || !password) return "请填写用户名、邮箱和密码。";
+    if (username.length < 2) return "用户名至少需要 2 个字符。";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "请输入有效邮箱。";
+    if (password.length < 8) return "正式版密码至少需要 8 位。";
+    if (confirmPassword !== undefined && password !== confirmPassword) return "两次输入的密码不一致。";
+  } else if (!username || !password) {
+    return "请输入账号和密码。";
+  }
+  return "";
+}
+
+async function registerUser(req, res) {
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+
+  const username = normalizeUsername(body.username || body.name);
+  const email = normalizeEmail(body.email);
+  const password = String(body.password || "");
+  const confirmPassword = body.confirmPassword == null ? undefined : String(body.confirmPassword || "");
+  const inputError = validateAuthInput({ username, email, password, confirmPassword }, "register");
+  if (inputError) {
+    sendJson(res, 400, { error: inputError });
+    return;
+  }
+
+  try {
+    const pool = await getMysql();
+    const [existing] = await pool.query(
+      `SELECT id FROM ${tableName("users")} WHERE username = ? OR email = ? LIMIT 1`,
+      [username, email]
+    );
+    if (existing.length) {
+      sendJson(res, 409, { error: "用户名或邮箱已经注册，请直接登录。" });
+      return;
+    }
+    const passwordData = hashPassword(password);
+    const [result] = await pool.query(
+      `INSERT INTO ${tableName("users")} (username, email, password_salt, password_hash) VALUES (?, ?, ?, ?)`,
+      [username, email, passwordData.salt, passwordData.hash]
+    );
+    const [rows] = await pool.query(
+      `SELECT id, username, email, created_at FROM ${tableName("users")} WHERE id = ? LIMIT 1`,
+      [result.insertId]
+    );
+    await createSession(pool, result.insertId, res);
+    sendJson(res, 201, { user: publicUser(rows[0]) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function loginUser(req, res) {
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+
+  const account = normalizeUsername(body.account || body.username || body.email);
+  const accountEmail = normalizeEmail(account);
+  const password = String(body.password || "");
+  const inputError = validateAuthInput({ username: account, password }, "login");
+  if (inputError) {
+    sendJson(res, 400, { error: inputError });
+    return;
+  }
+
+  try {
+    const pool = await getMysql();
+    const [rows] = await pool.query(
+      `SELECT id, username, email, password_salt, password_hash, created_at
+         FROM ${tableName("users")}
+        WHERE username = ? OR email = ?
+        LIMIT 1`,
+      [account, accountEmail]
+    );
+    const user = rows[0];
+    if (!user || !verifyPassword(password, user.password_salt, user.password_hash)) {
+      sendJson(res, 401, { error: "账号或密码不正确。" });
+      return;
+    }
+    await createSession(pool, user.id, res);
+    sendJson(res, 200, { user: publicUser(user) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function logoutUser(req, res) {
+  try {
+    const sessionId = parseCookies(req)[SESSION_COOKIE];
+    if (sessionId) {
+      const pool = await getMysql();
+      await pool.query(`DELETE FROM ${tableName("sessions")} WHERE id = ?`, [sessionId]);
+    }
+    clearSessionCookie(res);
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    clearSessionCookie(res);
+    sendJson(res, 200, { ok: true, warning: String(e?.message || e) });
+  }
+}
+
+async function getAuthMe(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  sendJson(res, 200, { user: publicUser(user) });
+}
+
+async function getUserData(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try {
+    const pool = await getMysql();
+    const [rows] = await pool.query(
+      `SELECT data_key, data_value FROM ${tableName("user_data")} WHERE user_id = ?`,
+      [user.id]
+    );
+    const data = {};
+    rows.forEach((row) => {
+      data[row.data_key] = row.data_value;
+    });
+    sendJson(res, 200, { data });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function saveUserData(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const key = String(body.key || "").trim();
+  if (!key || key.length > 128) {
+    sendJson(res, 400, { error: "数据键无效。" });
+    return;
+  }
+  const value = String(body.value ?? "");
+  try {
+    const pool = await getMysql();
+    await pool.query(
+      `INSERT INTO ${tableName("user_data")} (user_id, data_key, data_value)
+       VALUES (?, ?, ?)
+       ON DUPLICATE KEY UPDATE data_value = VALUES(data_value), updated_at = CURRENT_TIMESTAMP`,
+      [user.id, key, value]
+    );
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function deleteUserData(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const key = String(body.key || "").trim();
+  if (!key || key.length > 128) {
+    sendJson(res, 400, { error: "数据键无效。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    await pool.query(
+      `DELETE FROM ${tableName("user_data")} WHERE user_id = ? AND data_key = ?`,
+      [user.id, key]
+    );
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
 }
 
 function copyUpstreamHeaders(upstream, res) {
@@ -413,6 +791,34 @@ function serveStatic(req, res, pathname) {
 const server = http.createServer((req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host}`);
+    if (url.pathname === "/api/auth/register" && req.method === "POST") {
+      void registerUser(req, res);
+      return;
+    }
+    if (url.pathname === "/api/auth/login" && req.method === "POST") {
+      void loginUser(req, res);
+      return;
+    }
+    if (url.pathname === "/api/auth/logout" && req.method === "POST") {
+      void logoutUser(req, res);
+      return;
+    }
+    if (url.pathname === "/api/auth/me" && req.method === "GET") {
+      void getAuthMe(req, res);
+      return;
+    }
+    if (url.pathname === "/api/user-data" && req.method === "GET") {
+      void getUserData(req, res);
+      return;
+    }
+    if (url.pathname === "/api/user-data" && req.method === "PUT") {
+      void saveUserData(req, res);
+      return;
+    }
+    if (url.pathname === "/api/user-data" && req.method === "DELETE") {
+      void deleteUserData(req, res);
+      return;
+    }
     if (url.pathname === "/api/chat" && (req.method === "POST" || req.method === "OPTIONS")) {
       void proxyChat(req, res);
       return;
