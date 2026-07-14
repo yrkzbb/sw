@@ -38,6 +38,7 @@ const CHAT_ENDPOINT = "/api/chat";
 const VIDEO_ENDPOINT = "/api/video";
 const AUTH_ENDPOINT = "/api/auth";
 const USER_DATA_ENDPOINT = "/api/user-data";
+const ANNOUNCEMENT_ENDPOINT = "/api/announcements";
 const USE_BROWSER_API_KEY = /^https?:\/\//i.test(CHAT_ENDPOINT);
 
 const DEFAULT_MODEL = "gpt-4o-mini";
@@ -195,6 +196,7 @@ const el = {
   userChip: document.querySelector("#userChip"),
   userNameLabel: document.querySelector("#userNameLabel"),
   logoutBtn: document.querySelector("#logoutBtn"),
+  announcementBanner: document.querySelector("#announcementBanner"),
 };
 
 const state = {
@@ -495,6 +497,7 @@ async function handleAuthSubmit(e) {
     setActiveUser(payload.user);
     await loadRemoteUserData();
     await syncCurrentLocalUserDataToRemote();
+    await loadAnnouncements();
     setAuthMessage("注册成功，已进入你的学习空间。", "success");
     resetAuthForm();
     reloadUserWorkspace();
@@ -525,6 +528,7 @@ async function handleAuthLoginSubmit(e) {
     setActiveUser(payload.user);
     await loadRemoteUserData();
     await syncCurrentLocalUserDataToRemote();
+    await loadAnnouncements();
     setAuthLoginMessage("登录成功。", "success");
     resetAuthForm();
     reloadUserWorkspace();
@@ -549,6 +553,7 @@ async function logoutCurrentUser() {
   await syncCurrentLocalUserDataToRemote();
   await apiJson(`${AUTH_ENDPOINT}/logout`, { method: "POST", body: "{}" }).catch(() => {});
   setActiveUser(null);
+  renderAnnouncements([]);
   state.messages = [];
   state.attachedFiles = [];
   state.attachedImages = [];
@@ -587,7 +592,34 @@ async function initAuth() {
   if (user) {
     await loadRemoteUserData();
     await syncCurrentLocalUserDataToRemote();
+    await loadAnnouncements();
   }
+}
+
+async function loadAnnouncements() {
+  if (!state.activeUser || !el.announcementBanner) return;
+  try {
+    const payload = await apiJson(ANNOUNCEMENT_ENDPOINT, { method: "GET" });
+    renderAnnouncements(payload.announcements || []);
+  } catch (e) {
+    console.warn("加载公告失败", e);
+  }
+}
+
+function renderAnnouncements(announcements) {
+  if (!el.announcementBanner) return;
+  if (!announcements.length) {
+    el.announcementBanner.hidden = true;
+    el.announcementBanner.innerHTML = "";
+    return;
+  }
+  const item = announcements[0];
+  el.announcementBanner.hidden = false;
+  el.announcementBanner.className = `announcement-banner announcement-${item.level || "info"}`;
+  el.announcementBanner.innerHTML = `
+    <strong>${escapeHtml(item.title || "公告")}</strong>
+    <span>${escapeHtml(item.content || "")}</span>
+  `;
 }
 
 function reloadUserWorkspace() {

@@ -3568,6 +3568,59 @@ code {
   color: var(--grad-start, #a855f7);
 }
 
+.announcement-banner {
+  position: sticky;
+  top: 74px;
+  z-index: 35;
+  width: min(1080px, calc(100% - 40px));
+  margin: 10px auto 0;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid rgba(118, 210, 255, 0.26);
+  border-radius: 10px;
+  background: rgba(10, 25, 38, 0.88);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18);
+  backdrop-filter: blur(14px);
+}
+
+.announcement-banner strong {
+  flex: 0 0 auto;
+  color: #aee8ff;
+  font-size: 13px;
+}
+
+.announcement-banner span {
+  color: rgba(235, 246, 255, 0.84);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.announcement-success {
+  border-color: rgba(85, 214, 145, 0.34);
+}
+
+.announcement-success strong {
+  color: #92edbd;
+}
+
+.announcement-warning {
+  border-color: rgba(255, 199, 92, 0.38);
+}
+
+.announcement-warning strong {
+  color: #ffd486;
+}
+
+.announcement-danger {
+  border-color: rgba(255, 126, 126, 0.42);
+}
+
+.announcement-danger strong {
+  color: #ffaaa5;
+}
+
 .modal-card {
   width: min(520px, calc(100vw - 28px));
   border-radius: 18px;

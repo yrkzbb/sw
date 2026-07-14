@@ -10,6 +10,9 @@ const state = {
   selectedUserIds: new Set(),
   auditPage: 1,
   auditPagination: null,
+  sessionsPage: 1,
+  sessionsPagination: null,
+  announcements: [],
   modalConfirm: null,
   modalKeepOpen: false,
 };
@@ -32,6 +35,11 @@ const el = {
   signupTrend: document.querySelector("#signupTrend"),
   dataKeyStats: document.querySelector("#dataKeyStats"),
   usersPanel: document.querySelector("#usersPanel"),
+  announcementPanel: document.querySelector("#announcementPanel"),
+  announcementStatusFilter: document.querySelector("#announcementStatusFilter"),
+  createAnnouncementBtn: document.querySelector("#createAnnouncementBtn"),
+  announcementList: document.querySelector("#announcementList"),
+  securityPanel: document.querySelector("#securityPanel"),
   statusPanel: document.querySelector("#statusPanel"),
   auditPanel: document.querySelector("#auditPanel"),
   usersBody: document.querySelector("#usersBody"),
@@ -40,6 +48,8 @@ const el = {
   searchInput: document.querySelector("#searchInput"),
   statusFilter: document.querySelector("#statusFilter"),
   roleFilter: document.querySelector("#roleFilter"),
+  loginFilter: document.querySelector("#loginFilter"),
+  dataFilter: document.querySelector("#dataFilter"),
   sortSelect: document.querySelector("#sortSelect"),
   createUserBtn: document.querySelector("#createUserBtn"),
   exportUsersBtn: document.querySelector("#exportUsersBtn"),
@@ -50,10 +60,17 @@ const el = {
   bulkClearDataBtn: document.querySelector("#bulkClearDataBtn"),
   bulkClearSelectionBtn: document.querySelector("#bulkClearSelectionBtn"),
   selectAllUsers: document.querySelector("#selectAllUsers"),
+  securityCards: document.querySelector("#securityCards"),
+  sessionSearchInput: document.querySelector("#sessionSearchInput"),
+  sessionStatusFilter: document.querySelector("#sessionStatusFilter"),
+  cleanupSessionsBtn: document.querySelector("#cleanupSessionsBtn"),
+  sessionsBody: document.querySelector("#sessionsBody"),
+  sessionsPager: document.querySelector("#sessionsPager"),
   systemCards: document.querySelector("#systemCards"),
   systemDetailGrid: document.querySelector("#systemDetailGrid"),
   auditSearchInput: document.querySelector("#auditSearchInput"),
   auditActionFilter: document.querySelector("#auditActionFilter"),
+  exportAuditBtn: document.querySelector("#exportAuditBtn"),
   auditBody: document.querySelector("#auditBody"),
   auditPager: document.querySelector("#auditPager"),
   modalOverlay: document.querySelector("#modalOverlay"),
@@ -169,15 +186,30 @@ function currentUsersQuery() {
   const q = el.searchInput.value.trim();
   const status = el.statusFilter.value;
   const role = el.roleFilter.value;
+  const login = el.loginFilter.value;
+  const data = el.dataFilter.value;
   const sort = el.sortSelect.value;
   if (q) params.set("q", q);
   if (status) params.set("status", status);
   if (role) params.set("role", role);
+  if (login) params.set("login", login);
+  if (data) params.set("data", data);
   if (sort) params.set("sort", sort);
   params.set("page", String(state.usersPage));
   params.set("pageSize", "12");
   const suffix = params.toString();
   return suffix ? `?${suffix}` : "";
+}
+
+function currentSessionsQuery() {
+  const params = new URLSearchParams();
+  const q = el.sessionSearchInput.value.trim();
+  const status = el.sessionStatusFilter.value;
+  if (q) params.set("q", q);
+  if (status) params.set("status", status);
+  params.set("page", String(state.sessionsPage));
+  params.set("pageSize", "12");
+  return `?${params.toString()}`;
 }
 
 function currentAuditQuery() {
@@ -224,17 +256,19 @@ function renderUsersPager() {
 
 function renderUsers() {
   if (!state.users.length) {
-    el.usersBody.innerHTML = `<tr><td colspan="10" class="muted">暂无匹配用户</td></tr>`;
+    el.usersBody.innerHTML = `<tr><td colspan="11" class="muted">暂无匹配用户</td></tr>`;
     renderBulkBar();
     return;
   }
   el.usersBody.innerHTML = state.users.map((user) => {
     const overview = user.overview || {};
     const checked = state.selectedUserIds.has(String(user.id)) ? "checked" : "";
+    const risk = userRisk(user);
     return `
       <tr data-user-id="${escapeHtml(user.id)}" class="${String(user.id) === String(state.selectedUserId) ? "selected" : ""}">
         <td class="select-col"><input class="user-select-checkbox" type="checkbox" data-select-user-id="${escapeHtml(user.id)}" aria-label="选择 ${escapeHtml(user.name)}" ${checked} /></td>
         <td class="user-cell"><strong>${escapeHtml(user.name)}</strong><span>${escapeHtml(user.email)}</span></td>
+        <td><span class="badge risk-${escapeHtml(risk.level)}">${escapeHtml(risk.text)}</span></td>
         <td><span class="badge ${escapeHtml(user.role)}">${user.role === "admin" ? "管理员" : "用户"}</span></td>
         <td><span class="badge ${escapeHtml(user.status)}">${user.status === "disabled" ? "禁用" : "启用"}</span></td>
         <td>${escapeHtml(formatDate(user.createdAt))}</td>
@@ -247,6 +281,21 @@ function renderUsers() {
     `;
   }).join("");
   renderBulkBar();
+}
+
+function userRisk(user) {
+  const overview = user.overview || {};
+  if (user.status === "disabled") return { level: "disabled", text: "已禁用" };
+  if (Number(user.activeSessionCount || 0) > 0) return { level: "online", text: "在线" };
+  if (!user.lastLoginAt) return { level: "warn", text: "从未登录" };
+  const lastLogin = new Date(user.lastLoginAt).getTime();
+  if (Number.isFinite(lastLogin) && Date.now() - lastLogin > 30 * 24 * 60 * 60 * 1000) {
+    return { level: "warn", text: "30天未活跃" };
+  }
+  if (!overview.profileGenerated && Number(overview.dataKeyCount || 0) > 0) {
+    return { level: "info", text: "画像待生成" };
+  }
+  return { level: "ok", text: "正常" };
 }
 
 function renderBulkBar() {
@@ -269,11 +318,12 @@ async function loadUserDetail(userId) {
   state.selectedUserId = String(userId);
   renderUsers();
   const payload = await api(`/api/admin/users/${encodeURIComponent(userId)}`);
-  renderUserDetail(payload.user, payload.dataKeys || []);
+  renderUserDetail(payload.user, payload.dataKeys || [], payload.adminNote || {});
 }
 
-function renderUserDetail(user, dataKeys) {
+function renderUserDetail(user, dataKeys, adminNote = {}) {
   const overview = user.overview || {};
+  const tags = Array.isArray(adminNote.tags) ? adminNote.tags : [];
   const statusText = user.status === "disabled" ? "启用用户" : "禁用用户";
   const statusIcon = user.status === "disabled" ? "✓" : "⊘";
   const roleText = user.role === "admin" ? "设为普通用户" : "设为管理员";
@@ -290,6 +340,7 @@ function renderUserDetail(user, dataKeys) {
       <div class="metric"><span>错题数量</span><strong>${Number(overview.mistakeCount || 0)}</strong></div>
       <div class="metric"><span>资源数量</span><strong>${Number(overview.resourceCount || 0)}</strong></div>
       <div class="metric"><span>数据量</span><strong>${escapeHtml(formatBytes(overview.dataBytes))}</strong></div>
+      <div class="metric"><span>有效会话</span><strong>${Number(user.activeSessionCount || 0)}</strong></div>
     </div>
     <div class="detail-list">
       <div><span>角色</span><strong>${user.role === "admin" ? "管理员" : "普通用户"}</strong></div>
@@ -298,12 +349,21 @@ function renderUserDetail(user, dataKeys) {
       <div><span>画像状态</span><strong>${overview.profileGenerated ? "已生成" : "未生成"}</strong></div>
       <div><span>数据键</span><strong>${Number(overview.dataKeyCount || dataKeys.length || 0)} 个</strong></div>
       <div><span>最近数据更新</span><strong>${escapeHtml(formatDate(overview.lastDataUpdatedAt))}</strong></div>
+      <div><span>安全状态</span><strong>${escapeHtml(userRisk(user).text)}</strong></div>
     </div>
+    <section class="admin-note-section">
+      <h4>运营标签与内部备注</h4>
+      <div class="tag-list">${tags.length ? tags.map((tag) => `<span>${escapeHtml(tag)}</span>`).join("") : `<em>暂无标签</em>`}</div>
+      <p>${escapeHtml(adminNote.note || "暂无内部备注")}</p>
+      <small>${adminNote.updatedAt ? `更新于 ${escapeHtml(formatDate(adminNote.updatedAt))}${adminNote.updatedBy ? ` · ${escapeHtml(adminNote.updatedBy)}` : ""}` : "仅管理员可见"}</small>
+    </section>
     <div class="actions">
+      <button class="action-btn" type="button" data-action="edit-note">✎ 编辑备注</button>
       <button class="action-btn" type="button" data-action="export-data">⇩ 导出数据</button>
       <button class="action-btn" type="button" data-action="toggle-status">${statusIcon} ${statusText}</button>
       <button class="action-btn" type="button" data-action="toggle-role">♚ ${roleText}</button>
       <button class="action-btn" type="button" data-action="reset-password">↺ 重置密码</button>
+      <button class="action-btn" type="button" data-action="revoke-sessions">⇥ 强制下线</button>
       <button class="action-btn danger" type="button" data-action="clear-data">⌫ 清空数据</button>
       <button class="action-btn danger" type="button" data-action="delete-user">× 删除账号</button>
     </div>
@@ -373,6 +433,29 @@ async function handleDetailAction(action) {
   if (action === "export-data") {
     await exportUserData(user);
   }
+  if (action === "edit-note") {
+    const detail = await api(`/api/admin/users/${encodeURIComponent(user.id)}`);
+    const note = detail.adminNote || {};
+    showModal({
+      title: "编辑运营备注",
+      body: `
+        <p class="modal-copy">为 <strong>${escapeHtml(user.name)}</strong> 添加管理员内部可见的标签和备注。</p>
+        <label class="modal-field"><span>标签</span><input name="tags" type="text" autocomplete="off" placeholder="逗号分隔，例如：重点关注, 付费用户" value="${escapeHtml((note.tags || []).join(", "))}" /></label>
+        <label class="modal-field"><span>内部备注</span><textarea name="note" rows="5" placeholder="仅管理员可见">${escapeHtml(note.note || "")}</textarea></label>
+      `,
+      confirmText: "保存",
+      onConfirm: async () => {
+        await api(`/api/admin/users/${user.id}/note`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            tags: modalField("tags").split(",").map((tag) => tag.trim()).filter(Boolean),
+            note: modalField("note"),
+          }),
+        });
+        await loadUserDetail(user.id);
+      },
+    });
+  }
   if (action === "toggle-status") {
     const next = user.status === "disabled" ? "active" : "disabled";
     showModal({
@@ -425,6 +508,19 @@ async function handleDetailAction(action) {
         el.modalConfirmBtn.textContent = "我已记录";
         el.modalConfirmBtn.classList.remove("danger-primary");
         state.modalConfirm = async () => {};
+      },
+    });
+  }
+  if (action === "revoke-sessions") {
+    showModal({
+      title: "强制用户下线",
+      body: `<p class="modal-copy">确认撤销 <strong>${escapeHtml(user.name)}</strong> 的全部有效会话？该用户需要重新登录。</p>`,
+      confirmText: "强制下线",
+      danger: true,
+      onConfirm: async () => {
+        await api(`/api/admin/users/${user.id}/sessions`, { method: "DELETE" });
+        await loadUsers();
+        await loadSecuritySessions().catch(() => {});
       },
     });
   }
@@ -574,6 +670,175 @@ async function loadSystemStatus() {
   `;
 }
 
+async function loadSecuritySessions() {
+  const payload = await api(`/api/admin/sessions${currentSessionsQuery()}`);
+  const sessions = payload.sessions || [];
+  const summary = payload.summary || {};
+  state.sessionsPagination = payload.pagination || null;
+  el.securityCards.innerHTML = `
+    <article class="status-card"><span>有效会话</span><strong>${Number(summary.activeSessions || 0)}</strong><p class="muted">${Number(summary.activeUsers || 0)} 个在线用户</p></article>
+    <article class="status-card"><span>过期会话</span><strong>${Number(summary.expiredSessions || 0)}</strong><p class="muted">可一键清理</p></article>
+    <article class="status-card"><span>管理员会话</span><strong>${Number(summary.adminSessions || 0)}</strong><p class="muted">含当前管理员</p></article>
+    <article class="status-card"><span>最近创建</span><strong>${escapeHtml(formatDate(summary.latestSessionAt))}</strong><p class="muted">会话创建时间</p></article>
+  `;
+  el.sessionsBody.innerHTML = sessions.length ? sessions.map((session) => `
+    <tr>
+      <td class="user-cell"><strong>${escapeHtml(session.user?.name || "未知用户")}</strong><span>${escapeHtml(session.user?.email || "")}</span></td>
+      <td><span class="badge ${escapeHtml(session.user?.role || "user")}">${session.user?.role === "admin" ? "管理员" : "用户"}</span></td>
+      <td><span class="session-id">${escapeHtml(session.idPreview)}</span>${session.isCurrent ? `<span class="badge risk-online">当前</span>` : ""}</td>
+      <td>${escapeHtml(formatDate(session.createdAt))}</td>
+      <td>${escapeHtml(formatDate(session.expiresAt))}</td>
+      <td><span class="badge ${session.expired ? "disabled" : "active"}">${session.expired ? "过期" : "有效"}</span></td>
+      <td><button class="ghost-btn danger-text" type="button" data-revoke-session-id="${escapeHtml(session.id)}" ${session.isCurrent ? "disabled" : ""}>撤销</button></td>
+    </tr>
+  `).join("") : `<tr><td colspan="7" class="muted">暂无匹配会话</td></tr>`;
+  renderPager(el.sessionsPager, state.sessionsPagination, "sessions");
+}
+
+function cleanupExpiredSessions() {
+  showModal({
+    title: "清理过期会话",
+    body: `<p class="modal-copy">确认删除全部已过期会话？有效登录不会受影响。</p>`,
+    confirmText: "清理",
+    danger: true,
+    onConfirm: async () => {
+      await api("/api/admin/sessions/expired", { method: "DELETE" });
+      await loadSecuritySessions();
+      await loadOverview().catch(() => {});
+    },
+  });
+}
+
+function revokeSession(sessionId) {
+  showModal({
+    title: "撤销会话",
+    body: `<p class="modal-copy">确认撤销该会话？对应用户需要重新登录。</p>`,
+    confirmText: "撤销",
+    danger: true,
+    onConfirm: async () => {
+      await api(`/api/admin/sessions/${encodeURIComponent(sessionId)}`, { method: "DELETE" });
+      await loadSecuritySessions();
+      await loadUsers().catch(() => {});
+    },
+  });
+}
+
+async function loadAnnouncements() {
+  const status = el.announcementStatusFilter.value;
+  const suffix = status ? `?status=${encodeURIComponent(status)}` : "";
+  const payload = await api(`/api/admin/announcements${suffix}`);
+  state.announcements = payload.announcements || [];
+  renderAnnouncements();
+}
+
+function renderAnnouncements() {
+  el.announcementList.innerHTML = state.announcements.length ? state.announcements.map((item) => `
+    <article class="announcement-card" data-announcement-id="${escapeHtml(item.id)}">
+      <div>
+        <div class="announcement-meta">
+          <span class="badge ${escapeHtml(item.status)}">${escapeHtml(announcementStatusText(item.status))}</span>
+          <span class="badge announce-${escapeHtml(item.level)}">${escapeHtml(announcementLevelText(item.level))}</span>
+          <span>${escapeHtml(formatDate(item.updatedAt))}</span>
+        </div>
+        <h3>${escapeHtml(item.title)}</h3>
+        <p>${escapeHtml(item.content)}</p>
+        <small>${item.startsAt ? `开始 ${escapeHtml(formatDate(item.startsAt))}` : "立即生效"} · ${item.endsAt ? `结束 ${escapeHtml(formatDate(item.endsAt))}` : "长期有效"}</small>
+      </div>
+      <div class="announcement-actions">
+        <button class="ghost-btn" type="button" data-announcement-action="edit">编辑</button>
+        <button class="ghost-btn danger-text" type="button" data-announcement-action="delete">删除</button>
+      </div>
+    </article>
+  `).join("") : `<div class="empty-detail">暂无公告</div>`;
+}
+
+function announcementStatusText(status) {
+  return ({ draft: "草稿", published: "已发布", archived: "已归档" })[status] || status || "草稿";
+}
+
+function announcementLevelText(level) {
+  return ({ info: "通知", success: "正常", warning: "提醒", danger: "紧急" })[level] || level || "通知";
+}
+
+function announcementFormBody(item = {}) {
+  return `
+    <div class="modal-grid">
+      <label class="modal-field"><span>标题</span><input name="title" type="text" value="${escapeHtml(item.title || "")}" /></label>
+      <label class="modal-field"><span>状态</span><select name="status">
+        ${["draft", "published", "archived"].map((status) => `<option value="${status}" ${item.status === status ? "selected" : ""}>${announcementStatusText(status)}</option>`).join("")}
+      </select></label>
+      <label class="modal-field"><span>级别</span><select name="level">
+        ${["info", "success", "warning", "danger"].map((level) => `<option value="${level}" ${item.level === level ? "selected" : ""}>${announcementLevelText(level)}</option>`).join("")}
+      </select></label>
+      <label class="modal-field"><span>开始时间</span><input name="startsAt" type="datetime-local" value="${escapeHtml(toDateTimeLocalValue(item.startsAt))}" /></label>
+      <label class="modal-field"><span>结束时间</span><input name="endsAt" type="datetime-local" value="${escapeHtml(toDateTimeLocalValue(item.endsAt))}" /></label>
+    </div>
+    <label class="modal-field"><span>公告内容</span><textarea name="content" rows="5">${escapeHtml(item.content || "")}</textarea></label>
+  `;
+}
+
+function toDateTimeLocalValue(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function readAnnouncementForm() {
+  return {
+    title: modalField("title").trim(),
+    content: modalField("content").trim(),
+    level: modalField("level"),
+    status: modalField("status"),
+    startsAt: modalField("startsAt"),
+    endsAt: modalField("endsAt"),
+  };
+}
+
+function createAnnouncement() {
+  showModal({
+    title: "新建公告",
+    body: announcementFormBody({ status: "draft", level: "info" }),
+    confirmText: "创建",
+    onConfirm: async () => {
+      await api("/api/admin/announcements", {
+        method: "POST",
+        body: JSON.stringify(readAnnouncementForm()),
+      });
+      await loadAnnouncements();
+    },
+  });
+}
+
+function editAnnouncement(item) {
+  showModal({
+    title: "编辑公告",
+    body: announcementFormBody(item),
+    confirmText: "保存",
+    onConfirm: async () => {
+      await api(`/api/admin/announcements/${encodeURIComponent(item.id)}`, {
+        method: "PATCH",
+        body: JSON.stringify(readAnnouncementForm()),
+      });
+      await loadAnnouncements();
+    },
+  });
+}
+
+function deleteAnnouncement(item) {
+  showModal({
+    title: "删除公告",
+    body: `<p class="modal-copy">确认删除公告 <strong>${escapeHtml(item.title)}</strong>？</p>`,
+    confirmText: "删除",
+    danger: true,
+    onConfirm: async () => {
+      await api(`/api/admin/announcements/${encodeURIComponent(item.id)}`, { method: "DELETE" });
+      await loadAnnouncements();
+    },
+  });
+}
+
 function auditActionText(action) {
   return ({
     create_user: "新增账号",
@@ -585,6 +850,14 @@ function auditActionText(action) {
     delete_user: "删除账号",
     export_user_data: "导出数据",
     export_users_csv: "导出用户 CSV",
+    export_audit_csv: "导出审计 CSV",
+    revoke_user_sessions: "强制用户下线",
+    revoke_session: "撤销会话",
+    cleanup_expired_sessions: "清理过期会话",
+    update_user_note: "更新用户备注",
+    create_announcement: "新建公告",
+    update_announcement: "更新公告",
+    delete_announcement: "删除公告",
     bulk_enable_user: "批量启用",
     bulk_disable_user: "批量禁用",
     bulk_clear_user_data: "批量清空数据",
@@ -659,6 +932,22 @@ async function exportUsersCsv() {
   downloadText(`wenjie-users-${new Date().toISOString().slice(0, 10)}.csv`, text, "text/csv;charset=utf-8");
 }
 
+async function exportAuditCsv() {
+  const res = await fetch(`/api/admin/audit-logs/export${currentAuditQuery()}`);
+  const text = await res.text();
+  if (!res.ok) {
+    let message = text;
+    try {
+      message = JSON.parse(text)?.error || message;
+    } catch {
+      /* keep raw text */
+    }
+    throw new Error(message || `请求失败：${res.status}`);
+  }
+  downloadText(`wenjie-audit-${new Date().toISOString().slice(0, 10)}.csv`, text, "text/csv;charset=utf-8");
+  await loadAuditLogs().catch(() => {});
+}
+
 function selectedUserList() {
   return [...state.selectedUserIds];
 }
@@ -713,6 +1002,8 @@ async function loadAuditLogs() {
 async function refreshActivePanel() {
   if (state.activePanel === "overviewPanel") await loadOverview();
   if (state.activePanel === "usersPanel") await loadUsers();
+  if (state.activePanel === "announcementPanel") await loadAnnouncements();
+  if (state.activePanel === "securityPanel") await loadSecuritySessions();
   if (state.activePanel === "statusPanel") await loadSystemStatus();
   if (state.activePanel === "auditPanel") await loadAuditLogs();
 }
@@ -721,11 +1012,15 @@ function switchPanel(panelId) {
   state.activePanel = panelId;
   el.overviewPanel.hidden = panelId !== "overviewPanel";
   el.usersPanel.hidden = panelId !== "usersPanel";
+  el.announcementPanel.hidden = panelId !== "announcementPanel";
+  el.securityPanel.hidden = panelId !== "securityPanel";
   el.statusPanel.hidden = panelId !== "statusPanel";
   el.auditPanel.hidden = panelId !== "auditPanel";
   el.panelTitle.textContent = ({
     overviewPanel: "运营总览",
     usersPanel: "用户管理",
+    announcementPanel: "公告管理",
+    securityPanel: "安全中心",
     statusPanel: "系统状态",
     auditPanel: "操作日志",
   })[panelId] || "运营总览";
@@ -763,6 +1058,17 @@ el.logoutBtn.addEventListener("click", logout);
 el.refreshBtn.addEventListener("click", () => refreshActivePanel().catch((err) => window.alert(String(err?.message || err))));
 el.createUserBtn.addEventListener("click", () => createUser().catch((err) => window.alert(String(err?.message || err))));
 el.exportUsersBtn.addEventListener("click", () => exportUsersCsv().catch((err) => window.alert(String(err?.message || err))));
+el.createAnnouncementBtn.addEventListener("click", () => createAnnouncement());
+el.announcementStatusFilter.addEventListener("change", () => loadAnnouncements().catch((err) => window.alert(String(err?.message || err))));
+el.announcementList.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-announcement-action]");
+  const card = e.target.closest("[data-announcement-id]");
+  if (!button || !card) return;
+  const item = state.announcements.find((announcement) => String(announcement.id) === String(card.getAttribute("data-announcement-id")));
+  if (!item) return;
+  if (button.getAttribute("data-announcement-action") === "edit") editAnnouncement(item);
+  if (button.getAttribute("data-announcement-action") === "delete") deleteAnnouncement(item);
+});
 el.searchInput.addEventListener("input", debounce(() => {
   state.usersPage = 1;
   loadUsers().catch((err) => window.alert(String(err?.message || err)));
@@ -775,9 +1081,31 @@ el.roleFilter.addEventListener("change", () => {
   state.usersPage = 1;
   loadUsers().catch((err) => window.alert(String(err?.message || err)));
 });
+el.loginFilter.addEventListener("change", () => {
+  state.usersPage = 1;
+  loadUsers().catch((err) => window.alert(String(err?.message || err)));
+});
+el.dataFilter.addEventListener("change", () => {
+  state.usersPage = 1;
+  loadUsers().catch((err) => window.alert(String(err?.message || err)));
+});
 el.sortSelect.addEventListener("change", () => {
   state.usersPage = 1;
   loadUsers().catch((err) => window.alert(String(err?.message || err)));
+});
+el.sessionSearchInput.addEventListener("input", debounce(() => {
+  state.sessionsPage = 1;
+  loadSecuritySessions().catch((err) => window.alert(String(err?.message || err)));
+}));
+el.sessionStatusFilter.addEventListener("change", () => {
+  state.sessionsPage = 1;
+  loadSecuritySessions().catch((err) => window.alert(String(err?.message || err)));
+});
+el.cleanupSessionsBtn.addEventListener("click", () => cleanupExpiredSessions());
+el.sessionsBody.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-revoke-session-id]");
+  if (!button || button.disabled) return;
+  revokeSession(button.getAttribute("data-revoke-session-id"));
 });
 el.auditSearchInput.addEventListener("input", debounce(() => {
   state.auditPage = 1;
@@ -787,6 +1115,7 @@ el.auditActionFilter.addEventListener("change", () => {
   state.auditPage = 1;
   loadAuditLogs().catch((err) => window.alert(String(err?.message || err)));
 });
+el.exportAuditBtn.addEventListener("click", () => exportAuditCsv().catch((err) => window.alert(String(err?.message || err))));
 el.overviewPanel.addEventListener("click", (e) => {
   const button = e.target.closest("[data-jump-user-id]");
   if (!button) return;
@@ -831,6 +1160,10 @@ document.addEventListener("click", (e) => {
   if (pagerBtn.getAttribute("data-page-action") === "audit") {
     state.auditPage = page;
     loadAuditLogs().catch((err) => window.alert(String(err?.message || err)));
+  }
+  if (pagerBtn.getAttribute("data-page-action") === "sessions") {
+    state.sessionsPage = page;
+    loadSecuritySessions().catch((err) => window.alert(String(err?.message || err)));
   }
 });
 el.detailPanel.addEventListener("click", (e) => {

@@ -45,6 +45,8 @@
           <nav class="nav-list" aria-label="管理员导航">
             <button class="nav-item active" type="button" data-panel="overviewPanel">运营总览</button>
             <button class="nav-item" type="button" data-panel="usersPanel">用户管理</button>
+            <button class="nav-item" type="button" data-panel="announcementPanel">公告管理</button>
+            <button class="nav-item" type="button" data-panel="securityPanel">安全中心</button>
             <button class="nav-item" type="button" data-panel="statusPanel">系统状态</button>
             <button class="nav-item" type="button" data-panel="auditPanel">操作日志</button>
           </nav>
@@ -98,6 +100,20 @@
                 <option value="admin">管理员</option>
                 <option value="user">普通用户</option>
               </select>
+              <select id="loginFilter" aria-label="登录活跃筛选">
+                <option value="">全部活跃</option>
+                <option value="online">当前在线</option>
+                <option value="never">从未登录</option>
+                <option value="active7d">7 天内活跃</option>
+                <option value="inactive30d">30 天未活跃</option>
+              </select>
+              <select id="dataFilter" aria-label="学习数据筛选">
+                <option value="">全部数据</option>
+                <option value="has_data">有学习数据</option>
+                <option value="no_data">无学习数据</option>
+                <option value="profile_ready">画像已生成</option>
+                <option value="profile_missing">画像未生成</option>
+              </select>
               <select id="sortSelect" aria-label="排序">
                 <option value="created_desc">注册时间 ↓</option>
                 <option value="created_asc">注册时间 ↑</option>
@@ -126,6 +142,7 @@
                     <tr>
                       <th class="select-col"><input id="selectAllUsers" type="checkbox" aria-label="选择当前页全部用户" /></th>
                       <th>用户</th>
+                      <th>风险</th>
                       <th>角色</th>
                       <th>状态</th>
                       <th>注册时间</th>
@@ -147,6 +164,52 @@
             </div>
           </section>
 
+          <section id="announcementPanel" class="panel" hidden>
+            <div class="toolbar">
+              <select id="announcementStatusFilter" aria-label="公告状态筛选">
+                <option value="">全部公告</option>
+                <option value="published">已发布</option>
+                <option value="draft">草稿</option>
+                <option value="archived">已归档</option>
+              </select>
+              <button id="createAnnouncementBtn" class="primary-btn" type="button">新建公告</button>
+            </div>
+            <div id="announcementList" class="announcement-list"></div>
+          </section>
+
+          <section id="securityPanel" class="panel" hidden>
+            <div id="securityCards" class="status-grid"></div>
+            <div class="toolbar">
+              <label class="search-box">
+                <span aria-hidden="true">⌕</span>
+                <input id="sessionSearchInput" type="search" placeholder="搜索在线用户或邮箱" />
+              </label>
+              <select id="sessionStatusFilter" aria-label="会话状态筛选">
+                <option value="active">有效会话</option>
+                <option value="expired">过期会话</option>
+                <option value="">全部会话</option>
+              </select>
+              <button id="cleanupSessionsBtn" class="ghost-btn danger-text" type="button">清理过期会话</button>
+            </div>
+            <section class="table-shell" aria-label="会话列表">
+              <table>
+                <thead>
+                  <tr>
+                    <th>用户</th>
+                    <th>角色</th>
+                    <th>会话</th>
+                    <th>创建时间</th>
+                    <th>过期时间</th>
+                    <th>状态</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody id="sessionsBody"></tbody>
+              </table>
+            </section>
+            <div id="sessionsPager" class="pager"></div>
+          </section>
+
           <section id="statusPanel" class="panel" hidden>
             <div id="systemCards" class="status-grid"></div>
             <div id="systemDetailGrid" class="system-detail-grid"></div>
@@ -161,6 +224,7 @@
               <select id="auditActionFilter" aria-label="操作类型筛选">
                 <option value="">全部操作</option>
               </select>
+              <button id="exportAuditBtn" class="icon-text-btn" type="button"><span aria-hidden="true">⇩</span>导出日志</button>
             </div>
             <section class="table-shell" aria-label="操作日志">
               <table>

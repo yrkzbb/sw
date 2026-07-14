@@ -175,6 +175,42 @@ async function initMysqlSchema(pool) {
         ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("user_admin_notes")} (
+      user_id BIGINT UNSIGNED NOT NULL,
+      tags JSON NULL,
+      note TEXT NULL,
+      updated_by BIGINT UNSIGNED NULL,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id),
+      KEY idx_user_admin_notes_updated_by (updated_by),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}user_notes_user
+        FOREIGN KEY (user_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}user_notes_admin
+        FOREIGN KEY (updated_by) REFERENCES ${tableName("users")} (id)
+        ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("announcements")} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      title VARCHAR(120) NOT NULL,
+      content TEXT NOT NULL,
+      level ENUM('info', 'success', 'warning', 'danger') NOT NULL DEFAULT 'info',
+      status ENUM('draft', 'published', 'archived') NOT NULL DEFAULT 'draft',
+      starts_at DATETIME NULL,
+      ends_at DATETIME NULL,
+      created_by BIGINT UNSIGNED NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_announcements_status_time (status, starts_at, ends_at),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}announcements_admin
+        FOREIGN KEY (created_by) REFERENCES ${tableName("users")} (id)
+        ON DELETE SET NULL
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
   await ensureUserColumn(pool, "role", "ENUM('user', 'admin') NOT NULL DEFAULT 'user'");
   await ensureUserColumn(pool, "status", "ENUM('active', 'disabled') NOT NULL DEFAULT 'active'");
   await ensureUserColumn(pool, "last_login_at", "DATETIME NULL");
@@ -646,6 +682,7 @@ function summarizeUserData(rows) {
 function adminPublicUser(row, dataRows = []) {
   return {
     ...publicUser(row),
+    activeSessionCount: Number(row.active_session_count || 0),
     overview: summarizeUserData(dataRows),
   };
 }
@@ -687,6 +724,42 @@ async function getUserDataRows(pool, userIds) {
   return byUser;
 }
 
+function parseJsonArray(value) {
+  if (!value) return [];
+  try {
+    const parsed = typeof value === "string" ? JSON.parse(value) : value;
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function normalizeTags(value) {
+  const raw = Array.isArray(value) ? value : String(value || "").split(",");
+  return [...new Set(raw.map((tag) => String(tag || "").trim()).filter(Boolean))]
+    .slice(0, 12)
+    .map((tag) => tag.slice(0, 24));
+}
+
+async function getUserAdminNote(pool, userId) {
+  const [rows] = await pool.query(
+    `SELECT n.user_id, n.tags, n.note, n.updated_at, a.username AS updated_by_name
+       FROM ${tableName("user_admin_notes")} n
+       LEFT JOIN ${tableName("users")} a ON a.id = n.updated_by
+      WHERE n.user_id = ?
+      LIMIT 1`,
+    [userId]
+  );
+  const row = rows[0];
+  if (!row) return { tags: [], note: "", updatedAt: "", updatedBy: "" };
+  return {
+    tags: parseJsonArray(row.tags),
+    note: row.note || "",
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+    updatedBy: row.updated_by_name || "",
+  };
+}
+
 async function adminGetMe(req, res) {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
@@ -697,6 +770,8 @@ function buildAdminUserFilter(url) {
   const q = String(url.searchParams.get("q") || "").trim();
   const status = String(url.searchParams.get("status") || "").trim();
   const role = String(url.searchParams.get("role") || "").trim();
+  const login = String(url.searchParams.get("login") || "").trim();
+  const data = String(url.searchParams.get("data") || "").trim();
   const params = [];
   const where = [];
   if (q) {
@@ -710,6 +785,32 @@ function buildAdminUserFilter(url) {
   if (role === "user" || role === "admin") {
     where.push("role = ?");
     params.push(role);
+  }
+  if (login === "online") {
+    where.push(`EXISTS (SELECT 1 FROM ${tableName("sessions")} s WHERE s.user_id = ${tableName("users")}.id AND s.expires_at > NOW())`);
+  }
+  if (login === "never") {
+    where.push("last_login_at IS NULL");
+  }
+  if (login === "active7d") {
+    where.push("last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)");
+  }
+  if (login === "inactive30d") {
+    where.push("(last_login_at IS NULL OR last_login_at < DATE_SUB(NOW(), INTERVAL 30 DAY))");
+  }
+  if (data === "has_data") {
+    where.push(`EXISTS (SELECT 1 FROM ${tableName("user_data")} d WHERE d.user_id = ${tableName("users")}.id)`);
+  }
+  if (data === "no_data") {
+    where.push(`NOT EXISTS (SELECT 1 FROM ${tableName("user_data")} d WHERE d.user_id = ${tableName("users")}.id)`);
+  }
+  if (data === "profile_ready") {
+    where.push(`EXISTS (SELECT 1 FROM ${tableName("user_data")} d WHERE d.user_id = ${tableName("users")}.id AND d.data_key = ? AND CHAR_LENGTH(d.data_value) > 2)`);
+    params.push(USER_DATA_KEYS.profile);
+  }
+  if (data === "profile_missing") {
+    where.push(`NOT EXISTS (SELECT 1 FROM ${tableName("user_data")} d WHERE d.user_id = ${tableName("users")}.id AND d.data_key = ? AND CHAR_LENGTH(d.data_value) > 2)`);
+    params.push(USER_DATA_KEYS.profile);
   }
   return {
     params,
@@ -744,7 +845,8 @@ async function adminListUsers(req, res, url) {
       params
     );
     const [users] = await pool.query(
-      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at,
+              (SELECT COUNT(*) FROM ${tableName("sessions")} s WHERE s.user_id = ${tableName("users")}.id AND s.expires_at > NOW()) AS active_session_count
          FROM ${tableName("users")}
         ${whereSql}
         ORDER BY ${sort}
@@ -780,7 +882,8 @@ async function adminExportUsersCsv(req, res, url) {
     const sort = adminUserSort(url);
     const { params, whereSql } = buildAdminUserFilter(url);
     const [users] = await pool.query(
-      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at,
+              (SELECT COUNT(*) FROM ${tableName("sessions")} s WHERE s.user_id = ${tableName("users")}.id AND s.expires_at > NOW()) AS active_session_count
          FROM ${tableName("users")}
         ${whereSql}
         ORDER BY ${sort}
@@ -801,6 +904,7 @@ async function adminExportUsersCsv(req, res, url) {
       "资源数",
       "数据量",
       "数据键数",
+      "有效会话数",
     ];
     const rows = users.map((user) => {
       const overview = summarizeUserData(dataRows.get(String(user.id)) || []);
@@ -817,6 +921,7 @@ async function adminExportUsersCsv(req, res, url) {
         overview.resourceCount,
         overview.dataBytes,
         overview.dataKeyCount,
+        user.active_session_count || 0,
       ];
     });
     await writeAdminAuditLog(pool, admin, "export_users_csv", null, { exportedUsers: users.length });
@@ -884,7 +989,8 @@ async function adminGetUser(req, res, userId) {
   try {
     const pool = await getMysql();
     const [users] = await pool.query(
-      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at,
+              (SELECT COUNT(*) FROM ${tableName("sessions")} s WHERE s.user_id = ${tableName("users")}.id AND s.expires_at > NOW()) AS active_session_count
          FROM ${tableName("users")}
         WHERE id = ?
         LIMIT 1`,
@@ -896,8 +1002,10 @@ async function adminGetUser(req, res, userId) {
     }
     const dataRows = await getUserDataRows(pool, [userId]);
     const rows = dataRows.get(String(userId)) || [];
+    const adminNote = await getUserAdminNote(pool, userId);
     sendJson(res, 200, {
       user: adminPublicUser(users[0], rows),
+      adminNote,
       dataKeys: rows.map((row) => ({
         key: row.data_key,
         bytes: Buffer.byteLength(String(row.data_value || ""), "utf8"),
@@ -909,13 +1017,44 @@ async function adminGetUser(req, res, userId) {
   }
 }
 
+async function adminSaveUserNote(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const tags = normalizeTags(body.tags);
+  const note = String(body.note || "").trim().slice(0, 2000);
+  try {
+    const pool = await getMysql();
+    const [users] = await pool.query(`SELECT id FROM ${tableName("users")} WHERE id = ? LIMIT 1`, [userId]);
+    if (!users.length) {
+      sendJson(res, 404, { error: "用户不存在。" });
+      return;
+    }
+    await pool.query(
+      `INSERT INTO ${tableName("user_admin_notes")} (user_id, tags, note, updated_by)
+       VALUES (?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE tags = VALUES(tags), note = VALUES(note), updated_by = VALUES(updated_by)`,
+      [userId, JSON.stringify(tags), note, admin.id]
+    );
+    await writeAdminAuditLog(pool, admin, "update_user_note", userId, { tags });
+    sendJson(res, 200, { ok: true, adminNote: await getUserAdminNote(pool, userId) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
 async function adminExportUserData(req, res, userId) {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
   try {
     const pool = await getMysql();
     const [users] = await pool.query(
-      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at,
+              (SELECT COUNT(*) FROM ${tableName("sessions")} s WHERE s.user_id = ${tableName("users")}.id AND s.expires_at > NOW()) AS active_session_count
          FROM ${tableName("users")}
         WHERE id = ?
         LIMIT 1`,
@@ -1149,6 +1288,26 @@ async function adminClearUserData(req, res, userId) {
   }
 }
 
+async function adminRevokeUserSessions(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  if (String(admin.id) === String(userId)) {
+    sendJson(res, 400, { error: "不能在用户详情里撤销当前管理员自己的会话。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(
+      `DELETE FROM ${tableName("sessions")} WHERE user_id = ? AND expires_at > NOW()`,
+      [userId]
+    );
+    await writeAdminAuditLog(pool, admin, "revoke_user_sessions", userId, { revokedSessions: result.affectedRows || 0 });
+    sendJson(res, 200, { ok: true, revokedSessions: result.affectedRows || 0 });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
 async function adminDeleteUser(req, res, userId) {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
@@ -1272,6 +1431,12 @@ async function adminGetOverview(req, res) {
       `SELECT COUNT(*) AS dataRows, COALESCE(SUM(CHAR_LENGTH(data_value)), 0) AS dataBytes
          FROM ${tableName("user_data")}`
     );
+    const [[sessionCounts]] = await pool.query(
+      `SELECT
+         SUM(expires_at > NOW()) AS activeSessions,
+         SUM(expires_at <= NOW()) AS expiredSessions
+       FROM ${tableName("sessions")}`
+    );
     const [attentionUsers] = await pool.query(
       `SELECT id, username, email, role, status, created_at, last_login_at
          FROM ${tableName("users")}
@@ -1316,6 +1481,7 @@ async function adminGetOverview(req, res) {
       users: userCounts,
       activity: activityCounts,
       data: dataCounts,
+      sessions: sessionCounts,
       attentionUsers: attentionUsers.map(publicUser),
       heavyUsers: heavyUsers.map((row) => ({
         ...publicUser(row),
@@ -1330,6 +1496,131 @@ async function adminGetOverview(req, res) {
       })),
       checkedAt: new Date().toISOString(),
     });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminListSessions(req, res, url) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const currentSessionId = parseCookies(req)[SESSION_COOKIE] || "";
+    const page = normalizePositiveInt(url.searchParams.get("page"), 1, 1, 10000);
+    const pageSize = normalizePositiveInt(url.searchParams.get("pageSize"), 20, 5, 100);
+    const offset = (page - 1) * pageSize;
+    const q = String(url.searchParams.get("q") || "").trim();
+    const status = String(url.searchParams.get("status") || "active").trim();
+    const params = [];
+    const where = [];
+    if (status === "active") where.push("s.expires_at > NOW()");
+    if (status === "expired") where.push("s.expires_at <= NOW()");
+    if (q) {
+      where.push("(u.username LIKE ? OR u.email LIKE ?)");
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const [[countRow]] = await pool.query(
+      `SELECT COUNT(*) AS total
+         FROM ${tableName("sessions")} s
+         JOIN ${tableName("users")} u ON u.id = s.user_id
+        ${whereSql}`,
+      params
+    );
+    const [[summary]] = await pool.query(
+      `SELECT
+         SUM(s.expires_at > NOW()) AS activeSessions,
+         SUM(s.expires_at <= NOW()) AS expiredSessions,
+         COUNT(DISTINCT CASE WHEN s.expires_at > NOW() THEN s.user_id END) AS activeUsers,
+         SUM(s.expires_at > NOW() AND u.role = 'admin') AS adminSessions,
+         MAX(s.created_at) AS latestSessionAt
+       FROM ${tableName("sessions")} s
+       JOIN ${tableName("users")} u ON u.id = s.user_id`
+    );
+    const [sessions] = await pool.query(
+      `SELECT s.id, s.created_at, s.expires_at,
+              u.id AS user_id, u.username, u.email, u.role, u.status, u.created_at AS user_created_at, u.last_login_at
+         FROM ${tableName("sessions")} s
+         JOIN ${tableName("users")} u ON u.id = s.user_id
+        ${whereSql}
+        ORDER BY s.expires_at > NOW() DESC, s.created_at DESC
+        LIMIT ? OFFSET ?`,
+      params.concat([pageSize, offset])
+    );
+    sendJson(res, 200, {
+      sessions: sessions.map((row) => ({
+        id: row.id,
+        idPreview: `${String(row.id).slice(0, 8)}...${String(row.id).slice(-6)}`,
+        createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+        expiresAt: row.expires_at instanceof Date ? row.expires_at.toISOString() : row.expires_at,
+        expired: row.expires_at instanceof Date ? row.expires_at.getTime() <= Date.now() : new Date(row.expires_at).getTime() <= Date.now(),
+        isCurrent: row.id === currentSessionId,
+        user: publicUser({
+          id: row.user_id,
+          username: row.username,
+          email: row.email,
+          role: row.role,
+          status: row.status,
+          created_at: row.user_created_at,
+          last_login_at: row.last_login_at,
+        }),
+      })),
+      summary: {
+        activeSessions: Number(summary.activeSessions || 0),
+        expiredSessions: Number(summary.expiredSessions || 0),
+        activeUsers: Number(summary.activeUsers || 0),
+        adminSessions: Number(summary.adminSessions || 0),
+        latestSessionAt: summary.latestSessionAt instanceof Date ? summary.latestSessionAt.toISOString() : summary.latestSessionAt,
+      },
+      pagination: {
+        page,
+        pageSize,
+        total: Number(countRow.total || 0),
+        totalPages: Math.max(1, Math.ceil(Number(countRow.total || 0) / pageSize)),
+      },
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminRevokeSession(req, res, sessionId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const currentSessionId = parseCookies(req)[SESSION_COOKIE] || "";
+  if (sessionId === currentSessionId) {
+    sendJson(res, 400, { error: "不能撤销当前登录会话，请使用退出登录。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const [sessions] = await pool.query(
+      `SELECT user_id FROM ${tableName("sessions")} WHERE id = ? LIMIT 1`,
+      [sessionId]
+    );
+    if (!sessions.length) {
+      sendJson(res, 404, { error: "会话不存在。" });
+      return;
+    }
+    const [result] = await pool.query(`DELETE FROM ${tableName("sessions")} WHERE id = ?`, [sessionId]);
+    await writeAdminAuditLog(pool, admin, "revoke_session", sessions[0].user_id, {
+      session: `${String(sessionId).slice(0, 8)}...${String(sessionId).slice(-6)}`,
+    });
+    sendJson(res, 200, { ok: true, revokedSessions: result.affectedRows || 0 });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminCleanupExpiredSessions(req, res) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(`DELETE FROM ${tableName("sessions")} WHERE expires_at <= NOW()`);
+    await writeAdminAuditLog(pool, admin, "cleanup_expired_sessions", null, { deletedSessions: result.affectedRows || 0 });
+    sendJson(res, 200, { ok: true, deletedSessions: result.affectedRows || 0 });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
   }
@@ -1396,8 +1687,230 @@ async function adminListAuditLogs(req, res, url) {
   }
 }
 
+function buildAuditFilter(url) {
+  const q = String(url.searchParams.get("q") || "").trim();
+  const action = String(url.searchParams.get("action") || "").trim();
+  const params = [];
+  const where = [];
+  if (action) {
+    where.push("l.action = ?");
+    params.push(action);
+  }
+  if (q) {
+    where.push("(a.username LIKE ? OR a.email LIKE ? OR t.username LIKE ? OR t.email LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+  }
+  return {
+    params,
+    whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "",
+  };
+}
+
+async function adminExportAuditLogsCsv(req, res, url) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const { params, whereSql } = buildAuditFilter(url);
+    const [logs] = await pool.query(
+      `SELECT l.id, l.action, l.detail, l.created_at,
+              a.username AS admin_username,
+              t.username AS target_username
+         FROM ${tableName("admin_audit_logs")} l
+         LEFT JOIN ${tableName("users")} a ON a.id = l.admin_id
+         LEFT JOIN ${tableName("users")} t ON t.id = l.target_user_id
+        ${whereSql}
+        ORDER BY l.created_at DESC
+        LIMIT 10000`,
+      params
+    );
+    await writeAdminAuditLog(pool, admin, "export_audit_csv", null, { exportedLogs: logs.length });
+    const header = ["ID", "时间", "管理员", "操作", "对象", "详情"];
+    const rows = logs.map((log) => [
+      log.id,
+      log.created_at instanceof Date ? log.created_at.toISOString() : log.created_at,
+      log.admin_username || "未知管理员",
+      log.action,
+      log.target_username || "已删除用户",
+      renderAuditCsvDetail(log.detail),
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    res.setHeader("Content-Disposition", `attachment; filename="wenjie-audit-${new Date().toISOString().slice(0, 10)}.csv"`);
+    sendText(res, 200, `\uFEFF${csv}\n`, "text/csv; charset=utf-8");
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+function renderAuditCsvDetail(detail) {
+  if (!detail) return "";
+  if (typeof detail === "string") return detail;
+  return JSON.stringify(detail);
+}
+
+function publicAnnouncement(row) {
+  return {
+    id: String(row.id),
+    title: row.title,
+    content: row.content,
+    level: row.level || "info",
+    status: row.status || "draft",
+    startsAt: row.starts_at instanceof Date ? row.starts_at.toISOString() : row.starts_at,
+    endsAt: row.ends_at instanceof Date ? row.ends_at.toISOString() : row.ends_at,
+    createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+    createdBy: row.created_by_name || "",
+  };
+}
+
+async function getPublicAnnouncements(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try {
+    const pool = await getMysql();
+    const [rows] = await pool.query(
+      `SELECT id, title, content, level, status, starts_at, ends_at, created_at, updated_at
+         FROM ${tableName("announcements")}
+        WHERE status = 'published'
+          AND (starts_at IS NULL OR starts_at <= NOW())
+          AND (ends_at IS NULL OR ends_at >= NOW())
+        ORDER BY COALESCE(starts_at, created_at) DESC, id DESC
+        LIMIT 3`
+    );
+    sendJson(res, 200, { announcements: rows.map(publicAnnouncement) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminListAnnouncements(req, res, url) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const status = String(url.searchParams.get("status") || "").trim();
+    const params = [];
+    const where = [];
+    if (["draft", "published", "archived"].includes(status)) {
+      where.push("n.status = ?");
+      params.push(status);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const [rows] = await pool.query(
+      `SELECT n.id, n.title, n.content, n.level, n.status, n.starts_at, n.ends_at, n.created_at, n.updated_at,
+              a.username AS created_by_name
+         FROM ${tableName("announcements")} n
+         LEFT JOIN ${tableName("users")} a ON a.id = n.created_by
+        ${whereSql}
+        ORDER BY n.updated_at DESC, n.id DESC
+        LIMIT 50`,
+      params
+    );
+    sendJson(res, 200, { announcements: rows.map(publicAnnouncement) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminCreateAnnouncement(req, res) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const title = String(body.title || "").trim().slice(0, 120);
+  const content = String(body.content || "").trim().slice(0, 3000);
+  const level = ["info", "success", "warning", "danger"].includes(String(body.level)) ? String(body.level) : "info";
+  const status = ["draft", "published"].includes(String(body.status)) ? String(body.status) : "draft";
+  const startsAt = normalizeDateTimeInput(body.startsAt);
+  const endsAt = normalizeDateTimeInput(body.endsAt);
+  if (!title || !content) {
+    sendJson(res, 400, { error: "公告标题和内容不能为空。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(
+      `INSERT INTO ${tableName("announcements")} (title, content, level, status, starts_at, ends_at, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [title, content, level, status, startsAt, endsAt, admin.id]
+    );
+    await writeAdminAuditLog(pool, admin, "create_announcement", null, { title, status });
+    const [rows] = await pool.query(`SELECT * FROM ${tableName("announcements")} WHERE id = ? LIMIT 1`, [result.insertId]);
+    sendJson(res, 201, { announcement: publicAnnouncement(rows[0]) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminUpdateAnnouncement(req, res, announcementId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const title = String(body.title || "").trim().slice(0, 120);
+  const content = String(body.content || "").trim().slice(0, 3000);
+  const level = ["info", "success", "warning", "danger"].includes(String(body.level)) ? String(body.level) : "info";
+  const status = ["draft", "published", "archived"].includes(String(body.status)) ? String(body.status) : "draft";
+  const startsAt = normalizeDateTimeInput(body.startsAt);
+  const endsAt = normalizeDateTimeInput(body.endsAt);
+  if (!title || !content) {
+    sendJson(res, 400, { error: "公告标题和内容不能为空。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(
+      `UPDATE ${tableName("announcements")}
+          SET title = ?, content = ?, level = ?, status = ?, starts_at = ?, ends_at = ?
+        WHERE id = ?`,
+      [title, content, level, status, startsAt, endsAt, announcementId]
+    );
+    if (!result.affectedRows) {
+      sendJson(res, 404, { error: "公告不存在。" });
+      return;
+    }
+    await writeAdminAuditLog(pool, admin, "update_announcement", null, { announcementId, title, status });
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminDeleteAnnouncement(req, res, announcementId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(`DELETE FROM ${tableName("announcements")} WHERE id = ?`, [announcementId]);
+    if (!result.affectedRows) {
+      sendJson(res, 404, { error: "公告不存在。" });
+      return;
+    }
+    await writeAdminAuditLog(pool, admin, "delete_announcement", null, { announcementId });
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+function normalizeDateTimeInput(value) {
+  const text = String(value || "").trim();
+  if (!text) return null;
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
 function handleAdminRoute(req, res, url) {
-  const userMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)(?:\/(status|role|reset-password|data|export))?$/);
+  const userMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)(?:\/(status|role|reset-password|data|export|sessions|note))?$/);
+  const sessionMatch = url.pathname.match(/^\/api\/admin\/sessions\/([a-f0-9]{64})$/);
+  const announcementMatch = url.pathname.match(/^\/api\/admin\/announcements\/(\d+)$/);
   if (url.pathname === "/api/admin/me" && req.method === "GET") {
     void adminGetMe(req, res);
     return true;
@@ -1442,8 +1955,28 @@ function handleAdminRoute(req, res, url) {
     void adminClearUserData(req, res, userMatch[1]);
     return true;
   }
+  if (userMatch && req.method === "PATCH" && userMatch[2] === "note") {
+    void adminSaveUserNote(req, res, userMatch[1]);
+    return true;
+  }
+  if (userMatch && req.method === "DELETE" && userMatch[2] === "sessions") {
+    void adminRevokeUserSessions(req, res, userMatch[1]);
+    return true;
+  }
   if (userMatch && req.method === "DELETE" && !userMatch[2]) {
     void adminDeleteUser(req, res, userMatch[1]);
+    return true;
+  }
+  if (url.pathname === "/api/admin/sessions" && req.method === "GET") {
+    void adminListSessions(req, res, url);
+    return true;
+  }
+  if (url.pathname === "/api/admin/sessions/expired" && req.method === "DELETE") {
+    void adminCleanupExpiredSessions(req, res);
+    return true;
+  }
+  if (sessionMatch && req.method === "DELETE") {
+    void adminRevokeSession(req, res, sessionMatch[1]);
     return true;
   }
   if (url.pathname === "/api/admin/status" && req.method === "GET") {
@@ -1454,8 +1987,28 @@ function handleAdminRoute(req, res, url) {
     void adminGetOverview(req, res);
     return true;
   }
+  if (url.pathname === "/api/admin/audit-logs/export" && req.method === "GET") {
+    void adminExportAuditLogsCsv(req, res, url);
+    return true;
+  }
   if (url.pathname === "/api/admin/audit-logs" && req.method === "GET") {
     void adminListAuditLogs(req, res, url);
+    return true;
+  }
+  if (url.pathname === "/api/admin/announcements" && req.method === "GET") {
+    void adminListAnnouncements(req, res, url);
+    return true;
+  }
+  if (url.pathname === "/api/admin/announcements" && req.method === "POST") {
+    void adminCreateAnnouncement(req, res);
+    return true;
+  }
+  if (announcementMatch && req.method === "PATCH") {
+    void adminUpdateAnnouncement(req, res, announcementMatch[1]);
+    return true;
+  }
+  if (announcementMatch && req.method === "DELETE") {
+    void adminDeleteAnnouncement(req, res, announcementMatch[1]);
     return true;
   }
   return false;
@@ -1759,6 +2312,10 @@ const server = http.createServer((req, res) => {
     }
     if (url.pathname === "/api/auth/me" && req.method === "GET") {
       void getAuthMe(req, res);
+      return;
+    }
+    if (url.pathname === "/api/announcements" && req.method === "GET") {
+      void getPublicAnnouncements(req, res);
       return;
     }
     if (url.pathname.startsWith("/api/admin/") && handleAdminRoute(req, res, url)) {
