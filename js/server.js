@@ -1457,15 +1457,15 @@ async function adminGetOverview(req, res) {
     const [signupRows] = await pool.query(
       `SELECT DATE(created_at) AS day, COUNT(*) AS count
          FROM ${tableName("users")}
-        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 6 DAY)
         GROUP BY DATE(created_at)
         ORDER BY day ASC`
     );
     const trendMap = new Map(signupRows.map((row) => [isoDay(row.day), Number(row.count || 0)]));
-    const signupTrend = Array.from({ length: 14 }, (_, index) => {
+    const signupTrend = Array.from({ length: 7 }, (_, index) => {
       const date = new Date();
       date.setUTCHours(0, 0, 0, 0);
-      date.setUTCDate(date.getUTCDate() - 13 + index);
+      date.setUTCDate(date.getUTCDate() - 6 + index);
       const day = date.toISOString().slice(5, 10);
       const key = date.toISOString().slice(0, 10);
       return { day, count: trendMap.get(key) || 0 };

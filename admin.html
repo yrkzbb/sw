@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="/css/admin.css" />
   </head>
   <body>
-    <main class="admin-app">
+    <main class="admin-app auth-pending">
       <section id="loginView" class="login-view">
         <form id="loginForm" class="login-panel" autocomplete="off">
           <div class="login-title">
@@ -36,7 +36,21 @@
       <section id="dashboardView" class="dashboard" hidden>
         <aside class="sidebar">
           <div class="brand">
-            <div class="brand-mark">问</div>
+            <div class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 64 64" role="img" focusable="false">
+                <defs>
+                  <linearGradient id="adminLogoGradient" x1="10" y1="8" x2="54" y2="56" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stop-color="#d9fff5" />
+                    <stop offset="0.52" stop-color="#80d8ff" />
+                    <stop offset="1" stop-color="#bda7ff" />
+                  </linearGradient>
+                </defs>
+                <rect x="4" y="4" width="56" height="56" rx="16" fill="url(#adminLogoGradient)" />
+                <path d="M18 40V24h7l7 10 7-10h7v24" fill="none" stroke="#0b1a22" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M22 44h7l5-6h8" fill="none" stroke="#0b1a22" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+                <path d="M40 18h8v8" fill="none" stroke="#0b1a22" stroke-width="5" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
             <div>
               <strong>问阶 Admin</strong>
               <span id="adminName">管理员</span>
@@ -50,8 +64,17 @@
             <button class="nav-item" type="button" data-panel="statusPanel">系统状态</button>
             <button class="nav-item" type="button" data-panel="auditPanel">操作日志</button>
           </nav>
+          <section class="sidebar-summary" aria-label="当前管理任务">
+            <div>
+              <span>当前工作台</span>
+              <strong>运营总览</strong>
+            </div>
+            <em>6 个模块</em>
+          </section>
           <button id="logoutBtn" class="ghost-btn" type="button">退出登录</button>
         </aside>
+
+        <div class="sidebar-resizer" role="separator" aria-label="调整侧栏宽度" aria-orientation="vertical" tabindex="0"></div>
 
         <section class="content">
           <header class="topbar">
@@ -74,7 +97,7 @@
                 <div id="heavyUsers" class="compact-list"></div>
               </section>
               <section class="status-section wide-section">
-                <h3>最近 14 天新增</h3>
+                <h3>最近 7 天新增</h3>
                 <div id="signupTrend" class="trend-list"></div>
               </section>
               <section class="status-section">

@@ -1,4 +1,7 @@
 const ADMIN_LAST_ACCOUNT_STORAGE = "WENJIE_ADMIN_LAST_ACCOUNT";
+const ADMIN_SIDEBAR_WIDTH_STORAGE = "WENJIE_ADMIN_SIDEBAR_WIDTH";
+const SIDEBAR_MIN_WIDTH = 224;
+const SIDEBAR_MAX_WIDTH = 380;
 
 const state = {
   admin: null,
@@ -18,8 +21,10 @@ const state = {
 };
 
 const el = {
+  adminApp: document.querySelector(".admin-app"),
   loginView: document.querySelector("#loginView"),
   dashboardView: document.querySelector("#dashboardView"),
+  sidebarResizer: document.querySelector(".sidebar-resizer"),
   loginForm: document.querySelector("#loginForm"),
   loginAccount: document.querySelector("#loginAccount"),
   loginPassword: document.querySelector("#loginPassword"),
@@ -124,6 +129,7 @@ async function api(path, options = {}) {
 
 function showLogin(message = "", options = {}) {
   state.admin = null;
+  el.adminApp?.classList.remove("auth-pending");
   if (options.clearFields) {
     el.loginAccount.value = "";
     el.loginPassword.value = "";
@@ -139,6 +145,7 @@ function showLogin(message = "", options = {}) {
 
 function showDashboard(admin) {
   state.admin = admin;
+  el.adminApp?.classList.remove("auth-pending");
   el.adminName.textContent = admin?.name || "管理员";
   el.loginView.hidden = true;
   el.dashboardView.hidden = false;
@@ -762,6 +769,7 @@ function announcementLevelText(level) {
 
 function announcementFormBody(item = {}) {
   return `
+    <p class="modal-hint">发布后会显示在已登录用户首页顶部；草稿不展示。开始时间为空表示立即生效，结束时间为空表示长期有效。</p>
     <div class="modal-grid">
       <label class="modal-field"><span>标题</span><input name="title" type="text" value="${escapeHtml(item.title || "")}" /></label>
       <label class="modal-field"><span>状态</span><select name="status">
@@ -1049,6 +1057,77 @@ function restoreLoginAccount() {
   if (account && !el.loginAccount.value) el.loginAccount.value = account;
 }
 
+function clampSidebarWidth(width) {
+  const viewportLimit = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(window.innerWidth * 0.36)));
+  return Math.max(SIDEBAR_MIN_WIDTH, Math.min(viewportLimit, Math.round(width)));
+}
+
+function setSidebarWidth(width, persist = true) {
+  if (!el.dashboardView) return;
+  const nextWidth = clampSidebarWidth(width);
+  el.dashboardView.style.setProperty("--admin-sidebar-width", `${nextWidth}px`);
+  el.sidebarResizer?.setAttribute("aria-valuenow", String(nextWidth));
+  if (persist) localStorage.setItem(ADMIN_SIDEBAR_WIDTH_STORAGE, String(nextWidth));
+}
+
+function initSidebarResize() {
+  if (!el.sidebarResizer || !el.dashboardView) return;
+
+  el.sidebarResizer.setAttribute("aria-valuemin", String(SIDEBAR_MIN_WIDTH));
+  el.sidebarResizer.setAttribute("aria-valuemax", String(SIDEBAR_MAX_WIDTH));
+  const savedWidth = Number(localStorage.getItem(ADMIN_SIDEBAR_WIDTH_STORAGE) || 0);
+  if (savedWidth) setSidebarWidth(savedWidth, false);
+
+  const resizeToPointer = (event) => {
+    const dashboardRect = el.dashboardView.getBoundingClientRect();
+    setSidebarWidth(event.clientX - dashboardRect.left);
+  };
+
+  el.sidebarResizer.addEventListener("pointerdown", (event) => {
+    if (window.innerWidth <= 1080) return;
+    event.preventDefault();
+    document.body.classList.add("resizing-sidebar");
+    el.sidebarResizer.setPointerCapture?.(event.pointerId);
+    resizeToPointer(event);
+
+    const stopResize = () => {
+      document.body.classList.remove("resizing-sidebar");
+      window.removeEventListener("pointermove", resizeToPointer);
+      window.removeEventListener("pointerup", stopResize);
+      window.removeEventListener("pointercancel", stopResize);
+    };
+
+    window.addEventListener("pointermove", resizeToPointer);
+    window.addEventListener("pointerup", stopResize);
+    window.addEventListener("pointercancel", stopResize);
+  });
+
+  el.sidebarResizer.addEventListener("keydown", (event) => {
+    const currentWidth = Number(getComputedStyle(el.dashboardView).getPropertyValue("--admin-sidebar-width").replace("px", "")) || 286;
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      setSidebarWidth(currentWidth - 16);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      setSidebarWidth(currentWidth + 16);
+    }
+    if (event.key === "Home") {
+      event.preventDefault();
+      setSidebarWidth(SIDEBAR_MIN_WIDTH);
+    }
+    if (event.key === "End") {
+      event.preventDefault();
+      setSidebarWidth(SIDEBAR_MAX_WIDTH);
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    const currentWidth = Number(getComputedStyle(el.dashboardView).getPropertyValue("--admin-sidebar-width").replace("px", "")) || 286;
+    setSidebarWidth(currentWidth, false);
+  });
+}
+
 el.loginForm.addEventListener("submit", login);
 el.loginAccount.addEventListener("input", syncLoginFieldState);
 el.loginPassword.addEventListener("input", syncLoginFieldState);
@@ -1185,6 +1264,7 @@ document.querySelectorAll(".nav-item").forEach((btn) => {
 
 restoreLoginAccount();
 syncLoginFieldState();
+initSidebarResize();
 window.setTimeout(syncLoginFieldState, 100);
 window.setTimeout(syncLoginFieldState, 500);
 checkSession();
