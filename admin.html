@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>问阶管理员端</title>
+    <link rel="stylesheet" href="/css/admin.css" />
+  </head>
+  <body>
+    <main class="admin-app">
+      <section id="loginView" class="login-view">
+        <form id="loginForm" class="login-panel" autocomplete="off">
+          <div class="login-title">
+            <p class="eyebrow">ADMIN</p>
+            <h1>问阶</h1>
+          </div>
+          <div class="login-box">
+            <input id="loginAccount" type="text" autocomplete="off" placeholder=" " required />
+            <label for="loginAccount">用户名 / 邮箱</label>
+          </div>
+          <div class="login-box">
+            <input id="loginPassword" type="password" autocomplete="new-password" placeholder=" " required />
+            <label for="loginPassword">密码</label>
+          </div>
+          <button class="marquee-login-btn" type="submit">
+            登录
+            <span></span>
+            <span></span>
+            <span></span>
+            <span></span>
+          </button>
+          <p id="loginMessage" class="form-message" role="status"></p>
+        </form>
+      </section>
+
+      <section id="dashboardView" class="dashboard" hidden>
+        <aside class="sidebar">
+          <div class="brand">
+            <div class="brand-mark">问</div>
+            <div>
+              <strong>问阶 Admin</strong>
+              <span id="adminName">管理员</span>
+            </div>
+          </div>
+          <nav class="nav-list" aria-label="管理员导航">
+            <button class="nav-item active" type="button" data-panel="usersPanel">用户管理</button>
+            <button class="nav-item" type="button" data-panel="statusPanel">系统状态</button>
+          </nav>
+          <button id="logoutBtn" class="ghost-btn" type="button">退出登录</button>
+        </aside>
+
+        <section class="content">
+          <header class="topbar">
+            <div>
+              <p class="eyebrow">LIGHT ADMIN</p>
+              <h2 id="panelTitle">用户管理</h2>
+            </div>
+            <button id="refreshBtn" class="icon-text-btn" type="button"><span aria-hidden="true">↻</span>刷新</button>
+          </header>
+
+          <section id="usersPanel" class="panel">
+            <div class="toolbar">
+              <label class="search-box">
+                <span aria-hidden="true">⌕</span>
+                <input id="searchInput" type="search" placeholder="搜索用户名或邮箱" />
+              </label>
+              <select id="statusFilter" aria-label="状态筛选">
+                <option value="">全部状态</option>
+                <option value="active">启用</option>
+                <option value="disabled">禁用</option>
+              </select>
+              <button id="createUserBtn" class="primary-btn" type="button">新增账号</button>
+            </div>
+
+            <div class="users-layout">
+              <section class="table-shell" aria-label="用户列表">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>用户</th>
+                      <th>角色</th>
+                      <th>状态</th>
+                      <th>注册时间</th>
+                      <th>最近登录</th>
+                      <th>对话</th>
+                      <th>错题</th>
+                      <th>资源</th>
+                      <th>画像</th>
+                    </tr>
+                  </thead>
+                  <tbody id="usersBody"></tbody>
+                </table>
+              </section>
+
+              <aside id="detailPanel" class="detail-panel">
+                <div class="empty-detail">选择一个用户查看详情</div>
+              </aside>
+            </div>
+          </section>
+
+          <section id="statusPanel" class="panel" hidden>
+            <div id="systemCards" class="status-grid"></div>
+          </section>
+        </section>
+      </section>
+    </main>
+
+    <script src="/js/admin.js"></script>
+  </body>
+</html>

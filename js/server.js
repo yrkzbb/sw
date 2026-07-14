@@ -16,6 +16,14 @@ const BODY_LIMIT = 10 * 1024 * 1024;
 const SESSION_COOKIE = "wenjie_session";
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 14);
 const AUTH_REQUIRED_MESSAGE = "请先登录。";
+const ADMIN_REQUIRED_MESSAGE = "需要管理员权限。";
+const USER_DATA_KEYS = {
+  messages: "LINGXI_MESSAGES",
+  profile: "LINGXI_STUDENT_PROFILE",
+  resources: "LINGXI_LEARNING_RESOURCES",
+  mistakes: "LINGXI_MISTAKE_BOOK",
+  pathLibrary: "LINGXI_LEARNING_PATH_LIBRARY",
+};
 const OPENAI_PROXY_BASE_URL = (
   process.env.OPENAI_PROXY_BASE_URL ||
   "https://api.openai-proxy.org/v1"
@@ -111,6 +119,9 @@ async function initMysqlSchema(pool) {
       email VARCHAR(160) NOT NULL,
       password_salt VARCHAR(64) NOT NULL,
       password_hash VARCHAR(160) NOT NULL,
+      role ENUM('user', 'admin') NOT NULL DEFAULT 'user',
+      status ENUM('active', 'disabled') NOT NULL DEFAULT 'active',
+      last_login_at DATETIME NULL,
       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
       PRIMARY KEY (id),
@@ -144,6 +155,48 @@ async function initMysqlSchema(pool) {
         ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  await ensureUserColumn(pool, "role", "ENUM('user', 'admin') NOT NULL DEFAULT 'user'");
+  await ensureUserColumn(pool, "status", "ENUM('active', 'disabled') NOT NULL DEFAULT 'active'");
+  await ensureUserColumn(pool, "last_login_at", "DATETIME NULL");
+  await bootstrapAdminUser(pool);
+}
+
+async function ensureUserColumn(pool, columnName, definition) {
+  const table = `${MYSQL_TABLE_PREFIX}users`;
+  const [rows] = await pool.query(
+    `SELECT COLUMN_NAME
+       FROM INFORMATION_SCHEMA.COLUMNS
+      WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?
+      LIMIT 1`,
+    [table, columnName]
+  );
+  if (rows.length) return;
+  await pool.query(`ALTER TABLE ${tableName("users")} ADD COLUMN ${columnName} ${definition}`);
+}
+
+async function bootstrapAdminUser(pool) {
+  const username = normalizeUsername(process.env.ADMIN_BOOTSTRAP_USERNAME || "");
+  const email = normalizeEmail(process.env.ADMIN_BOOTSTRAP_EMAIL || "");
+  const password = String(process.env.ADMIN_BOOTSTRAP_PASSWORD || "");
+  if (!username || !email || !password) return;
+
+  const [rows] = await pool.query(
+    `SELECT id, role FROM ${tableName("users")} WHERE username = ? OR email = ? LIMIT 1`,
+    [username, email]
+  );
+  if (rows.length) {
+    if (rows[0].role !== "admin") {
+      await pool.query(`UPDATE ${tableName("users")} SET role = 'admin', status = 'active' WHERE id = ?`, [rows[0].id]);
+    }
+    return;
+  }
+
+  const passwordData = hashPassword(password);
+  await pool.query(
+    `INSERT INTO ${tableName("users")} (username, email, password_salt, password_hash, role, status)
+     VALUES (?, ?, ?, ?, 'admin', 'active')`,
+    [username, email, passwordData.salt, passwordData.hash]
+  );
 }
 
 function loadApiKey() {
@@ -267,7 +320,10 @@ function publicUser(row) {
     id: String(row.id),
     name: row.username,
     email: row.email,
+    role: row.role || "user",
+    status: row.status || "active",
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : row.created_at,
+    lastLoginAt: row.last_login_at instanceof Date ? row.last_login_at.toISOString() : row.last_login_at,
   };
 }
 
@@ -298,10 +354,10 @@ async function getCurrentUser(req) {
   if (!sessionId) return null;
   const pool = await getMysql();
   const [rows] = await pool.query(
-    `SELECT u.id, u.username, u.email, u.created_at
+    `SELECT u.id, u.username, u.email, u.role, u.status, u.created_at, u.last_login_at
        FROM ${tableName("sessions")} s
        JOIN ${tableName("users")} u ON u.id = s.user_id
-      WHERE s.id = ? AND s.expires_at > NOW()
+      WHERE s.id = ? AND s.expires_at > NOW() AND u.status = 'active'
       LIMIT 1`,
     [sessionId]
   );
@@ -319,6 +375,14 @@ async function requireUser(req, res) {
     sendJson(res, 500, { error: String(e?.message || e) });
     return null;
   }
+}
+
+async function requireAdmin(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return null;
+  if (user.role === "admin") return user;
+  sendJson(res, 403, { error: ADMIN_REQUIRED_MESSAGE });
+  return null;
 }
 
 function validateAuthInput({ username, email, password, confirmPassword }, mode) {
@@ -367,7 +431,7 @@ async function registerUser(req, res) {
       [username, email, passwordData.salt, passwordData.hash]
     );
     const [rows] = await pool.query(
-      `SELECT id, username, email, created_at FROM ${tableName("users")} WHERE id = ? LIMIT 1`,
+      `SELECT id, username, email, role, status, created_at, last_login_at FROM ${tableName("users")} WHERE id = ? LIMIT 1`,
       [result.insertId]
     );
     await createSession(pool, result.insertId, res);
@@ -384,8 +448,9 @@ async function loginUser(req, res) {
   });
   if (!body) return;
 
-  const account = normalizeUsername(body.account || body.username || body.email);
-  const accountEmail = normalizeEmail(account);
+  const rawAccount = String(body.account || body.username || body.email || "");
+  const account = normalizeUsername(rawAccount);
+  const accountEmail = normalizeEmail(rawAccount);
   const password = String(body.password || "");
   const inputError = validateAuthInput({ username: account, password }, "login");
   if (inputError) {
@@ -396,7 +461,7 @@ async function loginUser(req, res) {
   try {
     const pool = await getMysql();
     const [rows] = await pool.query(
-      `SELECT id, username, email, password_salt, password_hash, created_at
+      `SELECT id, username, email, password_salt, password_hash, role, status, created_at, last_login_at
          FROM ${tableName("users")}
         WHERE username = ? OR email = ?
         LIMIT 1`,
@@ -407,6 +472,12 @@ async function loginUser(req, res) {
       sendJson(res, 401, { error: "账号或密码不正确。" });
       return;
     }
+    if (user.status !== "active") {
+      sendJson(res, 403, { error: "该账号已被禁用，请联系管理员。" });
+      return;
+    }
+    await pool.query(`UPDATE ${tableName("users")} SET last_login_at = NOW() WHERE id = ?`, [user.id]);
+    user.last_login_at = new Date();
     await createSession(pool, user.id, res);
     sendJson(res, 200, { user: publicUser(user) });
   } catch (e) {
@@ -505,6 +576,421 @@ async function deleteUserData(req, res) {
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
   }
+}
+
+function parseStoredJson(value, fallback) {
+  try {
+    return JSON.parse(String(value || ""));
+  } catch {
+    return fallback;
+  }
+}
+
+function summarizeUserData(rows) {
+  const dataByKey = new Map(rows.map((row) => [row.data_key, row.data_value]));
+  const messages = parseStoredJson(dataByKey.get(USER_DATA_KEYS.messages), []);
+  const mistakes = parseStoredJson(dataByKey.get(USER_DATA_KEYS.mistakes), []);
+  const resourcesData = parseStoredJson(dataByKey.get(USER_DATA_KEYS.resources), null);
+  const pathLibrary = parseStoredJson(dataByKey.get(USER_DATA_KEYS.pathLibrary), {});
+  const profile = parseStoredJson(dataByKey.get(USER_DATA_KEYS.profile), null);
+  const directResources = Array.isArray(resourcesData?.resources) ? resourcesData.resources.length : 0;
+  const libraryResources = Object.values(pathLibrary || {}).reduce((sum, item) => {
+    return sum + (Array.isArray(item?.resources) ? item.resources.length : 0);
+  }, 0);
+  const profileGenerated = !!profile && Object.entries(profile).some(([key, value]) => {
+    if (key === "last_updated_reason") return false;
+    return !!String(value?.value || value?.evidence || "").trim();
+  });
+  const dataBytes = rows.reduce((sum, row) => sum + Buffer.byteLength(String(row.data_value || ""), "utf8"), 0);
+  return {
+    conversationCount: Array.isArray(messages) ? messages.filter((item) => item?.role === "user").length : 0,
+    messageCount: Array.isArray(messages) ? messages.length : 0,
+    mistakeCount: Array.isArray(mistakes) ? mistakes.length : 0,
+    resourceCount: directResources + libraryResources,
+    profileGenerated,
+    dataKeyCount: rows.length,
+    dataBytes,
+    lastDataUpdatedAt: rows.reduce((latest, row) => {
+      const value = row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at;
+      return !latest || (value && String(value) > String(latest)) ? value : latest;
+    }, ""),
+  };
+}
+
+function adminPublicUser(row, dataRows = []) {
+  return {
+    ...publicUser(row),
+    overview: summarizeUserData(dataRows),
+  };
+}
+
+async function getUserDataRows(pool, userIds) {
+  if (!userIds.length) return new Map();
+  const placeholders = userIds.map(() => "?").join(",");
+  const [rows] = await pool.query(
+    `SELECT user_id, data_key, data_value, updated_at
+       FROM ${tableName("user_data")}
+      WHERE user_id IN (${placeholders})`,
+    userIds
+  );
+  const byUser = new Map(userIds.map((id) => [String(id), []]));
+  rows.forEach((row) => {
+    const id = String(row.user_id);
+    if (!byUser.has(id)) byUser.set(id, []);
+    byUser.get(id).push(row);
+  });
+  return byUser;
+}
+
+async function adminGetMe(req, res) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  sendJson(res, 200, { user: publicUser(admin) });
+}
+
+async function adminListUsers(req, res, url) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const q = String(url.searchParams.get("q") || "").trim();
+    const status = String(url.searchParams.get("status") || "").trim();
+    const params = [];
+    const where = [];
+    if (q) {
+      where.push("(username LIKE ? OR email LIKE ?)");
+      params.push(`%${q}%`, `%${q}%`);
+    }
+    if (status === "active" || status === "disabled") {
+      where.push("status = ?");
+      params.push(status);
+    }
+    const [users] = await pool.query(
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+         FROM ${tableName("users")}
+        ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+        ORDER BY created_at DESC
+        LIMIT 500`,
+      params
+    );
+    const dataRows = await getUserDataRows(pool, users.map((user) => user.id));
+    sendJson(res, 200, {
+      users: users.map((user) => adminPublicUser(user, dataRows.get(String(user.id)) || [])),
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminCreateUser(req, res) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+
+  const username = normalizeUsername(body.username || body.name);
+  const email = normalizeEmail(body.email);
+  const password = String(body.password || "");
+  const role = String(body.role || "user").trim() === "admin" ? "admin" : "user";
+  const status = String(body.status || "active").trim() === "disabled" ? "disabled" : "active";
+  const inputError = validateAuthInput({ username, email, password }, "register");
+  if (inputError) {
+    sendJson(res, 400, { error: inputError });
+    return;
+  }
+
+  try {
+    const pool = await getMysql();
+    const [existing] = await pool.query(
+      `SELECT id FROM ${tableName("users")} WHERE username = ? OR email = ? LIMIT 1`,
+      [username, email]
+    );
+    if (existing.length) {
+      sendJson(res, 409, { error: "用户名或邮箱已经存在。" });
+      return;
+    }
+    const passwordData = hashPassword(password);
+    const [result] = await pool.query(
+      `INSERT INTO ${tableName("users")} (username, email, password_salt, password_hash, role, status)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [username, email, passwordData.salt, passwordData.hash, role, status]
+    );
+    const [rows] = await pool.query(
+      `SELECT id, username, email, role, status, created_at, last_login_at
+         FROM ${tableName("users")}
+        WHERE id = ?
+        LIMIT 1`,
+      [result.insertId]
+    );
+    sendJson(res, 201, { user: publicUser(rows[0]) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminGetUser(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const [users] = await pool.query(
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+         FROM ${tableName("users")}
+        WHERE id = ?
+        LIMIT 1`,
+      [userId]
+    );
+    if (!users.length) {
+      sendJson(res, 404, { error: "用户不存在。" });
+      return;
+    }
+    const dataRows = await getUserDataRows(pool, [userId]);
+    const rows = dataRows.get(String(userId)) || [];
+    sendJson(res, 200, {
+      user: adminPublicUser(users[0], rows),
+      dataKeys: rows.map((row) => ({
+        key: row.data_key,
+        bytes: Buffer.byteLength(String(row.data_value || ""), "utf8"),
+        updatedAt: row.updated_at instanceof Date ? row.updated_at.toISOString() : row.updated_at,
+      })),
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminSetUserStatus(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const status = String(body.status || "").trim();
+  if (status !== "active" && status !== "disabled") {
+    sendJson(res, 400, { error: "状态只能是 active 或 disabled。" });
+    return;
+  }
+  if (String(admin.id) === String(userId) && status === "disabled") {
+    sendJson(res, 400, { error: "不能禁用当前登录的管理员。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(
+      `UPDATE ${tableName("users")} SET status = ? WHERE id = ?`,
+      [status, userId]
+    );
+    if (!result.affectedRows) {
+      sendJson(res, 404, { error: "用户不存在。" });
+      return;
+    }
+    if (status === "disabled") {
+      await pool.query(`DELETE FROM ${tableName("sessions")} WHERE user_id = ?`, [userId]);
+    }
+    sendJson(res, 200, { ok: true, status });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminSetUserRole(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const role = String(body.role || "").trim();
+  if (role !== "user" && role !== "admin") {
+    sendJson(res, 400, { error: "角色只能是 user 或 admin。" });
+    return;
+  }
+  if (String(admin.id) === String(userId) && role !== "admin") {
+    sendJson(res, 400, { error: "不能把当前登录的管理员降为普通用户。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(
+      `UPDATE ${tableName("users")} SET role = ? WHERE id = ?`,
+      [role, userId]
+    );
+    if (!result.affectedRows) {
+      sendJson(res, 404, { error: "用户不存在。" });
+      return;
+    }
+    sendJson(res, 200, { ok: true, role });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+function generateTemporaryPassword() {
+  return `Wj${crypto.randomBytes(6).toString("base64url")}9`;
+}
+
+async function adminResetPassword(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  const password = String(body.password || "").trim() || generateTemporaryPassword();
+  if (password.length < 8) {
+    sendJson(res, 400, { error: "新密码至少需要 8 位。" });
+    return;
+  }
+  try {
+    const pool = await getMysql();
+    const passwordData = hashPassword(password);
+    const [result] = await pool.query(
+      `UPDATE ${tableName("users")}
+          SET password_salt = ?, password_hash = ?
+        WHERE id = ?`,
+      [passwordData.salt, passwordData.hash, userId]
+    );
+    if (!result.affectedRows) {
+      sendJson(res, 404, { error: "用户不存在。" });
+      return;
+    }
+    await pool.query(`DELETE FROM ${tableName("sessions")} WHERE user_id = ?`, [userId]);
+    sendJson(res, 200, { ok: true, temporaryPassword: password });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminClearUserData(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const [result] = await pool.query(`DELETE FROM ${tableName("user_data")} WHERE user_id = ?`, [userId]);
+    sendJson(res, 200, { ok: true, deletedRows: result.affectedRows || 0 });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminDeleteUser(req, res, userId) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  if (String(admin.id) === String(userId)) {
+    sendJson(res, 400, { error: "不能删除当前登录的管理员。" });
+    return;
+  }
+  const body = await readJsonBody(req, BODY_LIMIT).catch((e) => {
+    sendJson(res, 400, { error: `Bad request body: ${String(e?.message || e)}` });
+    return null;
+  });
+  if (!body) return;
+  try {
+    const pool = await getMysql();
+    const [users] = await pool.query(
+      `SELECT username, email FROM ${tableName("users")} WHERE id = ? LIMIT 1`,
+      [userId]
+    );
+    if (!users.length) {
+      sendJson(res, 404, { error: "用户不存在。" });
+      return;
+    }
+    const confirm = String(body.confirm || "").trim();
+    if (confirm !== users[0].username && confirm !== users[0].email) {
+      sendJson(res, 400, { error: "请输入该用户的用户名或邮箱作为删除确认。" });
+      return;
+    }
+    await pool.query(`DELETE FROM ${tableName("users")} WHERE id = ?`, [userId]);
+    sendJson(res, 200, { ok: true });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function adminGetSystemStatus(req, res) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    await pool.query("SELECT 1");
+    const [[userCounts]] = await pool.query(
+      `SELECT
+         COUNT(*) AS totalUsers,
+         SUM(status = 'active') AS activeUsers,
+         SUM(status = 'disabled') AS disabledUsers,
+         SUM(role = 'admin') AS adminUsers
+       FROM ${tableName("users")}`
+    );
+    const [[dataCounts]] = await pool.query(
+      `SELECT COUNT(*) AS dataRows, COALESCE(SUM(CHAR_LENGTH(data_value)), 0) AS dataBytes
+         FROM ${tableName("user_data")}`
+    );
+    sendJson(res, 200, {
+      mysql: { connected: true },
+      users: userCounts,
+      data: dataCounts,
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    sendJson(res, 200, {
+      mysql: { connected: false, error: String(e?.message || e) },
+      users: { totalUsers: 0, activeUsers: 0, disabledUsers: 0, adminUsers: 0 },
+      data: { dataRows: 0, dataBytes: 0 },
+      checkedAt: new Date().toISOString(),
+    });
+  }
+}
+
+function handleAdminRoute(req, res, url) {
+  const userMatch = url.pathname.match(/^\/api\/admin\/users\/(\d+)(?:\/(status|role|reset-password|data))?$/);
+  if (url.pathname === "/api/admin/me" && req.method === "GET") {
+    void adminGetMe(req, res);
+    return true;
+  }
+  if (url.pathname === "/api/admin/users" && req.method === "GET") {
+    void adminListUsers(req, res, url);
+    return true;
+  }
+  if (url.pathname === "/api/admin/users" && req.method === "POST") {
+    void adminCreateUser(req, res);
+    return true;
+  }
+  if (userMatch && req.method === "GET" && !userMatch[2]) {
+    void adminGetUser(req, res, userMatch[1]);
+    return true;
+  }
+  if (userMatch && req.method === "PATCH" && userMatch[2] === "status") {
+    void adminSetUserStatus(req, res, userMatch[1]);
+    return true;
+  }
+  if (userMatch && req.method === "PATCH" && userMatch[2] === "role") {
+    void adminSetUserRole(req, res, userMatch[1]);
+    return true;
+  }
+  if (userMatch && req.method === "POST" && userMatch[2] === "reset-password") {
+    void adminResetPassword(req, res, userMatch[1]);
+    return true;
+  }
+  if (userMatch && req.method === "DELETE" && userMatch[2] === "data") {
+    void adminClearUserData(req, res, userMatch[1]);
+    return true;
+  }
+  if (userMatch && req.method === "DELETE" && !userMatch[2]) {
+    void adminDeleteUser(req, res, userMatch[1]);
+    return true;
+  }
+  if (url.pathname === "/api/admin/status" && req.method === "GET") {
+    void adminGetSystemStatus(req, res);
+    return true;
+  }
+  return false;
 }
 
 function copyUpstreamHeaders(upstream, res) {
@@ -807,6 +1293,9 @@ const server = http.createServer((req, res) => {
       void getAuthMe(req, res);
       return;
     }
+    if (url.pathname.startsWith("/api/admin/") && handleAdminRoute(req, res, url)) {
+      return;
+    }
     if (url.pathname === "/api/user-data" && req.method === "GET") {
       void getUserData(req, res);
       return;
@@ -825,6 +1314,10 @@ const server = http.createServer((req, res) => {
     }
     if (url.pathname === "/api/video" && (req.method === "POST" || req.method === "OPTIONS")) {
       void proxyVideo(req, res);
+      return;
+    }
+    if (url.pathname === "/admin") {
+      serveStatic(req, res, "/admin.html");
       return;
     }
     serveStatic(req, res, url.pathname);
