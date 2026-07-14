@@ -43,7 +43,8 @@
             </div>
           </div>
           <nav class="nav-list" aria-label="管理员导航">
-            <button class="nav-item active" type="button" data-panel="usersPanel">用户管理</button>
+            <button class="nav-item active" type="button" data-panel="overviewPanel">运营总览</button>
+            <button class="nav-item" type="button" data-panel="usersPanel">用户管理</button>
             <button class="nav-item" type="button" data-panel="statusPanel">系统状态</button>
             <button class="nav-item" type="button" data-panel="auditPanel">操作日志</button>
           </nav>
@@ -54,12 +55,34 @@
           <header class="topbar">
             <div>
               <p class="eyebrow">LIGHT ADMIN</p>
-              <h2 id="panelTitle">用户管理</h2>
+              <h2 id="panelTitle">运营总览</h2>
             </div>
             <button id="refreshBtn" class="icon-text-btn" type="button"><span aria-hidden="true">↻</span>刷新</button>
           </header>
 
-          <section id="usersPanel" class="panel">
+          <section id="overviewPanel" class="panel">
+            <div id="overviewStats" class="overview-stats"></div>
+            <div class="overview-grid">
+              <section class="status-section">
+                <h3>待关注用户</h3>
+                <div id="attentionUsers" class="compact-list"></div>
+              </section>
+              <section class="status-section">
+                <h3>数据占用排行</h3>
+                <div id="heavyUsers" class="compact-list"></div>
+              </section>
+              <section class="status-section wide-section">
+                <h3>最近 14 天新增</h3>
+                <div id="signupTrend" class="trend-list"></div>
+              </section>
+              <section class="status-section">
+                <h3>数据键分布</h3>
+                <div id="dataKeyStats" class="compact-list"></div>
+              </section>
+            </div>
+          </section>
+
+          <section id="usersPanel" class="panel" hidden>
             <div class="toolbar">
               <label class="search-box">
                 <span aria-hidden="true">⌕</span>
@@ -84,6 +107,7 @@
                 <option value="name_desc">用户名 Z-A</option>
               </select>
               <button id="createUserBtn" class="primary-btn" type="button">新增账号</button>
+              <button id="exportUsersBtn" class="icon-text-btn" type="button"><span aria-hidden="true">⇩</span>导出 CSV</button>
             </div>
             <div id="bulkBar" class="bulk-bar" hidden>
               <span id="bulkSummary">已选择 0 个用户</span>
@@ -129,6 +153,15 @@
           </section>
 
           <section id="auditPanel" class="panel" hidden>
+            <div class="toolbar">
+              <label class="search-box">
+                <span aria-hidden="true">⌕</span>
+                <input id="auditSearchInput" type="search" placeholder="搜索管理员或对象" />
+              </label>
+              <select id="auditActionFilter" aria-label="操作类型筛选">
+                <option value="">全部操作</option>
+              </select>
+            </div>
             <section class="table-shell" aria-label="操作日志">
               <table>
                 <thead>

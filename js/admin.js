@@ -4,7 +4,7 @@ const state = {
   admin: null,
   users: [],
   selectedUserId: "",
-  activePanel: "usersPanel",
+  activePanel: "overviewPanel",
   usersPage: 1,
   usersPagination: null,
   selectedUserIds: new Set(),
@@ -25,6 +25,12 @@ const el = {
   logoutBtn: document.querySelector("#logoutBtn"),
   refreshBtn: document.querySelector("#refreshBtn"),
   panelTitle: document.querySelector("#panelTitle"),
+  overviewPanel: document.querySelector("#overviewPanel"),
+  overviewStats: document.querySelector("#overviewStats"),
+  attentionUsers: document.querySelector("#attentionUsers"),
+  heavyUsers: document.querySelector("#heavyUsers"),
+  signupTrend: document.querySelector("#signupTrend"),
+  dataKeyStats: document.querySelector("#dataKeyStats"),
   usersPanel: document.querySelector("#usersPanel"),
   statusPanel: document.querySelector("#statusPanel"),
   auditPanel: document.querySelector("#auditPanel"),
@@ -36,6 +42,7 @@ const el = {
   roleFilter: document.querySelector("#roleFilter"),
   sortSelect: document.querySelector("#sortSelect"),
   createUserBtn: document.querySelector("#createUserBtn"),
+  exportUsersBtn: document.querySelector("#exportUsersBtn"),
   bulkBar: document.querySelector("#bulkBar"),
   bulkSummary: document.querySelector("#bulkSummary"),
   bulkEnableBtn: document.querySelector("#bulkEnableBtn"),
@@ -45,6 +52,8 @@ const el = {
   selectAllUsers: document.querySelector("#selectAllUsers"),
   systemCards: document.querySelector("#systemCards"),
   systemDetailGrid: document.querySelector("#systemDetailGrid"),
+  auditSearchInput: document.querySelector("#auditSearchInput"),
+  auditActionFilter: document.querySelector("#auditActionFilter"),
   auditBody: document.querySelector("#auditBody"),
   auditPager: document.querySelector("#auditPager"),
   modalOverlay: document.querySelector("#modalOverlay"),
@@ -122,7 +131,7 @@ async function checkSession() {
   try {
     const payload = await api("/api/admin/me");
     showDashboard(payload.user);
-    await Promise.all([loadUsers(), loadSystemStatus()]);
+    await Promise.all([loadOverview(), loadUsers(), loadSystemStatus()]);
   } catch {
     showLogin();
   }
@@ -144,7 +153,7 @@ async function login(e) {
     const payload = await api("/api/admin/me");
     showDashboard(payload.user);
     el.loginPassword.value = "";
-    await Promise.all([loadUsers(), loadSystemStatus()]);
+    await Promise.all([loadOverview(), loadUsers(), loadSystemStatus()]);
   } catch (err) {
     showLogin(String(err?.message || err));
   }
@@ -169,6 +178,17 @@ function currentUsersQuery() {
   params.set("pageSize", "12");
   const suffix = params.toString();
   return suffix ? `?${suffix}` : "";
+}
+
+function currentAuditQuery() {
+  const params = new URLSearchParams();
+  const q = el.auditSearchInput.value.trim();
+  const action = el.auditActionFilter.value;
+  if (q) params.set("q", q);
+  if (action) params.set("action", action);
+  params.set("page", String(state.auditPage));
+  params.set("pageSize", "12");
+  return `?${params.toString()}`;
 }
 
 async function loadUsers() {
@@ -472,6 +492,57 @@ async function createUser() {
   });
 }
 
+function renderNamedUserList(root, users, emptyText) {
+  root.innerHTML = users.length ? users.map((user) => `
+    <button class="compact-action" type="button" data-jump-user-id="${escapeHtml(user.id)}">
+      <strong>${escapeHtml(user.name)}</strong>
+      <span>${escapeHtml(user.meta || user.email || "")}</span>
+    </button>
+  `).join("") : `<p class="muted">${escapeHtml(emptyText)}</p>`;
+}
+
+function renderSignupTrend(days) {
+  const max = Math.max(1, ...days.map((item) => Number(item.count || 0)));
+  el.signupTrend.innerHTML = days.length ? days.map((item) => {
+    const count = Number(item.count || 0);
+    return `
+      <div class="trend-row">
+        <span>${escapeHtml(item.day)}</span>
+        <div class="trend-track"><i style="width: ${Math.max(4, Math.round((count / max) * 100))}%"></i></div>
+        <strong>${count}</strong>
+      </div>
+    `;
+  }).join("") : `<p class="muted">暂无新增数据</p>`;
+}
+
+async function loadOverview() {
+  const payload = await api("/api/admin/overview");
+  const users = payload.users || {};
+  const activity = payload.activity || {};
+  const data = payload.data || {};
+  el.overviewStats.innerHTML = `
+    <article class="status-card"><span>用户总数</span><strong>${Number(users.totalUsers || 0)}</strong><p class="muted">近 7 天新增 ${Number(users.newUsers7d || 0)}</p></article>
+    <article class="status-card"><span>7 日活跃</span><strong>${Number(activity.activeUsers7d || 0)}</strong><p class="muted">今日活跃 ${Number(activity.activeUsers1d || 0)}</p></article>
+    <article class="status-card"><span>待关注</span><strong>${Number(activity.attentionUsers || 0)}</strong><p class="muted">30 天未登录或从未登录</p></article>
+    <article class="status-card"><span>学习数据</span><strong>${escapeHtml(formatBytes(data.dataBytes))}</strong><p class="muted">${Number(data.dataRows || 0)} 条记录</p></article>
+  `;
+  renderNamedUserList(el.attentionUsers, (payload.attentionUsers || []).map((user) => ({
+    ...user,
+    meta: user.lastLoginAt ? `最近登录 ${formatDate(user.lastLoginAt)}` : "从未登录",
+  })), "暂无需要关注的用户");
+  renderNamedUserList(el.heavyUsers, (payload.heavyUsers || []).map((user) => ({
+    ...user,
+    meta: `${formatBytes(user.dataBytes)} · ${Number(user.dataRows || 0)} 条数据`,
+  })), "暂无学习数据");
+  renderSignupTrend(payload.signupTrend || []);
+  el.dataKeyStats.innerHTML = (payload.dataKeyStats || []).length ? payload.dataKeyStats.map((item) => `
+    <div>
+      <strong>${escapeHtml(item.key)}</strong>
+      <span>${Number(item.rows || 0)} 条 · ${escapeHtml(formatBytes(item.bytes))}</span>
+    </div>
+  `).join("") : `<p class="muted">暂无数据键</p>`;
+}
+
 async function loadSystemStatus() {
   const payload = await api("/api/admin/status");
   const mysql = payload.mysql || {};
@@ -513,10 +584,19 @@ function auditActionText(action) {
     clear_user_data: "清空数据",
     delete_user: "删除账号",
     export_user_data: "导出数据",
+    export_users_csv: "导出用户 CSV",
     bulk_enable_user: "批量启用",
     bulk_disable_user: "批量禁用",
     bulk_clear_user_data: "批量清空数据",
   })[action] || action || "操作";
+}
+
+function renderAuditActionOptions(actions) {
+  const current = el.auditActionFilter.value;
+  el.auditActionFilter.innerHTML = `<option value="">全部操作</option>${actions.map((action) => `
+    <option value="${escapeHtml(action)}">${escapeHtml(auditActionText(action))}</option>
+  `).join("")}`;
+  el.auditActionFilter.value = actions.includes(current) ? current : "";
 }
 
 function renderAuditListItem(log) {
@@ -550,6 +630,33 @@ async function exportUserData(user) {
   const safeName = String(user.name || user.id).replace(/[^\w.-]+/g, "_");
   downloadJson(`wenjie-user-${safeName}-${new Date().toISOString().slice(0, 10)}.json`, payload);
   await loadAuditLogs().catch(() => {});
+}
+
+function downloadText(filename, text, type = "text/plain;charset=utf-8") {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function exportUsersCsv() {
+  const res = await fetch(`/api/admin/users/export${currentUsersQuery()}`);
+  const text = await res.text();
+  if (!res.ok) {
+    let message = text;
+    try {
+      message = JSON.parse(text)?.error || message;
+    } catch {
+      /* keep raw text */
+    }
+    throw new Error(message || `请求失败：${res.status}`);
+  }
+  downloadText(`wenjie-users-${new Date().toISOString().slice(0, 10)}.csv`, text, "text/csv;charset=utf-8");
 }
 
 function selectedUserList() {
@@ -587,9 +694,10 @@ async function runBulkAction(action) {
 }
 
 async function loadAuditLogs() {
-  const payload = await api(`/api/admin/audit-logs?page=${state.auditPage}&pageSize=12`);
+  const payload = await api(`/api/admin/audit-logs${currentAuditQuery()}`);
   const logs = payload.logs || [];
   state.auditPagination = payload.pagination || null;
+  renderAuditActionOptions(payload.actions || []);
   el.auditBody.innerHTML = logs.length ? logs.map((log) => `
     <tr>
       <td>${escapeHtml(formatDate(log.created_at))}</td>
@@ -603,6 +711,7 @@ async function loadAuditLogs() {
 }
 
 async function refreshActivePanel() {
+  if (state.activePanel === "overviewPanel") await loadOverview();
   if (state.activePanel === "usersPanel") await loadUsers();
   if (state.activePanel === "statusPanel") await loadSystemStatus();
   if (state.activePanel === "auditPanel") await loadAuditLogs();
@@ -610,10 +719,16 @@ async function refreshActivePanel() {
 
 function switchPanel(panelId) {
   state.activePanel = panelId;
+  el.overviewPanel.hidden = panelId !== "overviewPanel";
   el.usersPanel.hidden = panelId !== "usersPanel";
   el.statusPanel.hidden = panelId !== "statusPanel";
   el.auditPanel.hidden = panelId !== "auditPanel";
-  el.panelTitle.textContent = panelId === "statusPanel" ? "系统状态" : panelId === "auditPanel" ? "操作日志" : "用户管理";
+  el.panelTitle.textContent = ({
+    overviewPanel: "运营总览",
+    usersPanel: "用户管理",
+    statusPanel: "系统状态",
+    auditPanel: "操作日志",
+  })[panelId] || "运营总览";
   document.querySelectorAll(".nav-item").forEach((btn) => {
     btn.classList.toggle("active", btn.getAttribute("data-panel") === panelId);
   });
@@ -647,6 +762,7 @@ el.loginPassword.addEventListener("change", syncLoginFieldState);
 el.logoutBtn.addEventListener("click", logout);
 el.refreshBtn.addEventListener("click", () => refreshActivePanel().catch((err) => window.alert(String(err?.message || err))));
 el.createUserBtn.addEventListener("click", () => createUser().catch((err) => window.alert(String(err?.message || err))));
+el.exportUsersBtn.addEventListener("click", () => exportUsersCsv().catch((err) => window.alert(String(err?.message || err))));
 el.searchInput.addEventListener("input", debounce(() => {
   state.usersPage = 1;
   loadUsers().catch((err) => window.alert(String(err?.message || err)));
@@ -662,6 +778,20 @@ el.roleFilter.addEventListener("change", () => {
 el.sortSelect.addEventListener("change", () => {
   state.usersPage = 1;
   loadUsers().catch((err) => window.alert(String(err?.message || err)));
+});
+el.auditSearchInput.addEventListener("input", debounce(() => {
+  state.auditPage = 1;
+  loadAuditLogs().catch((err) => window.alert(String(err?.message || err)));
+}));
+el.auditActionFilter.addEventListener("change", () => {
+  state.auditPage = 1;
+  loadAuditLogs().catch((err) => window.alert(String(err?.message || err)));
+});
+el.overviewPanel.addEventListener("click", (e) => {
+  const button = e.target.closest("[data-jump-user-id]");
+  if (!button) return;
+  switchPanel("usersPanel");
+  loadUserDetail(button.getAttribute("data-jump-user-id")).catch((err) => window.alert(String(err?.message || err)));
 });
 el.usersBody.addEventListener("click", (e) => {
   const checkbox = e.target.closest("[data-select-user-id]");

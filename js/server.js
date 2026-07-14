@@ -299,6 +299,12 @@ function sendJson(res, statusCode, data) {
   res.end(JSON.stringify(data));
 }
 
+function sendText(res, statusCode, text, contentType = "text/plain; charset=utf-8") {
+  res.statusCode = statusCode;
+  res.setHeader("Content-Type", contentType);
+  res.end(text);
+}
+
 function parseCookies(req) {
   const header = req.headers.cookie || "";
   return Object.fromEntries(
@@ -687,41 +693,52 @@ async function adminGetMe(req, res) {
   sendJson(res, 200, { user: publicUser(admin) });
 }
 
+function buildAdminUserFilter(url) {
+  const q = String(url.searchParams.get("q") || "").trim();
+  const status = String(url.searchParams.get("status") || "").trim();
+  const role = String(url.searchParams.get("role") || "").trim();
+  const params = [];
+  const where = [];
+  if (q) {
+    where.push("(username LIKE ? OR email LIKE ?)");
+    params.push(`%${q}%`, `%${q}%`);
+  }
+  if (status === "active" || status === "disabled") {
+    where.push("status = ?");
+    params.push(status);
+  }
+  if (role === "user" || role === "admin") {
+    where.push("role = ?");
+    params.push(role);
+  }
+  return {
+    params,
+    whereSql: where.length ? `WHERE ${where.join(" AND ")}` : "",
+  };
+}
+
+function adminUserSort(url) {
+  const sortMap = {
+    created_desc: "created_at DESC",
+    created_asc: "created_at ASC",
+    login_desc: "last_login_at IS NULL ASC, last_login_at DESC",
+    login_asc: "last_login_at IS NULL ASC, last_login_at ASC",
+    name_asc: "username ASC",
+    name_desc: "username DESC",
+  };
+  return sortMap[String(url.searchParams.get("sort") || "created_desc")] || sortMap.created_desc;
+}
+
 async function adminListUsers(req, res, url) {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
   try {
     const pool = await getMysql();
-    const q = String(url.searchParams.get("q") || "").trim();
-    const status = String(url.searchParams.get("status") || "").trim();
-    const role = String(url.searchParams.get("role") || "").trim();
     const page = normalizePositiveInt(url.searchParams.get("page"), 1, 1, 10000);
     const pageSize = normalizePositiveInt(url.searchParams.get("pageSize"), 20, 5, 100);
     const offset = (page - 1) * pageSize;
-    const sortMap = {
-      created_desc: "created_at DESC",
-      created_asc: "created_at ASC",
-      login_desc: "last_login_at IS NULL ASC, last_login_at DESC",
-      login_asc: "last_login_at IS NULL ASC, last_login_at ASC",
-      name_asc: "username ASC",
-      name_desc: "username DESC",
-    };
-    const sort = sortMap[String(url.searchParams.get("sort") || "created_desc")] || sortMap.created_desc;
-    const params = [];
-    const where = [];
-    if (q) {
-      where.push("(username LIKE ? OR email LIKE ?)");
-      params.push(`%${q}%`, `%${q}%`);
-    }
-    if (status === "active" || status === "disabled") {
-      where.push("status = ?");
-      params.push(status);
-    }
-    if (role === "user" || role === "admin") {
-      where.push("role = ?");
-      params.push(role);
-    }
-    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const sort = adminUserSort(url);
+    const { params, whereSql } = buildAdminUserFilter(url);
     const [[countRow]] = await pool.query(
       `SELECT COUNT(*) AS total FROM ${tableName("users")} ${whereSql}`,
       params
@@ -744,6 +761,68 @@ async function adminListUsers(req, res, url) {
         totalPages: Math.max(1, Math.ceil(Number(countRow.total || 0) / pageSize)),
       },
     });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+function csvCell(value) {
+  const text = String(value ?? "");
+  const guarded = /^[=+\-@]/.test(text) ? `'${text}` : text;
+  return `"${guarded.replace(/"/g, '""')}"`;
+}
+
+async function adminExportUsersCsv(req, res, url) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const sort = adminUserSort(url);
+    const { params, whereSql } = buildAdminUserFilter(url);
+    const [users] = await pool.query(
+      `SELECT id, username, email, role, status, created_at, last_login_at, updated_at
+         FROM ${tableName("users")}
+        ${whereSql}
+        ORDER BY ${sort}
+        LIMIT 5000`,
+      params
+    );
+    const dataRows = await getUserDataRows(pool, users.map((user) => user.id));
+    const header = [
+      "ID",
+      "用户名",
+      "邮箱",
+      "角色",
+      "状态",
+      "注册时间",
+      "最近登录",
+      "对话数",
+      "错题数",
+      "资源数",
+      "数据量",
+      "数据键数",
+    ];
+    const rows = users.map((user) => {
+      const overview = summarizeUserData(dataRows.get(String(user.id)) || []);
+      return [
+        user.id,
+        user.username,
+        user.email,
+        user.role,
+        user.status,
+        user.created_at instanceof Date ? user.created_at.toISOString() : user.created_at,
+        user.last_login_at instanceof Date ? user.last_login_at.toISOString() : user.last_login_at,
+        overview.conversationCount,
+        overview.mistakeCount,
+        overview.resourceCount,
+        overview.dataBytes,
+        overview.dataKeyCount,
+      ];
+    });
+    await writeAdminAuditLog(pool, admin, "export_users_csv", null, { exportedUsers: users.length });
+    const csv = [header, ...rows].map((row) => row.map(csvCell).join(",")).join("\n");
+    res.setHeader("Content-Disposition", `attachment; filename="wenjie-users-${new Date().toISOString().slice(0, 10)}.csv"`);
+    sendText(res, 200, `\uFEFF${csv}\n`, "text/csv; charset=utf-8");
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });
   }
@@ -1161,6 +1240,101 @@ async function adminGetSystemStatus(req, res) {
   }
 }
 
+function isoDay(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
+async function adminGetOverview(req, res) {
+  const admin = await requireAdmin(req, res);
+  if (!admin) return;
+  try {
+    const pool = await getMysql();
+    const [[userCounts]] = await pool.query(
+      `SELECT
+         COUNT(*) AS totalUsers,
+         SUM(status = 'active') AS activeUsers,
+         SUM(status = 'disabled') AS disabledUsers,
+         SUM(role = 'admin') AS adminUsers,
+         SUM(created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS newUsers7d,
+         SUM(created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)) AS newUsers30d
+       FROM ${tableName("users")}`
+    );
+    const [[activityCounts]] = await pool.query(
+      `SELECT
+         SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 1 DAY)) AS activeUsers1d,
+         SUM(last_login_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)) AS activeUsers7d,
+         SUM(status = 'active' AND (last_login_at IS NULL OR last_login_at < DATE_SUB(NOW(), INTERVAL 30 DAY))) AS attentionUsers
+       FROM ${tableName("users")}`
+    );
+    const [[dataCounts]] = await pool.query(
+      `SELECT COUNT(*) AS dataRows, COALESCE(SUM(CHAR_LENGTH(data_value)), 0) AS dataBytes
+         FROM ${tableName("user_data")}`
+    );
+    const [attentionUsers] = await pool.query(
+      `SELECT id, username, email, role, status, created_at, last_login_at
+         FROM ${tableName("users")}
+        WHERE status = 'active' AND (last_login_at IS NULL OR last_login_at < DATE_SUB(NOW(), INTERVAL 30 DAY))
+        ORDER BY last_login_at IS NULL DESC, last_login_at ASC, created_at ASC
+        LIMIT 6`
+    );
+    const [heavyUsers] = await pool.query(
+      `SELECT u.id, u.username, u.email, u.role, u.status, u.created_at, u.last_login_at,
+              COUNT(d.data_key) AS dataRows,
+              COALESCE(SUM(CHAR_LENGTH(d.data_value)), 0) AS dataBytes
+         FROM ${tableName("users")} u
+         JOIN ${tableName("user_data")} d ON d.user_id = u.id
+        GROUP BY u.id, u.username, u.email, u.role, u.status, u.created_at, u.last_login_at
+        ORDER BY dataBytes DESC
+        LIMIT 6`
+    );
+    const [signupRows] = await pool.query(
+      `SELECT DATE(created_at) AS day, COUNT(*) AS count
+         FROM ${tableName("users")}
+        WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+        GROUP BY DATE(created_at)
+        ORDER BY day ASC`
+    );
+    const trendMap = new Map(signupRows.map((row) => [isoDay(row.day), Number(row.count || 0)]));
+    const signupTrend = Array.from({ length: 14 }, (_, index) => {
+      const date = new Date();
+      date.setUTCHours(0, 0, 0, 0);
+      date.setUTCDate(date.getUTCDate() - 13 + index);
+      const day = date.toISOString().slice(5, 10);
+      const key = date.toISOString().slice(0, 10);
+      return { day, count: trendMap.get(key) || 0 };
+    });
+    const [dataKeyStats] = await pool.query(
+      `SELECT data_key AS \`key\`, COUNT(*) AS dataRows, COALESCE(SUM(CHAR_LENGTH(data_value)), 0) AS bytes
+         FROM ${tableName("user_data")}
+        GROUP BY data_key
+        ORDER BY bytes DESC
+        LIMIT 8`
+    );
+    sendJson(res, 200, {
+      users: userCounts,
+      activity: activityCounts,
+      data: dataCounts,
+      attentionUsers: attentionUsers.map(publicUser),
+      heavyUsers: heavyUsers.map((row) => ({
+        ...publicUser(row),
+        dataRows: Number(row.dataRows || 0),
+        dataBytes: Number(row.dataBytes || 0),
+      })),
+      signupTrend,
+      dataKeyStats: dataKeyStats.map((row) => ({
+        key: row.key,
+        rows: Number(row.dataRows || 0),
+        bytes: Number(row.bytes || 0),
+      })),
+      checkedAt: new Date().toISOString(),
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
 async function adminListAuditLogs(req, res, url) {
   const admin = await requireAdmin(req, res);
   if (!admin) return;
@@ -1169,7 +1343,27 @@ async function adminListAuditLogs(req, res, url) {
     const page = normalizePositiveInt(url.searchParams.get("page"), 1, 1, 10000);
     const pageSize = normalizePositiveInt(url.searchParams.get("pageSize"), 20, 5, 100);
     const offset = (page - 1) * pageSize;
-    const [[countRow]] = await pool.query(`SELECT COUNT(*) AS total FROM ${tableName("admin_audit_logs")}`);
+    const q = String(url.searchParams.get("q") || "").trim();
+    const action = String(url.searchParams.get("action") || "").trim();
+    const params = [];
+    const where = [];
+    if (action) {
+      where.push("l.action = ?");
+      params.push(action);
+    }
+    if (q) {
+      where.push("(a.username LIKE ? OR a.email LIKE ? OR t.username LIKE ? OR t.email LIKE ?)");
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+    const [[countRow]] = await pool.query(
+      `SELECT COUNT(*) AS total
+         FROM ${tableName("admin_audit_logs")} l
+         LEFT JOIN ${tableName("users")} a ON a.id = l.admin_id
+         LEFT JOIN ${tableName("users")} t ON t.id = l.target_user_id
+        ${whereSql}`,
+      params
+    );
     const [logs] = await pool.query(
       `SELECT l.id, l.action, l.detail, l.created_at,
               a.username AS admin_username,
@@ -1177,12 +1371,19 @@ async function adminListAuditLogs(req, res, url) {
          FROM ${tableName("admin_audit_logs")} l
          LEFT JOIN ${tableName("users")} a ON a.id = l.admin_id
          LEFT JOIN ${tableName("users")} t ON t.id = l.target_user_id
+        ${whereSql}
         ORDER BY l.created_at DESC
         LIMIT ? OFFSET ?`,
-      [pageSize, offset]
+      params.concat([pageSize, offset])
+    );
+    const [actions] = await pool.query(
+      `SELECT DISTINCT action
+         FROM ${tableName("admin_audit_logs")}
+        ORDER BY action ASC`
     );
     sendJson(res, 200, {
       logs,
+      actions: actions.map((row) => row.action).filter(Boolean),
       pagination: {
         page,
         pageSize,
@@ -1203,6 +1404,10 @@ function handleAdminRoute(req, res, url) {
   }
   if (url.pathname === "/api/admin/users" && req.method === "GET") {
     void adminListUsers(req, res, url);
+    return true;
+  }
+  if (url.pathname === "/api/admin/users/export" && req.method === "GET") {
+    void adminExportUsersCsv(req, res, url);
     return true;
   }
   if (url.pathname === "/api/admin/users" && req.method === "POST") {
@@ -1243,6 +1448,10 @@ function handleAdminRoute(req, res, url) {
   }
   if (url.pathname === "/api/admin/status" && req.method === "GET") {
     void adminGetSystemStatus(req, res);
+    return true;
+  }
+  if (url.pathname === "/api/admin/overview" && req.method === "GET") {
+    void adminGetOverview(req, res);
     return true;
   }
   if (url.pathname === "/api/admin/audit-logs" && req.method === "GET") {

@@ -467,6 +467,10 @@ select:focus {
   flex: 0 0 auto;
 }
 
+.toolbar .icon-text-btn {
+  flex: 0 0 auto;
+}
+
 .bulk-bar {
   display: flex;
   align-items: center;
@@ -749,6 +753,12 @@ tbody tr.selected {
   gap: 14px;
 }
 
+.overview-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+  gap: 14px;
+}
+
 .status-card {
   padding: 18px;
 }
@@ -771,6 +781,16 @@ tbody tr.selected {
   gap: 14px;
 }
 
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wide-section {
+  grid-column: span 2;
+}
+
 .status-section {
   min-width: 0;
   padding: 18px;
@@ -789,7 +809,8 @@ tbody tr.selected {
   gap: 10px;
 }
 
-.compact-list div {
+.compact-list div,
+.compact-action {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -798,13 +819,64 @@ tbody tr.selected {
   border-bottom: 1px dashed var(--line);
 }
 
-.compact-list strong {
+.compact-action {
+  width: 100%;
+  min-height: 42px;
+  padding: 0 0 10px;
+  background: transparent;
+  border-top: 0;
+  border-right: 0;
+  border-left: 0;
+  color: inherit;
+  text-align: left;
+}
+
+.compact-action:hover strong {
+  color: var(--accent);
+}
+
+.compact-list strong,
+.compact-action strong {
   font-size: 14px;
 }
 
-.compact-list span {
+.compact-list span,
+.compact-action span {
   color: var(--muted);
   font-size: 13px;
+  text-align: right;
+}
+
+.trend-list {
+  display: grid;
+  gap: 10px;
+}
+
+.trend-row {
+  display: grid;
+  grid-template-columns: 54px minmax(0, 1fr) 34px;
+  gap: 10px;
+  align-items: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.trend-track {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-soft);
+}
+
+.trend-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent), #35a06b);
+}
+
+.trend-row strong {
+  color: var(--ink);
   text-align: right;
 }
 
@@ -967,6 +1039,10 @@ tbody tr.selected {
     grid-template-columns: 1fr;
   }
 
+  .overview-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .users-layout .table-shell,
   .users-layout .pager,
   .users-layout .detail-panel {
@@ -1010,6 +1086,15 @@ tbody tr.selected {
 
   .status-grid {
     grid-template-columns: 1fr;
+  }
+
+  .overview-stats,
+  .overview-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-section {
+    grid-column: auto;
   }
 
   .system-detail-grid,
