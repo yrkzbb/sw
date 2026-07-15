@@ -18,20 +18,21 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260715-split" />
+    <link rel="stylesheet" href="./css/index.css?v=20260715-avatar-bio" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/app/config-state.js?v=20260715-split" defer></script>
-    <script src="./js/app/auth-account.js?v=20260715-split" defer></script>
+    <script src="./js/app/config-state.js?v=20260715-profile-archives" defer></script>
+    <script src="./js/app/auth-account.js?v=20260715-avatar-bio" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260715-split" defer></script>
     <script src="./js/app/resources.js?v=20260715-split" defer></script>
     <script src="./js/app/learning-path-assessment.js?v=20260715-split" defer></script>
+    <script src="./js/app/community-feed.js?v=20260715-feed-social" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260715-split" defer></script>
-    <script src="./js/app/profile-page.js?v=20260715-split" defer></script>
-    <script src="./js/app/chat-navigation-events.js?v=20260715-split" defer></script>
+    <script src="./js/app/profile-page.js?v=20260715-avatar-bio" defer></script>
+    <script src="./js/app/chat-navigation-events.js?v=20260715-avatar-bio" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
   <body data-theme="dark">
@@ -222,193 +223,111 @@
         </section>
 
         <section id="userInfoPage" class="profile-page personal-profile-page" hidden>
-          <div class="profile-shell-nav" aria-label="个人主页导航">
-            <div class="profile-shell-brand">
-              <span class="profile-shell-logo">问</span>
-              <strong>问阶</strong>
+          <div class="wiki-profile-canvas">
+            <nav class="wiki-float-nav" aria-label="个人主页导航">
+              <button id="profileEditShortcut" class="wiki-avatar-mini" type="button" aria-label="编辑个人资料">YR</button>
+              <button class="active" type="button" data-profile-tab="answers" title="近期文章">▤</button>
+              <button type="button" data-profile-tab="questions" title="我的项目">◇</button>
+              <button type="button" data-profile-tab="collections" title="关于网站">◡</button>
+              <button type="button" data-profile-tab="notes" title="推荐分享">☆</button>
+              <button type="button" data-profile-tab="prompts" title="个人链接">◎</button>
+            </nav>
+            <button id="profileEditButton" class="wiki-edit-btn" type="button">编辑</button>
+
+            <section class="wiki-name-card wiki-glass">
+              <div class="wiki-name-inner">
+                <button id="profileHeroAvatar" class="wiki-avatar" type="button" aria-label="编辑头像">YR</button>
+                <div>
+                  <h1 id="personalProfileName">yrk</h1>
+                  <p id="personalProfileHandle">开发中</p>
+                </div>
+              </div>
+              <div class="wiki-menu-list" id="profileTabs" role="tablist" aria-label="个人内容">
+                <button class="active" type="button" role="tab" data-profile-tab="answers"><span>▤</span>近期文章</button>
+                <button type="button" role="tab" data-profile-tab="questions"><span>◇</span>我的项目</button>
+                <button type="button" role="tab" data-profile-tab="collections"><span>◡</span>关于网站</button>
+                <button type="button" role="tab" data-profile-tab="notes"><span>☆</span>推荐分享</button>
+                <button type="button" role="tab" data-profile-tab="prompts"><span>◎</span>优秀博客</button>
+              </div>
+            </section>
+
+            <section class="wiki-photo-card wiki-glass" aria-label="主页照片墙">
+              <input id="profilePhotoWallInput" class="wiki-photo-input" type="file" accept="image/*" multiple />
+              <div class="wiki-polaroid-grid">
+                <span></span><span></span><span></span><span></span>
+              </div>
+              <button class="wiki-photo-edit" type="button" aria-label="修改照片墙" title="修改照片墙">✎</button>
+            </section>
+
+            <section class="wiki-welcome-card wiki-glass">
+              <input id="profileAvatarImageInput" class="wiki-avatar-input" type="file" accept="image/*" />
+              <button class="wiki-avatar-large" type="button" aria-label="上传头像">YR</button>
+              <h2>Good Afternoon</h2>
+              <p>I'm <strong id="personalProfileInlineName">yrk</strong>, nice to meet you!</p>
+              <p id="personalProfileBio" class="wiki-bio" title="点击编辑自我介绍">关注 AI 产品设计、大模型应用与知识工作流，擅长把复杂问题拆成可执行方案。</p>
+            </section>
+
+            <section class="wiki-clock-card wiki-glass" aria-label="当前时间">
+              <button class="wiki-write-btn" type="button">✎ 写文章</button>
+              <div class="wiki-digital-time">16:50</div>
+            </section>
+
+            <section class="wiki-calendar-card wiki-glass" aria-label="日历">
+              <div class="wiki-calendar-head">2026/7/15 周三</div>
+              <div class="wiki-calendar-grid">
+                <b>一</b><b>二</b><b>三</b><b>四</b><b>五</b><b>六</b><b>日</b>
+                <span></span><span></span><em>1</em><em>2</em><em>3</em><em>4</em><em>5</em>
+                <em>6</em><em>7</em><em>8</em><em>9</em><em>10</em><em>11</em><em>12</em>
+                <em>13</em><em>14</em><em class="today">15</em><em>16</em><em>17</em><em>18</em><em>19</em>
+                <em>20</em><em>21</em><em>22</em><em>23</em><em>24</em><em>25</em><em>26</em>
+                <em>27</em><em>28</em><em>29</em><em>30</em><em>31</em>
+              </div>
+            </section>
+
+            <section class="wiki-latest-card wiki-glass">
+              <span>最新内容</span>
+              <strong>正在同步</strong>
+              <p>会根据你的公开动态、文档和资源库自动更新。</p>
+              <time></time>
+            </section>
+
+            <div class="wiki-social-row">
+              <button type="button">Github</button>
+              <button type="button">Bilibili</button>
+              <button type="button">小红书</button>
+              <button type="button">✉</button>
             </div>
-            <label class="profile-global-search">
-              <span aria-hidden="true">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <circle cx="11" cy="11" r="7" />
-                  <path d="m16.5 16.5 4 4" />
-                </svg>
-              </span>
-              <input type="search" placeholder="搜索问题、回答、模型或用户" />
-            </label>
-            <div class="profile-shell-actions">
-              <button class="profile-icon-button" type="button" aria-label="通知">
-                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
-                  <path d="M10 21h4" />
-                </svg>
-              </button>
-              <button class="profile-create-button" type="button">创建提问</button>
-              <button id="profileEditShortcut" class="profile-avatar-menu" type="button" aria-label="编辑个人资料">YR</button>
-            </div>
-          </div>
 
-          <div class="profile-workspace">
-            <main class="profile-main-column">
-              <section class="profile-hero-card">
-                <div class="profile-hero-top">
-                  <button id="profileHeroAvatar" class="profile-hero-avatar" type="button" aria-label="编辑头像">YR</button>
-                  <div class="profile-hero-copy">
-                    <div class="profile-hero-name-row">
-                      <div>
-                        <h1 id="personalProfileName">yrk</h1>
-                        <p id="personalProfileHandle">@yrk</p>
-                      </div>
-                      <span class="profile-verify-badge">已认证</span>
-                    </div>
-                    <div class="profile-identity-tags">
-                      <span>AI 产品经理</span>
-                      <span>机器学习研究者</span>
-                      <span>高质量回答者</span>
-                    </div>
-                    <p id="personalProfileBio" class="profile-hero-bio">关注 AI 产品设计、大模型应用与知识工作流，擅长把复杂问题拆成可执行方案。</p>
-                    <div class="profile-hero-meta">
-                      <span>上海</span>
-                      <span>2026 年 3 月加入</span>
-                      <span>企业知识库方向认证</span>
-                    </div>
-                  </div>
-                </div>
-                <div class="profile-hero-bottom">
-                  <div class="profile-social-stats" aria-label="关注数据">
-                    <div><strong>128</strong><span>关注</span></div>
-                    <div><strong>4.2k</strong><span>粉丝</span></div>
-                    <div><strong>18.6k</strong><span>获赞</span></div>
-                    <div><strong>120</strong><span>被采纳</span></div>
-                  </div>
-                  <div class="profile-hero-actions">
-                    <button class="profile-follow-button" type="button">关注</button>
-                    <button class="profile-secondary-button" type="button">私信</button>
-                    <button id="profileEditButton" class="profile-secondary-button" type="button">编辑资料</button>
-                  </div>
-                </div>
-              </section>
+            <section class="wiki-recommend-card wiki-glass">
+              <span>随机推荐</span>
+              <strong>正在同步</strong>
+              <p>会从学习路径和资源库里挑选内容。</p>
+              <small></small>
+            </section>
 
-              <section class="profile-section-card">
-                <div class="profile-section-head">
-                  <div>
-                    <h2>能力与兴趣</h2>
-                    <p>高频领域会更突出，点击标签可筛选内容。</p>
-                  </div>
-                </div>
-                <div id="profileSkillTags" class="profile-skill-tags">
-                  <button class="skill-tag skill-tag-high active" type="button" data-profile-filter="大模型应用">大模型应用</button>
-                  <button class="skill-tag skill-tag-high" type="button" data-profile-filter="Prompt Engineering">Prompt Engineering</button>
-                  <button class="skill-tag skill-tag-high" type="button" data-profile-filter="RAG">RAG</button>
-                  <button class="skill-tag skill-tag-mid" type="button" data-profile-filter="AI 编程">AI 编程</button>
-                  <button class="skill-tag skill-tag-mid" type="button" data-profile-filter="产品设计">产品设计</button>
-                  <button class="skill-tag skill-tag-low" type="button" data-profile-filter="数据分析">数据分析</button>
-                </div>
-                <div class="profile-topic-strip">
-                  <span>最近关注</span>
-                  <button type="button" data-profile-filter="多智能体工作流">多智能体工作流</button>
-                  <button type="button" data-profile-filter="企业知识库">企业知识库</button>
-                  <button type="button" data-profile-filter="模型评测">模型评测</button>
-                  <button type="button" data-profile-filter="AI Coding">AI Coding</button>
-                </div>
-              </section>
+            <section class="wiki-music-card wiki-glass">
+              <input id="profileMusicInput" class="wiki-music-input" type="file" accept="audio/*" />
+              <span>♪</span>
+              <div><strong id="profileMusicTitle">花海 - 周杰伦</strong><i id="profileMusicProgress"></i></div>
+              <button id="profileMusicButton" type="button" aria-label="播放音乐">▶</button>
+            </section>
 
-              <section class="profile-metrics-grid" aria-label="数据概览">
-                <article class="profile-metric-card"><span>总回答数</span><strong>286</strong><em>+18 本月</em></article>
-                <article class="profile-metric-card"><span>采纳率</span><strong>42%</strong><em>高于社区 23%</em></article>
-                <article class="profile-metric-card"><span>平均质量评分</span><strong>4.8</strong><em>满分 5.0</em></article>
-                <article class="profile-metric-card"><span>收藏数</span><strong>1,248</strong><em>回答被收藏</em></article>
-                <article class="profile-metric-card"><span>连续活跃</span><strong>23 天</strong><em>保持贡献节奏</em></article>
-                <article class="profile-trend-card">
-                  <div class="profile-trend-head">
-                    <span>最近 30 天贡献趋势</span>
-                    <strong>84 次</strong>
-                  </div>
-                  <div id="profileTrendChart" class="profile-trend-chart" aria-label="最近 30 天贡献趋势"></div>
-                </article>
-              </section>
+            <section class="wiki-love-card wiki-glass">♡<span>0</span></section>
 
-              <section class="profile-content-card">
-                <div id="profileTabs" class="profile-tabs" role="tablist" aria-label="个人内容">
-                  <button class="active" type="button" role="tab" data-profile-tab="answers">回答</button>
-                  <button type="button" role="tab" data-profile-tab="questions">提问</button>
-                  <button type="button" role="tab" data-profile-tab="collections">收藏</button>
-                  <button type="button" role="tab" data-profile-tab="notes">专栏/笔记</button>
-                  <button type="button" role="tab" data-profile-tab="modelUsage">模型记录</button>
-                  <button type="button" role="tab" data-profile-tab="prompts">Prompt 模板</button>
-                </div>
-                <div id="profileFilterNotice" class="profile-filter-notice" hidden></div>
-                <div id="profileContentPanel" class="profile-content-panel" aria-live="polite"></div>
-              </section>
-            </main>
-
-            <aside class="profile-sidebar">
-              <section class="profile-side-card">
-                <h2>AI 使用偏好</h2>
-                <div class="profile-model-list">
-                  <span>GPT-5</span>
-                  <span>Claude</span>
-                  <span>Gemini</span>
-                  <span>本地模型</span>
-                </div>
-                <div class="profile-preference-list">
-                  <div><strong>回答风格</strong><span>结构化、详细、代码优先、产品分析</span></div>
-                  <div><strong>默认要求</strong><span>优先带来源，结论前置，保留风险提示</span></div>
-                  <div><strong>公开模型记录</strong><span class="profile-switch is-on">已公开</span></div>
-                </div>
-              </section>
-              <section class="profile-side-card">
-                <h2>可信度与贡献</h2>
-                <div class="profile-trust-list">
-                  <div><strong>认证专家</strong><span>AI 产品与知识工作流方向</span></div>
-                  <div><strong>社区等级</strong><span>Lv. 7 可信贡献者</span></div>
-                  <div><strong>高质量徽章</strong><span>连续 30 天高赞回答 · 被采纳 120 次</span></div>
-                </div>
-                <p class="profile-risk-note">AI 辅助回答可能存在错误，请结合来源引用、上下文和人工判断使用。</p>
-              </section>
-              <section class="profile-side-card">
-                <h2>个人成就</h2>
-                <div class="profile-badge-grid">
-                  <span>高赞答主</span>
-                  <span>RAG 专家</span>
-                  <span>Prompt 设计</span>
-                  <span>连续活跃</span>
-                </div>
-              </section>
-              <section class="profile-side-card">
-                <h2>最近收藏</h2>
-                <div class="profile-mini-list">
-                  <button type="button">企业知识库权限设计清单</button>
-                  <button type="button">Claude 与 GPT-5 长上下文对比</button>
-                  <button type="button">AI Coding 代码审查模板</button>
-                </div>
-              </section>
-              <section class="profile-side-card">
-                <h2>关注的话题</h2>
-                <div class="profile-followed-topics">
-                  <button type="button" data-profile-filter="RAG">RAG</button>
-                  <button type="button" data-profile-filter="模型评测">模型评测</button>
-                  <button type="button" data-profile-filter="AI 产品">AI 产品</button>
-                  <button type="button" data-profile-filter="数据分析">数据分析</button>
-                </div>
-              </section>
-              <section class="profile-side-card">
-                <h2>推荐关注</h2>
-                <div class="profile-user-suggest">
-                  <div><span>LC</span><strong>Lin Chen</strong><em>模型评测</em></div>
-                  <div><span>KM</span><strong>Kai Ming</strong><em>AI Coding</em></div>
-                </div>
-              </section>
-              <section class="profile-side-card">
-                <h2>个人链接</h2>
-                <div class="profile-link-list">
-                  <a href="#" aria-label="GitHub">GitHub</a>
-                  <a href="#" aria-label="知乎">知乎</a>
-                  <a href="#" aria-label="博客">博客</a>
-                  <a href="#" aria-label="LinkedIn">LinkedIn</a>
-                </div>
-              </section>
-            </aside>
+            <section class="wiki-content-stage wiki-glass">
+              <div id="profileArchiveTabs" class="wiki-archive-tabs" role="tablist" aria-label="文章归档方式">
+                <button type="button" data-profile-archive="day">日</button>
+                <button type="button" data-profile-archive="week">周</button>
+                <button type="button" data-profile-archive="month">月</button>
+                <button class="active" type="button" data-profile-archive="year">年</button>
+                <button type="button" data-profile-archive="category">分类</button>
+                <button type="button" data-profile-archive="tag">标签</button>
+              </div>
+              <div id="profileFilterNotice" class="profile-filter-notice" hidden></div>
+              <div id="profileSkillTags" class="wiki-chip-row" hidden></div>
+              <div id="profileContentPanel" class="profile-content-panel wiki-content-panel" aria-live="polite"></div>
+            </section>
+            <div id="profileTrendChart" class="profile-trend-chart wiki-hidden-trend" aria-hidden="true"></div>
           </div>
         </section>
 
@@ -433,11 +352,58 @@
         <section id="pushPage" class="push-page" hidden>
           <div class="resource-header">
             <div>
-              <h1 class="profile-title">学习资源推送</h1>
-              <div class="profile-meta">基于学习画像、当前知识大类、学习路径阶段和系统生成资源，精准推送文档、视频、题库、思维导图、拓展阅读和实操案例。</div>
+              <h1 class="profile-title">社区动态推送</h1>
+              <div class="profile-meta">像社区笔记流一样浏览回答、文档、视频、问题和经验分享；系统先召回候选内容，再按兴趣、画像、关注和热度重排。</div>
             </div>
-            <button id="pushGenerateResourcesBtn" class="primary-btn resource-generate-btn" type="button">去生成资源</button>
+            <button id="pushGenerateResourcesBtn" class="primary-btn resource-generate-btn" type="button">发布内容</button>
           </div>
+          <div class="feed-toolbar" aria-label="动态筛选">
+            <div class="feed-tabs" role="tablist" aria-label="动态排序">
+              <button class="feed-tab active" type="button" data-feed-sort="recommended" role="tab" aria-selected="true">推荐</button>
+              <button class="feed-tab" type="button" data-feed-sort="latest" role="tab" aria-selected="false">最新</button>
+              <button class="feed-tab" type="button" data-feed-sort="hot" role="tab" aria-selected="false">最热</button>
+            </div>
+            <form id="feedInterestForm" class="feed-interest-form">
+              <input id="feedInterestInput" type="text" placeholder="兴趣标签，如 RAG、AI Coding、数据分析" autocomplete="off" />
+              <button type="submit">保存兴趣</button>
+            </form>
+          </div>
+          <form id="feedComposer" class="feed-composer" hidden>
+            <div class="feed-composer-grid">
+              <label>
+                <span>类型</span>
+                <select id="feedTypeInput">
+                  <option value="question">问题</option>
+                  <option value="answer">答案</option>
+                  <option value="thought">想法</option>
+                  <option value="article">文章</option>
+                  <option value="document">文档</option>
+                  <option value="video">视频</option>
+                </select>
+              </label>
+              <label>
+                <span>分类</span>
+                <input id="feedCategoryInput" type="text" placeholder="例如：AI 应用" />
+              </label>
+              <label class="feed-composer-wide">
+                <span>标题</span>
+                <input id="feedTitleInput" type="text" maxlength="180" placeholder="写一个清晰的标题" />
+              </label>
+              <label class="feed-composer-wide">
+                <span>标签</span>
+                <input id="feedTagsInput" type="text" placeholder="用逗号或空格分隔" />
+              </label>
+              <label class="feed-composer-wide">
+                <span>正文</span>
+                <textarea id="feedBodyInput" rows="5" placeholder="分享你的问题、答案、想法或经验"></textarea>
+              </label>
+            </div>
+            <div class="feed-composer-actions">
+              <span id="feedComposerMessage" class="feed-message"></span>
+              <button type="button" class="feed-secondary-btn" data-feed-compose-close>取消</button>
+              <button type="submit" class="feed-primary-btn">发布</button>
+            </div>
+          </form>
           <div id="pushGrid" class="push-grid" aria-live="polite"></div>
         </section>
 

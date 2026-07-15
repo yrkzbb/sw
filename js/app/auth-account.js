@@ -199,13 +199,25 @@ function accountAccentGradient(accent = "teal") {
 
 function accountProfileFor(user = state.activeUser) {
   const profile = user?.profile || {};
+  const avatarImage = /^data:image\/(png|jpe?g|webp);base64,/i.test(String(profile.avatarImage || ""))
+    ? String(profile.avatarImage)
+    : "";
+  const photoWall = Array.isArray(profile.photoWall)
+    ? profile.photoWall.filter((item) => /^data:image\/(png|jpe?g|webp);base64,/i.test(String(item || ""))).slice(0, 4)
+    : [];
+  const musicTrack = profile.musicTrack && /^data:audio\/(mpeg|mp3|wav|ogg|aac|mp4|webm);base64,/i.test(String(profile.musicTrack.src || ""))
+    ? { title: String(profile.musicTrack.title || "我的音乐").slice(0, 80), src: profile.musicTrack.src }
+    : null;
   return {
     avatarInitial: String(profile.avatarInitial || user?.name || "L").trim().slice(0, 2).toUpperCase(),
+    avatarImage,
     bio: String(profile.bio || "个人学习空间").trim(),
     accent: profile.accent || "teal",
     theme: profile.theme || "system",
     defaultPage: profile.defaultPage || "chat",
     replyStyle: profile.replyStyle || "",
+    photoWall,
+    musicTrack,
   };
 }
 
@@ -221,6 +233,9 @@ function updateUserChrome() {
     const profile = accountProfileFor(user);
     avatar.textContent = profile.avatarInitial || "L";
     avatar.style.background = accountAccentGradient(profile.accent);
+    avatar.style.backgroundImage = profile.avatarImage ? `url("${profile.avatarImage}")` : "";
+    avatar.style.backgroundSize = "cover";
+    avatar.style.backgroundPosition = "center";
   }
   if (el.authOverlay) el.authOverlay.hidden = !!user;
   if (el.userInfoPage && el.userInfoPage.hidden === false) {
@@ -336,7 +351,21 @@ async function handleAccountProfileSubmit(event) {
   try {
     const payload = await apiJson(`${AUTH_ENDPOINT}/profile`, {
       method: "PUT",
-      body: JSON.stringify({ name, email, profile: { avatarInitial, accent, bio, theme, defaultPage, replyStyle } }),
+      body: JSON.stringify({
+        name,
+        email,
+        profile: {
+          avatarInitial,
+          avatarImage: accountProfileFor().avatarImage,
+          accent,
+          bio,
+          theme,
+          defaultPage,
+          replyStyle,
+          photoWall: accountProfileFor().photoWall,
+          musicTrack: accountProfileFor().musicTrack,
+        },
+      }),
     });
     setActiveUser(payload.user);
     applyAccountPreferences(payload.user?.profile);
@@ -572,4 +601,3 @@ async function initAuth() {
     await loadAnnouncements();
   }
 }
-

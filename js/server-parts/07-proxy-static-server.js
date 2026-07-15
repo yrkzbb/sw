@@ -310,6 +310,59 @@ const server = http.createServer((req, res) => {
       void getPublicAnnouncements(req, res);
       return;
     }
+    if (url.pathname === "/api/feed" && req.method === "GET") {
+      void getFeedList(req, res, url);
+      return;
+    }
+    if (url.pathname === "/api/feed/posts" && req.method === "POST") {
+      void createFeedPost(req, res);
+      return;
+    }
+    const feedPostMatch = url.pathname.match(/^\/api\/feed\/posts\/(\d+)$/);
+    if (feedPostMatch && req.method === "GET") {
+      void getFeedPost(req, res, feedPostMatch[1]);
+      return;
+    }
+    if (feedPostMatch && req.method === "PUT") {
+      void updateFeedPost(req, res, feedPostMatch[1]);
+      return;
+    }
+    if (url.pathname === "/api/feed/interests" && req.method === "PUT") {
+      void updateFeedInterests(req, res);
+      return;
+    }
+    if (url.pathname === "/api/feed/notifications" && req.method === "GET") {
+      void getFeedNotifications(req, res);
+      return;
+    }
+    if (url.pathname === "/api/feed/notifications/read" && req.method === "POST") {
+      void markFeedNotificationsRead(req, res);
+      return;
+    }
+    const feedCommentsMatch = url.pathname.match(/^\/api\/feed\/posts\/(\d+)\/comments$/);
+    if (feedCommentsMatch && req.method === "GET") {
+      void getFeedComments(req, res, feedCommentsMatch[1]);
+      return;
+    }
+    const feedActionMatch = url.pathname.match(/^\/api\/feed\/posts\/(\d+)\/(like|favorite|comments)$/);
+    if (feedActionMatch && (req.method === "POST")) {
+      if (feedActionMatch[2] === "comments") {
+        void createFeedComment(req, res, feedActionMatch[1]);
+      } else {
+        void toggleFeedInteraction(req, res, feedActionMatch[1], feedActionMatch[2]);
+      }
+      return;
+    }
+    const feedAuthorProfileMatch = url.pathname.match(/^\/api\/feed\/authors\/(\d+)$/);
+    if (feedAuthorProfileMatch && req.method === "GET") {
+      void getFeedAuthor(req, res, feedAuthorProfileMatch[1]);
+      return;
+    }
+    const feedFollowMatch = url.pathname.match(/^\/api\/feed\/authors\/(\d+)\/follow$/);
+    if (feedFollowMatch && req.method === "POST") {
+      void toggleFeedFollow(req, res, feedFollowMatch[1]);
+      return;
+    }
     if (url.pathname.startsWith("/api/admin/") && handleAdminRoute(req, res, url)) {
       return;
     }

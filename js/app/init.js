@@ -6,6 +6,7 @@ async function init() {
   initTheme();
   await initAuth();
   initApiKeyModal();
+  initFeedEventHandlers();
   initEventHandlers();
   initImageLightbox();
   initCopyDelegation();

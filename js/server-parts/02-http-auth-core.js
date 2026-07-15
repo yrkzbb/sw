@@ -9,6 +9,7 @@ const MIME_TYPES = {
   ".gif": "image/gif",
   ".svg": "image/svg+xml",
   ".webp": "image/webp",
+  ".mp3": "audio/mpeg",
   ".mp4": "video/mp4",
   ".webm": "video/webm",
   ".mov": "video/quicktime",
@@ -129,21 +130,41 @@ function normalizeAccountProfile(profile = {}) {
     .trim()
     .slice(0, 2)
     .toUpperCase();
+  const avatarImage = /^data:image\/(png|jpe?g|webp);base64,/i.test(String(source.avatarImage || "").trim())
+    ? String(source.avatarImage).trim()
+    : "";
   const bio = String(source.bio || "").trim().replace(/\s+/g, " ").slice(0, 80);
   const accent = String(source.accent || "teal").trim();
   const theme = String(source.theme || "system").trim();
   const defaultPage = String(source.defaultPage || "chat").trim();
   const replyStyle = String(source.replyStyle || "").trim().replace(/\s+/g, " ").slice(0, 180);
+  const photoWall = Array.isArray(source.photoWall)
+    ? source.photoWall
+        .map((item) => String(item || "").trim())
+        .filter((item) => /^data:image\/(png|jpe?g|webp);base64,/i.test(item))
+        .slice(0, 4)
+    : [];
+  const rawMusic = source.musicTrack && typeof source.musicTrack === "object" ? source.musicTrack : null;
+  const musicSrc = String(rawMusic?.src || "").trim();
+  const musicTrack = /^data:audio\/(mpeg|mp3|wav|ogg|aac|mp4|webm);base64,/i.test(musicSrc)
+    ? {
+        title: String(rawMusic?.title || "我的音乐").trim().replace(/\s+/g, " ").slice(0, 80),
+        src: musicSrc,
+      }
+    : null;
   const allowedAccents = new Set(["teal", "blue", "violet", "gold", "rose"]);
   const allowedThemes = new Set(["system", "light", "dark"]);
   const allowedPages = new Set(["chat", "profile", "resource", "storage"]);
   return {
     avatarInitial,
+    avatarImage,
     bio,
     accent: allowedAccents.has(accent) ? accent : "teal",
     theme: allowedThemes.has(theme) ? theme : "system",
     defaultPage: allowedPages.has(defaultPage) ? defaultPage : "chat",
     replyStyle,
+    photoWall,
+    musicTrack,
   };
 }
 
@@ -217,4 +238,3 @@ function validateAuthInput({ username, email, password, confirmPassword }, mode)
   }
   return "";
 }
-

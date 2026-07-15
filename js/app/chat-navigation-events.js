@@ -360,6 +360,7 @@ function showUserInfoPage() {
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("#user-info");
+  setWikiArchiveMode(false);
   renderPersonalProfilePage();
 }
 
@@ -1059,17 +1060,103 @@ function initEventHandlers() {
 
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.userInfoPageBtn?.addEventListener("click", showUserInfoPage);
-  el.profileEditButton?.addEventListener("click", () => openAccountModal("profile"));
+  el.profileEditButton?.addEventListener("click", () => {
+    if (state.personalProfileView === "detail" && state.personalProfilePostEditable) {
+      state.personalProfileView = "editing";
+      renderProfileContentPanel();
+      return;
+    }
+    openAccountModal("profile");
+  });
   el.profileEditShortcut?.addEventListener("click", () => openAccountModal("profile"));
-  el.profileHeroAvatar?.addEventListener("click", () => openAccountModal("profile"));
+  el.profileHeroAvatar?.addEventListener("click", () => {
+    const input = document.querySelector("#profileAvatarImageInput");
+    if (input instanceof HTMLInputElement) input.click();
+  });
   el.profileTabs?.addEventListener("click", (event) => {
     const button = event.target instanceof HTMLElement ? event.target.closest("[data-profile-tab]") : null;
     if (!button) return;
     state.personalProfileTab = button.getAttribute("data-profile-tab") || "answers";
+    state.personalProfileView = "archive";
+    setWikiArchiveMode(true);
     renderProfileContentPanel();
   });
   el.userInfoPage?.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
+    const floatTabButton = target?.closest(".wiki-float-nav [data-profile-tab]");
+    if (floatTabButton) {
+      state.personalProfileTab = floatTabButton.getAttribute("data-profile-tab") || "answers";
+      state.personalProfileView = "archive";
+      setWikiArchiveMode(true);
+      renderProfileContentPanel();
+      return;
+    }
+    const postButton = target?.closest("[data-profile-post-id]");
+    if (postButton) {
+      void openProfilePost(postButton.getAttribute("data-profile-post-id"));
+      return;
+    }
+    if (target?.closest("[data-profile-back-archive]")) {
+      state.personalProfileView = "archive";
+      state.personalProfileSelectedPostId = "";
+      state.personalProfileSelectedPost = null;
+      renderProfileContentPanel();
+      return;
+    }
+    if (target?.closest("[data-profile-edit-post]")) {
+      state.personalProfileView = "editing";
+      renderProfileContentPanel();
+      return;
+    }
+    if (target?.closest("[data-profile-cancel-edit]")) {
+      state.personalProfileView = "detail";
+      renderProfileContentPanel();
+      return;
+    }
+    if (target?.closest(".wiki-avatar-large")) {
+      const input = document.querySelector("#profileAvatarImageInput");
+      if (input instanceof HTMLInputElement) input.click();
+      return;
+    }
+    if (target?.closest("#personalProfileBio")) {
+      startProfileBioEdit();
+      return;
+    }
+    const bioCancel = target?.closest("[data-profile-bio-cancel]");
+    if (bioCancel) {
+      const form = bioCancel.closest(".wiki-bio-editor");
+      if (form) cancelProfileBioEdit(form);
+      return;
+    }
+    const archiveButton = target?.closest("[data-profile-archive]");
+    if (archiveButton) {
+      state.personalArchiveGroup = archiveButton.getAttribute("data-profile-archive") || "year";
+      state.personalProfileTab = "answers";
+      state.personalProfileFilter = "";
+      state.personalProfileView = "archive";
+      setWikiArchiveMode(true);
+      renderProfileContentPanel();
+      return;
+    }
+    if (target?.closest("#profileMusicButton")) {
+      toggleProfileMusic();
+      return;
+    }
+    if (target?.closest(".wiki-music-card div")) {
+      const input = document.querySelector("#profileMusicInput");
+      if (input instanceof HTMLInputElement) input.click();
+      return;
+    }
+    if (target?.closest(".wiki-photo-card")) {
+      const input = document.querySelector("#profilePhotoWallInput");
+      if (input instanceof HTMLInputElement) input.click();
+      return;
+    }
+    if (target?.closest(".wiki-write-btn")) {
+      showPushPage();
+      setFeedComposerOpen(true);
+      return;
+    }
     const filterButton = target?.closest("[data-profile-filter]");
     if (filterButton) {
       toggleProfileFilter(filterButton.getAttribute("data-profile-filter") || "");
@@ -1080,10 +1167,40 @@ function initEventHandlers() {
       handleProfileAnswerAction(answerButton);
     }
   });
+  el.userInfoPage?.addEventListener("submit", (event) => {
+    const form = event.target instanceof HTMLElement ? event.target.closest("[data-profile-post-editor]") : null;
+    const bioForm = event.target instanceof HTMLElement ? event.target.closest(".wiki-bio-editor") : null;
+    if (form) {
+      event.preventDefault();
+      void saveProfilePostEdit(form);
+      return;
+    }
+    if (bioForm) {
+      event.preventDefault();
+      void saveProfileBioEdit(bioForm);
+    }
+  });
+  document.querySelector("#profileAvatarImageInput")?.addEventListener("change", (event) => {
+    const input = event.target instanceof HTMLInputElement ? event.target : null;
+    void saveProfileAvatarImage(input?.files?.[0]).finally(() => {
+      if (input) input.value = "";
+    });
+  });
+  document.querySelector("#profilePhotoWallInput")?.addEventListener("change", (event) => {
+    const input = event.target instanceof HTMLInputElement ? event.target : null;
+    void saveProfilePhotoWall(input?.files).finally(() => {
+      if (input) input.value = "";
+    });
+  });
+  document.querySelector("#profileMusicInput")?.addEventListener("change", (event) => {
+    const input = event.target instanceof HTMLInputElement ? event.target : null;
+    void saveProfileMusicTrack(input?.files?.[0]).finally(() => {
+      if (input) input.value = "";
+    });
+  });
   el.chatPageBtn?.addEventListener("click", showChatPage);
   el.resourcePageBtn?.addEventListener("click", showResourcePage);
   el.pushPageBtn?.addEventListener("click", showPushPage);
-  el.pushGenerateResourcesBtn?.addEventListener("click", showResourcePage);
   el.pathPageBtn?.addEventListener("click", showPathPage);
   el.pathGenerateResourcesBtn?.addEventListener("click", showResourcePage);
   el.assessmentPageBtn?.addEventListener("click", showAssessmentPage);
@@ -1666,4 +1783,3 @@ function initCopyDelegation() {
     }, 900);
   });
 }
-

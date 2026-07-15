@@ -212,9 +212,126 @@ async function initMysqlSchema(pool) {
         ON DELETE SET NULL
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
   `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("feed_posts")} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      author_id BIGINT UNSIGNED NOT NULL,
+      content_type ENUM('question', 'answer', 'thought', 'article', 'document', 'video') NOT NULL DEFAULT 'thought',
+      title VARCHAR(180) NOT NULL,
+      summary VARCHAR(320) NOT NULL,
+      body TEXT NOT NULL,
+      category VARCHAR(80) NOT NULL DEFAULT '',
+      tags JSON NULL,
+      like_count INT UNSIGNED NOT NULL DEFAULT 0,
+      comment_count INT UNSIGNED NOT NULL DEFAULT 0,
+      favorite_count INT UNSIGNED NOT NULL DEFAULT 0,
+      view_count INT UNSIGNED NOT NULL DEFAULT 0,
+      heat_score DOUBLE NOT NULL DEFAULT 0,
+      status ENUM('published', 'hidden') NOT NULL DEFAULT 'published',
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_feed_status_created (status, created_at),
+      KEY idx_feed_status_heat (status, heat_score),
+      KEY idx_feed_author (author_id),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_posts_author
+        FOREIGN KEY (author_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("feed_post_interactions")} (
+      user_id BIGINT UNSIGNED NOT NULL,
+      post_id BIGINT UNSIGNED NOT NULL,
+      interaction_type ENUM('like', 'favorite', 'view') NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, post_id, interaction_type),
+      KEY idx_feed_interactions_post (post_id, interaction_type),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_interactions_user
+        FOREIGN KEY (user_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_interactions_post
+        FOREIGN KEY (post_id) REFERENCES ${tableName("feed_posts")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("feed_comments")} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      post_id BIGINT UNSIGNED NOT NULL,
+      author_id BIGINT UNSIGNED NOT NULL,
+      body TEXT NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_feed_comments_post (post_id, created_at),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_comments_post
+        FOREIGN KEY (post_id) REFERENCES ${tableName("feed_posts")} (id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_comments_author
+        FOREIGN KEY (author_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("feed_author_follows")} (
+      follower_id BIGINT UNSIGNED NOT NULL,
+      followee_id BIGINT UNSIGNED NOT NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (follower_id, followee_id),
+      KEY idx_feed_followee (followee_id),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_follows_follower
+        FOREIGN KEY (follower_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_follows_followee
+        FOREIGN KEY (followee_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("feed_user_interests")} (
+      user_id BIGINT UNSIGNED NOT NULL,
+      tag VARCHAR(64) NOT NULL,
+      weight DOUBLE NOT NULL DEFAULT 1,
+      updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      PRIMARY KEY (user_id, tag),
+      KEY idx_feed_interest_user_weight (user_id, weight),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_interests_user
+        FOREIGN KEY (user_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS ${tableName("feed_notifications")} (
+      id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      user_id BIGINT UNSIGNED NOT NULL,
+      actor_id BIGINT UNSIGNED NULL,
+      post_id BIGINT UNSIGNED NULL,
+      comment_id BIGINT UNSIGNED NULL,
+      notification_type ENUM('comment') NOT NULL DEFAULT 'comment',
+      message VARCHAR(240) NOT NULL DEFAULT '',
+      read_at DATETIME NULL,
+      created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (id),
+      KEY idx_feed_notifications_user_read (user_id, read_at, created_at),
+      KEY idx_feed_notifications_post (post_id),
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_notifications_user
+        FOREIGN KEY (user_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_notifications_actor
+        FOREIGN KEY (actor_id) REFERENCES ${tableName("users")} (id)
+        ON DELETE SET NULL,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_notifications_post
+        FOREIGN KEY (post_id) REFERENCES ${tableName("feed_posts")} (id)
+        ON DELETE CASCADE,
+      CONSTRAINT fk_${MYSQL_TABLE_PREFIX}feed_notifications_comment
+        FOREIGN KEY (comment_id) REFERENCES ${tableName("feed_comments")} (id)
+        ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `);
   await ensureUserColumn(pool, "role", "ENUM('user', 'admin') NOT NULL DEFAULT 'user'");
   await ensureUserColumn(pool, "status", "ENUM('active', 'disabled') NOT NULL DEFAULT 'active'");
   await ensureUserColumn(pool, "last_login_at", "DATETIME NULL");
+  await ensureFeedPostContentTypes(pool);
   await bootstrapAdminUser(pool);
 }
 
@@ -229,6 +346,13 @@ async function ensureUserColumn(pool, columnName, definition) {
   );
   if (rows.length) return;
   await pool.query(`ALTER TABLE ${tableName("users")} ADD COLUMN ${columnName} ${definition}`);
+}
+
+async function ensureFeedPostContentTypes(pool) {
+  await pool.query(
+    `ALTER TABLE ${tableName("feed_posts")}
+     MODIFY content_type ENUM('question', 'answer', 'thought', 'article', 'document', 'video') NOT NULL DEFAULT 'thought'`
+  ).catch(() => {});
 }
 
 async function bootstrapAdminUser(pool) {
