@@ -15,6 +15,7 @@ const ACTIVE_PATH_CATEGORY_STORAGE = "LINGXI_ACTIVE_PATH_CATEGORY";
 const LEARNING_BEHAVIOR_STORAGE = "LINGXI_LEARNING_BEHAVIOR";
 const LEARNING_EFFECT_ASSESSMENT_STORAGE = "LINGXI_LEARNING_EFFECT_ASSESSMENT";
 const ANNOUNCEMENT_READ_STORAGE = "LINGXI_ANNOUNCEMENT_READ";
+const FAVORITE_COLLECTIONS_STORAGE = "LINGXI_FAVORITE_COLLECTIONS";
 const AUTH_USERS_STORAGE = "LINGXI_AUTH_USERS";
 const ACTIVE_USER_STORAGE = "LINGXI_ACTIVE_USER";
 const AUTH_MODE_STORAGE = "LINGXI_AUTH_MODE";
@@ -32,6 +33,7 @@ const USER_SCOPED_STORAGE_KEYS = new Set([
   ACTIVE_PATH_CATEGORY_STORAGE,
   LEARNING_BEHAVIOR_STORAGE,
   LEARNING_EFFECT_ASSESSMENT_STORAGE,
+  FAVORITE_COLLECTIONS_STORAGE,
 ]);
 
 
@@ -290,6 +292,16 @@ const state = {
   personalProfilePosts: [],
   personalProfileStats: null,
   personalProfileLoading: false,
+  favoriteCollections: [],
+  favoritePosts: [],
+  favoriteCollectionsLoading: false,
+  favoriteSelectedCollectionId: "",
+  profileSocial: {
+    following: [],
+    followers: [],
+  },
+  profileSocialLoading: false,
+  profileSocialLoaded: false,
 
   isGenerating: false,
   abortController: null,

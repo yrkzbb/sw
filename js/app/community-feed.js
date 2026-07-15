@@ -402,6 +402,13 @@ async function handleFeedAction(action, post) {
         item.heatScore = payload.heatScore ?? item.heatScore;
         return item;
       });
+      if (action === "favorite") {
+        if (payload.active && typeof addFavoriteToDefaultCollection === "function") {
+          addFavoriteToDefaultCollection(post);
+        } else if (!payload.active && typeof removeFavoriteFromAllCollections === "function") {
+          removeFavoriteFromAllCollections(post.id);
+        }
+      }
       return;
     }
     if (action === "follow") {
@@ -411,6 +418,7 @@ async function handleFeedAction(action, post) {
           ? { ...item, author: { ...item.author, followed: Boolean(payload.active) } }
           : item
       ));
+      if (typeof loadProfileSocialStats === "function") void loadProfileSocialStats(true);
       renderFeedPage();
       return;
     }
@@ -502,7 +510,10 @@ function initFeedEventHandlers() {
     const followBtn = e.target.closest("[data-feed-author-follow]");
     if (followBtn) {
       void apiJson(`/api/feed/authors/${encodeURIComponent(followBtn.getAttribute("data-feed-author-follow"))}/follow`, { method: "POST" })
-        .then(() => openFeedAuthorProfile(followBtn.getAttribute("data-feed-author-follow")));
+        .then(() => {
+          if (typeof loadProfileSocialStats === "function") void loadProfileSocialStats(true);
+          return openFeedAuthorProfile(followBtn.getAttribute("data-feed-author-follow"));
+        });
       return;
     }
     const postBtn = e.target.closest("[data-feed-open-post]");

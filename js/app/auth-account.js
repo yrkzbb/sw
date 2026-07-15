@@ -274,15 +274,19 @@ function setAccountMessage(message = "", type = "error") {
 }
 
 function syncAccountPreview() {
+  const profile = accountProfileFor();
   const name = normalizeUsername(el.accountNameInput?.value || state.activeUser?.name || "");
   const bio = String(el.accountBioInput?.value || "个人学习空间").trim() || "个人学习空间";
-  const initial = String(el.accountAvatarInput?.value || name || "L").trim().slice(0, 2).toUpperCase();
-  const accent = el.accountAccentInput?.value || "teal";
+  const initial = String(profile.avatarInitial || name || "L").trim().slice(0, 2).toUpperCase();
+  const accent = profile.accent || "teal";
   if (el.accountPreviewName) el.accountPreviewName.textContent = name || "未命名";
   if (el.accountPreviewBio) el.accountPreviewBio.textContent = bio;
   if (el.accountPreviewAvatar) {
-    el.accountPreviewAvatar.textContent = initial || "L";
     el.accountPreviewAvatar.style.background = accountAccentGradient(accent);
+    el.accountPreviewAvatar.style.backgroundImage = profile.avatarImage ? `url("${profile.avatarImage}")` : "";
+    el.accountPreviewAvatar.style.backgroundSize = "cover";
+    el.accountPreviewAvatar.style.backgroundPosition = "center";
+    el.accountPreviewAvatar.textContent = profile.avatarImage ? "" : (initial || "L");
   }
 }
 
@@ -322,7 +326,8 @@ function clearAccountPasswordFields() {
 }
 
 function switchAccountSection(section = "profile") {
-  const nextSection = ["profile", "personalize", "security"].includes(section) ? section : "profile";
+  const nextSection = ["profile", "security"].includes(section) ? section : "profile";
+  if (el.accountModal) el.accountModal.dataset.accountSection = nextSection;
   document.querySelectorAll("[data-account-section]").forEach((button) => {
     button.classList.toggle("active", button.getAttribute("data-account-section") === nextSection);
   });
@@ -331,7 +336,7 @@ function switchAccountSection(section = "profile") {
   });
   const profileVisible = nextSection === "profile";
   if (el.accountTitle) {
-    el.accountTitle.textContent = profileVisible ? "个人资料" : (nextSection === "personalize" ? "个性化" : "账户安全");
+    el.accountTitle.textContent = profileVisible ? "个人资料" : "账户安全";
   }
   if (el.accountSaveBtn) {
     el.accountSaveBtn.textContent = nextSection === "security" ? "保存安全设置" : "保存";
@@ -344,21 +349,22 @@ function switchAccountSection(section = "profile") {
 
 async function handleAccountProfileSubmit(event) {
   event.preventDefault();
-  const section = document.querySelector("[data-account-section].active")?.getAttribute("data-account-section") || "profile";
+  const section = el.accountModal?.dataset.accountSection || "profile";
   if (section === "security") {
     await handleAccountPasswordSubmit();
     return;
   }
+  const currentProfile = accountProfileFor();
   const name = normalizeUsername(el.accountNameInput?.value);
   const email = normalizeEmail(el.accountEmailInput?.value);
-  const avatarInitial = String(el.accountAvatarInput?.value || "").trim().slice(0, 2).toUpperCase();
-  const accent = String(el.accountAccentInput?.value || "teal");
+  const avatarInitial = currentProfile.avatarInitial;
+  const accent = currentProfile.accent || "teal";
   const bio = String(el.accountBioInput?.value || "").trim().replace(/\s+/g, " ").slice(0, 80);
   const githubUrl = normalizeGithubUrl(el.accountGithubInput?.value || "");
   const contactEmail = normalizeEmail(el.accountContactEmailInput?.value || "");
-  const theme = String(el.accountThemeInput?.value || "system");
-  const defaultPage = String(el.accountDefaultPageInput?.value || "chat");
-  const replyStyle = String(el.accountReplyStyleInput?.value || "").trim().replace(/\s+/g, " ").slice(0, 180);
+  const theme = currentProfile.theme || "system";
+  const defaultPage = currentProfile.defaultPage || "chat";
+  const replyStyle = currentProfile.replyStyle || "";
   if (!name || name.length < 2) {
     setAccountMessage("昵称至少需要 2 个字符。");
     return;
@@ -385,7 +391,7 @@ async function handleAccountProfileSubmit(event) {
         email,
         profile: {
           avatarInitial,
-          avatarImage: accountProfileFor().avatarImage,
+          avatarImage: currentProfile.avatarImage,
           accent,
           bio,
           githubUrl,
@@ -393,8 +399,8 @@ async function handleAccountProfileSubmit(event) {
           theme,
           defaultPage,
           replyStyle,
-          photoWall: accountProfileFor().photoWall,
-          musicTrack: accountProfileFor().musicTrack,
+          photoWall: currentProfile.photoWall,
+          musicTrack: currentProfile.musicTrack,
         },
       }),
     });
@@ -597,7 +603,7 @@ async function initAuth() {
     const button = event.target instanceof HTMLElement ? event.target.closest("[data-account-action]") : null;
     if (!button) return;
     const action = button.getAttribute("data-account-action");
-    if (action === "profile" || action === "personalize" || action === "settings") openAccountModal(action);
+    if (action === "profile") openAccountModal("profile");
     if (action === "logout") void logoutCurrentUser();
   });
   document.addEventListener("click", (event) => {
@@ -618,7 +624,7 @@ async function initAuth() {
       closeAccountModal();
     }
   });
-  [el.accountNameInput, el.accountAvatarInput, el.accountAccentInput, el.accountBioInput].forEach((input) => {
+  [el.accountNameInput, el.accountBioInput].forEach((input) => {
     input?.addEventListener("input", syncAccountPreview);
     input?.addEventListener("change", syncAccountPreview);
   });

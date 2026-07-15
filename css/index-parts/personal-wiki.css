@@ -512,6 +512,7 @@
 .wiki-social-row {
   grid-area: social;
   display: flex;
+  justify-content: center;
   gap: 12px;
   flex-wrap: wrap;
 }
@@ -523,13 +524,73 @@
   color: #34484b;
 }
 
+.wiki-social-row button span {
+  margin-left: 4px;
+  color: inherit;
+  font-weight: 950;
+}
+
 .wiki-social-row button:first-child {
+  background: rgba(255, 255, 255, 0.46);
+}
+
+.wiki-social-row button[data-profile-social="github"] {
   color: #fff;
   background: #111;
 }
 
 .wiki-social-row button.is-disabled {
   opacity: 0.62;
+}
+
+.profile-social-list {
+  display: grid;
+  gap: 12px;
+}
+
+.profile-social-person {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 4px 12px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.42);
+  color: #34484b;
+  text-align: left;
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.profile-social-person:hover {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 18px 36px rgba(88, 139, 128, 0.18);
+}
+
+.profile-social-person span {
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #5b8df3, #29c4b7);
+  color: #fff;
+  font-weight: 950;
+}
+
+.profile-social-person strong {
+  min-width: 0;
+  font-weight: 950;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.profile-social-person small {
+  color: #829096;
+  font-weight: 850;
 }
 
 .wiki-recommend-card {
@@ -651,6 +712,273 @@
 .personal-profile-page.wiki-archive-mode .wiki-music-card,
 .personal-profile-page.wiki-archive-mode .wiki-love-card {
   display: none;
+}
+
+.wiki-name-card,
+.wiki-photo-card,
+.wiki-welcome-card,
+.wiki-clock-card,
+.wiki-calendar-card,
+.wiki-latest-card,
+.wiki-recommend-card,
+.wiki-music-card,
+.wiki-love-card,
+.wiki-project-card,
+.wiki-share-card,
+.wiki-about-card,
+.wiki-account-card,
+.wiki-post-shell,
+.wiki-post-side-card,
+.wiki-favorite-folder-detail,
+.wiki-favorite-post-card {
+  transform: translateZ(0);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  will-change: transform;
+}
+
+.wiki-name-card:hover,
+.wiki-photo-card:hover,
+.wiki-welcome-card:hover,
+.wiki-clock-card:hover,
+.wiki-calendar-card:hover,
+.wiki-latest-card:hover,
+.wiki-recommend-card:hover,
+.wiki-music-card:hover,
+.wiki-love-card:hover,
+.wiki-project-card:hover,
+.wiki-share-card:hover,
+.wiki-about-card:hover,
+.wiki-account-card:hover,
+.wiki-post-shell:hover,
+.wiki-post-side-card:hover,
+.wiki-favorite-folder-detail:hover,
+.wiki-favorite-post-card:hover {
+  transform: translateY(-4px) scale(1.018);
+  box-shadow: 0 28px 60px rgba(88, 139, 128, 0.22);
+}
+
+.wiki-favorites-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.wiki-favorites-head,
+.wiki-favorite-folder-detail {
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 28px;
+  padding: 22px;
+  background: rgba(255, 255, 255, 0.42);
+}
+
+.wiki-favorites-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+}
+
+.wiki-favorites-head span,
+.wiki-favorite-folder-title span,
+.wiki-favorite-post-card span {
+  color: #64c8b7;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.wiki-favorites-head h3,
+.wiki-favorite-folder-title h4,
+.wiki-favorite-post-card h4 {
+  margin: 6px 0;
+  color: #34484b;
+  font-weight: 950;
+}
+
+.wiki-favorites-head p,
+.wiki-favorite-folder-title p,
+.wiki-favorite-post-card p {
+  margin: 0;
+  color: #758488;
+  font-weight: 850;
+  line-height: 1.6;
+}
+
+.wiki-favorites-head button,
+.wiki-favorite-folder-title button {
+  min-height: 42px;
+  border-radius: 14px;
+  padding: 0 16px;
+  background: rgba(95, 199, 184, 0.86);
+  color: #fff;
+  font-weight: 950;
+}
+
+.wiki-favorites-layout {
+  display: grid;
+  grid-template-columns: minmax(180px, 260px) minmax(0, 1fr);
+  gap: 18px;
+}
+
+.wiki-favorite-folder-list {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+}
+
+.wiki-favorite-folder-list button {
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 20px;
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.38);
+  color: #34484b;
+}
+
+.wiki-favorite-folder-list button.active {
+  background: rgba(95, 199, 184, 0.86);
+  color: #fff;
+}
+
+.wiki-favorite-folder-list strong,
+.wiki-favorite-folder-list span {
+  display: block;
+  font-weight: 950;
+}
+
+.wiki-favorite-folder-list span {
+  margin-top: 4px;
+  color: inherit;
+  opacity: 0.72;
+  font-size: 12px;
+}
+
+.wiki-favorite-folder-title {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 18px;
+}
+
+.wiki-favorite-folder-title > div:last-child {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.wiki-favorite-folder-title button + button {
+  background: rgba(255, 255, 255, 0.52);
+  color: #34484b;
+}
+
+.wiki-favorite-post-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wiki-favorite-post-card {
+  position: relative;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 22px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.wiki-favorite-post-card h4 {
+  padding-right: 34px;
+}
+
+.wiki-favorite-post-card div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.wiki-favorite-post-card em {
+  border-radius: 999px;
+  padding: 5px 9px;
+  background: rgba(95, 199, 184, 0.14);
+  color: #59bcae;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.wiki-favorite-post-card small {
+  display: block;
+  margin-top: 12px;
+  color: #829096;
+  font-weight: 900;
+}
+
+.wiki-favorite-remove {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.62);
+  color: #829096;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+@media (max-width: 760px) {
+  .wiki-favorites-head,
+  .wiki-favorite-folder-title {
+    display: grid;
+  }
+
+  .wiki-favorites-layout,
+  .wiki-favorite-post-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wiki-name-card,
+  .wiki-photo-card,
+  .wiki-welcome-card,
+  .wiki-clock-card,
+  .wiki-calendar-card,
+  .wiki-latest-card,
+  .wiki-recommend-card,
+  .wiki-music-card,
+  .wiki-love-card,
+  .wiki-project-card,
+  .wiki-share-card,
+  .wiki-about-card,
+  .wiki-account-card,
+  .wiki-post-shell,
+  .wiki-post-side-card,
+  .wiki-favorite-folder-detail,
+  .wiki-favorite-post-card {
+    transition: none;
+  }
+
+  .wiki-name-card:hover,
+  .wiki-photo-card:hover,
+  .wiki-welcome-card:hover,
+  .wiki-clock-card:hover,
+  .wiki-calendar-card:hover,
+  .wiki-latest-card:hover,
+  .wiki-recommend-card:hover,
+  .wiki-music-card:hover,
+  .wiki-love-card:hover,
+  .wiki-project-card:hover,
+  .wiki-share-card:hover,
+  .wiki-about-card:hover,
+  .wiki-account-card:hover,
+  .wiki-post-shell:hover,
+  .wiki-post-side-card:hover,
+  .wiki-favorite-folder-detail:hover,
+  .wiki-favorite-post-card:hover {
+    transform: none;
+  }
 }
 
 .wiki-archive-tabs {

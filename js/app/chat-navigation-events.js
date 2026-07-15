@@ -284,7 +284,7 @@ function setPageHash(hash) {
 const USER_INFO_ROUTE_BY_TAB = {
   answers: "blog",
   questions: "projects",
-  collections: "about",
+  collections: "favorites",
   notes: "share",
   prompts: "account",
 };
@@ -293,6 +293,7 @@ const USER_INFO_TAB_BY_ROUTE = Object.fromEntries(
   Object.entries(USER_INFO_ROUTE_BY_TAB).map(([tab, route]) => [route, tab]),
 );
 USER_INFO_TAB_BY_ROUTE.blogroll = "prompts";
+USER_INFO_TAB_BY_ROUTE.about = "collections";
 
 function userInfoRouteForTab(tab) {
   return USER_INFO_ROUTE_BY_TAB[tab] || USER_INFO_ROUTE_BY_TAB.answers;
@@ -1157,6 +1158,35 @@ function initEventHandlers() {
       showUserInfoPage({ mode: "archive", tab: floatTabButton.getAttribute("data-profile-tab") || "answers" });
       return;
     }
+    const removeFavoritePost = target?.closest("[data-favorite-remove-post]");
+    if (removeFavoritePost) {
+      event.stopPropagation();
+      void removePostFromFavoriteCollection(
+        removeFavoritePost.getAttribute("data-favorite-folder-id") || "",
+        removeFavoritePost.getAttribute("data-favorite-remove-post") || "",
+      );
+      return;
+    }
+    const favoriteFolderButton = target?.closest("[data-favorite-folder]");
+    if (favoriteFolderButton) {
+      state.favoriteSelectedCollectionId = favoriteFolderButton.getAttribute("data-favorite-folder") || "";
+      renderFavoriteCollectionsPanel();
+      return;
+    }
+    if (target?.closest("[data-favorite-create-folder]")) {
+      createFavoriteCollection();
+      return;
+    }
+    const editFavoriteFolder = target?.closest("[data-favorite-edit-folder]");
+    if (editFavoriteFolder) {
+      editFavoriteCollection(editFavoriteFolder.getAttribute("data-favorite-edit-folder") || "");
+      return;
+    }
+    const toggleFavoriteFolder = target?.closest("[data-favorite-toggle-visibility]");
+    if (toggleFavoriteFolder) {
+      toggleFavoriteCollectionVisibility(toggleFavoriteFolder.getAttribute("data-favorite-toggle-visibility") || "");
+      return;
+    }
     const postButton = target?.closest("[data-profile-post-id]");
     if (postButton) {
       showUserInfoPage({ mode: "post", postId: postButton.getAttribute("data-profile-post-id") });
@@ -1165,6 +1195,11 @@ function initEventHandlers() {
     const socialButton = target?.closest("[data-profile-social]");
     if (socialButton) {
       openProfileSocialLink(socialButton.getAttribute("data-profile-social") || "");
+      return;
+    }
+    const socialListButton = target?.closest("[data-profile-social-list]");
+    if (socialListButton) {
+      void openProfileSocialList(socialListButton.getAttribute("data-profile-social-list") || "following");
       return;
     }
     if (target?.closest("[data-open-account-profile]")) {

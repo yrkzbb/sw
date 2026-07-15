@@ -452,6 +452,79 @@ async function getFeedList(req, res, url) {
   }
 }
 
+async function getFeedFavorites(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try {
+    const pool = await getMysql();
+    await bootstrapFeedDemo(pool);
+    const signals = await loadFeedUserSignals(pool, user.id);
+    const rows = await fetchFeedRows(
+      pool,
+      user.id,
+      `AND EXISTS (
+        SELECT 1 FROM ${tableName("feed_post_interactions")} fav
+         WHERE fav.user_id = ? AND fav.post_id = p.id AND fav.interaction_type = 'favorite'
+      )`,
+      [user.id],
+      "p.updated_at DESC",
+      80,
+      "favorite"
+    );
+    sendJson(res, 200, { posts: rows.map((row) => publicFeedPost(row, signals)) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
+async function getFeedSocial(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try {
+    const pool = await getMysql();
+    const [followingRows] = await pool.query(
+      `SELECT u.id, u.username, u.created_at,
+              (SELECT COUNT(*) FROM ${tableName("feed_author_follows")} f2 WHERE f2.followee_id = u.id) AS follower_count,
+              (SELECT COUNT(*) FROM ${tableName("feed_posts")} p WHERE p.author_id = u.id AND p.status = 'published') AS post_count
+         FROM ${tableName("feed_author_follows")} f
+         JOIN ${tableName("users")} u ON u.id = f.followee_id
+        WHERE f.follower_id = ?
+        ORDER BY f.created_at DESC
+        LIMIT 80`,
+      [user.id]
+    );
+    const [followerRows] = await pool.query(
+      `SELECT u.id, u.username, u.created_at,
+              EXISTS(
+                SELECT 1 FROM ${tableName("feed_author_follows")} back
+                 WHERE back.follower_id = ? AND back.followee_id = u.id
+              ) AS followed,
+              (SELECT COUNT(*) FROM ${tableName("feed_author_follows")} f2 WHERE f2.followee_id = u.id) AS follower_count,
+              (SELECT COUNT(*) FROM ${tableName("feed_posts")} p WHERE p.author_id = u.id AND p.status = 'published') AS post_count
+         FROM ${tableName("feed_author_follows")} f
+         JOIN ${tableName("users")} u ON u.id = f.follower_id
+        WHERE f.followee_id = ?
+        ORDER BY f.created_at DESC
+        LIMIT 80`,
+      [user.id, user.id]
+    );
+    const publicSocialUser = (row, followed = true) => ({
+      id: String(row.id),
+      name: row.username || "社区用户",
+      createdAt: toIso(row.created_at),
+      followed: Boolean(followed),
+      followers: Number(row.follower_count || 0),
+      posts: Number(row.post_count || 0),
+    });
+    sendJson(res, 200, {
+      following: followingRows.map((row) => publicSocialUser(row, true)),
+      followers: followerRows.map((row) => publicSocialUser(row, row.followed)),
+    });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
 async function createFeedPost(req, res) {
   const user = await requireUser(req, res);
   if (!user) return;

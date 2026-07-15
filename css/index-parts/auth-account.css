@@ -432,50 +432,78 @@ body[data-theme="light"] .auth-shell {
   z-index: 70;
   display: grid;
   place-items: center;
-  padding: 22px;
+  padding: 24px;
 }
 
 .account-modal-backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(10, 18, 28, 0.36);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background:
+    radial-gradient(circle at 28% 70%, rgba(204, 236, 182, 0.42), transparent 34%),
+    radial-gradient(circle at 72% 32%, rgba(191, 229, 226, 0.34), transparent 36%),
+    rgba(116, 132, 128, 0.38);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
 }
 
 .account-panel {
   position: relative;
-  width: min(760px, 100%);
-  max-height: min(720px, calc(100vh - 44px));
-  display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
+  width: min(720px, 100%);
+  max-height: min(680px, calc(100vh - 48px));
   overflow: hidden;
-  border: 1px solid rgba(20, 32, 58, 0.12);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.96);
-  box-shadow: 0 26px 80px rgba(21, 31, 50, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.50);
+  box-shadow: 0 28px 82px rgba(74, 105, 104, 0.22);
+  backdrop-filter: blur(24px) saturate(1.16);
+  -webkit-backdrop-filter: blur(24px) saturate(1.16);
 }
 
 [data-theme="dark"] .account-panel {
   border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(13, 24, 36, 0.96);
+  background: rgba(13, 24, 36, 0.78);
+}
+
+[data-theme="dark"] .account-header h2,
+[data-theme="dark"] .account-profile-card strong,
+[data-theme="dark"] .account-section-card h3,
+[data-theme="dark"] .account-setting-row strong,
+[data-theme="dark"] .account-security-summary strong,
+[data-theme="dark"] .account-field input,
+[data-theme="dark"] .account-field select,
+[data-theme="dark"] .account-field textarea,
+[data-theme="dark"] .account-setting-row select {
+  color: rgba(245, 250, 248, 0.94);
+}
+
+[data-theme="dark"] .account-field span,
+[data-theme="dark"] .account-profile-card span,
+[data-theme="dark"] .account-setting-row span,
+[data-theme="dark"] .account-security-summary span {
+  color: rgba(212, 226, 225, 0.72);
+}
+
+[data-theme="dark"] .account-close-btn {
+  color: rgba(245, 250, 248, 0.92);
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .account-sidebar {
-  padding: 18px 12px;
-  border-right: 1px solid var(--border);
+  display: none;
 }
 
 .account-close-btn {
-  width: 36px;
-  height: 36px;
-  border: 0;
-  border-radius: 12px;
-  color: var(--text);
-  background: transparent;
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.52);
   cursor: pointer;
-  font-size: 28px;
+  font-size: 30px;
+  font-weight: 800;
   line-height: 1;
+  box-shadow: 0 12px 28px rgba(94, 134, 127, 0.12);
 }
 
 .account-side-item {
@@ -507,42 +535,49 @@ body[data-theme="light"] .auth-shell {
 .account-content {
   min-width: 0;
   overflow: auto;
-  padding: 22px 24px 26px;
+  padding: 30px;
 }
 
 .account-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 18px;
-  padding-bottom: 16px;
-  border-bottom: 1px solid var(--border);
+  gap: 20px;
+  padding-bottom: 10px;
 }
 
 .account-header span {
-  color: var(--muted);
-  font-size: 11px;
+  color: #64c8b7;
+  font-size: 12px;
   font-weight: 950;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
 }
 
 .account-header h2 {
-  margin: 4px 0 0;
-  color: var(--text);
-  font-size: 26px;
+  margin: 2px 0 0;
+  color: #34484b;
+  font-size: 30px;
   line-height: 1.1;
 }
 
+.account-header-actions {
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 12px;
+}
+
 .account-save-btn {
-  min-height: 40px;
-  border: 0;
-  border-radius: 12px;
-  padding: 0 18px;
+  min-height: 48px;
+  border: 2px solid rgba(31, 36, 40, 0.88);
+  border-radius: 14px;
+  padding: 0 24px;
   color: #fff;
-  background: linear-gradient(135deg, #2f80ed, #26b99a);
+  background: rgba(95, 199, 184, 0.9);
   cursor: pointer;
   font: inherit;
   font-weight: 950;
+  box-shadow: 0 4px 0 rgba(31, 36, 40, 0.94);
 }
 
 .account-save-btn:disabled {
@@ -552,7 +587,7 @@ body[data-theme="light"] .auth-shell {
 
 .account-message {
   min-height: 20px;
-  margin-top: 12px;
+  margin-top: 8px;
   color: #d9534f;
   font-size: 13px;
   font-weight: 850;
@@ -566,24 +601,26 @@ body[data-theme="light"] .auth-shell {
   display: flex;
   align-items: center;
   gap: 14px;
-  margin-top: 14px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(77, 124, 255, 0.06);
+  margin-top: 8px;
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.46);
+  box-shadow: 0 18px 46px rgba(100, 154, 143, 0.12);
 }
 
 .account-preview-avatar {
-  width: 56px;
-  height: 56px;
+  width: 72px;
+  height: 72px;
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  border-radius: 18px;
+  border-radius: 50%;
   color: #fff;
   background: linear-gradient(135deg, #4d7cff, #21d4a5);
-  font-size: 20px;
+  font-size: 22px;
   font-weight: 950;
+  box-shadow: 0 16px 38px rgba(87, 147, 139, 0.22);
 }
 
 .account-profile-card strong,
@@ -592,15 +629,15 @@ body[data-theme="light"] .auth-shell {
 }
 
 .account-profile-card strong {
-  color: var(--text);
-  font-size: 20px;
+  color: #34484b;
+  font-size: 24px;
   font-weight: 950;
 }
 
 .account-profile-card span {
   margin-top: 4px;
-  color: var(--muted);
-  font-size: 13px;
+  color: #718186;
+  font-size: 14px;
   font-weight: 850;
 }
 
@@ -621,9 +658,9 @@ body[data-theme="light"] .auth-shell {
 }
 
 .account-field span {
-  color: var(--muted);
+  color: #829096;
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 950;
 }
 
 .account-field input,
@@ -631,16 +668,17 @@ body[data-theme="light"] .auth-shell {
 .account-field textarea,
 .account-setting-row select {
   width: 100%;
-  min-height: 44px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 0 12px;
-  color: var(--text);
-  background: rgba(255, 255, 255, 0.78);
+  min-height: 50px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 16px;
+  padding: 0 16px;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.54);
   outline: none;
   font: inherit;
   font-size: 14px;
-  font-weight: 850;
+  font-weight: 900;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.58);
 }
 
 .account-field textarea {
@@ -662,7 +700,7 @@ body[data-theme="light"] .auth-shell {
 .account-field textarea:focus,
 .account-setting-row select:focus {
   border-color: rgba(77, 124, 255, 0.44);
-  box-shadow: 0 0 0 3px rgba(77, 124, 255, 0.12);
+  box-shadow: 0 0 0 3px rgba(100, 200, 183, 0.20);
 }
 
 .account-section {
@@ -672,15 +710,15 @@ body[data-theme="light"] .auth-shell {
 .account-section-card {
   display: grid;
   gap: 14px;
-  padding: 16px;
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  background: rgba(77, 124, 255, 0.05);
+  padding: 18px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.46);
 }
 
 .account-section-card h3 {
   margin: 0;
-  color: var(--text);
+  color: #34484b;
   font-size: 18px;
   line-height: 1.2;
 }
@@ -707,7 +745,7 @@ body[data-theme="light"] .auth-shell {
 
 .account-setting-row strong,
 .account-security-summary strong {
-  color: var(--text);
+  color: #34484b;
   font-size: 14px;
   font-weight: 950;
 }
@@ -715,7 +753,7 @@ body[data-theme="light"] .auth-shell {
 .account-setting-row span,
 .account-security-summary span {
   margin-top: 4px;
-  color: var(--muted);
+  color: #718186;
   font-size: 12px;
   font-weight: 800;
   line-height: 1.4;
@@ -730,8 +768,8 @@ body[data-theme="light"] .auth-shell {
 .account-security-summary > div {
   min-width: 0;
   padding: 14px;
-  border: 1px solid var(--border);
-  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
   background: rgba(255, 255, 255, 0.52);
 }
 

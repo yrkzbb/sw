@@ -18,21 +18,21 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260715-account-links" />
+    <link rel="stylesheet" href="./css/index.css?v=20260715-social-follow" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/app/config-state.js?v=20260715-account-links" defer></script>
-    <script src="./js/app/auth-account.js?v=20260715-account-links" defer></script>
+    <script src="./js/app/config-state.js?v=20260715-social-follow" defer></script>
+    <script src="./js/app/auth-account.js?v=20260715-account-modal" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260715-split" defer></script>
     <script src="./js/app/resources.js?v=20260715-split" defer></script>
     <script src="./js/app/learning-path-assessment.js?v=20260715-split" defer></script>
-    <script src="./js/app/community-feed.js?v=20260715-feed-social" defer></script>
+    <script src="./js/app/community-feed.js?v=20260715-social-follow" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260715-split" defer></script>
-    <script src="./js/app/profile-page.js?v=20260715-account-links" defer></script>
-    <script src="./js/app/chat-navigation-events.js?v=20260715-account-links" defer></script>
+    <script src="./js/app/profile-page.js?v=20260715-social-follow" defer></script>
+    <script src="./js/app/chat-navigation-events.js?v=20260715-social-follow" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
   <body data-theme="dark">
@@ -67,8 +67,6 @@
         </button>
         <div id="userMenu" class="user-menu" role="menu" hidden>
           <button type="button" role="menuitem" data-account-action="profile">个人资料</button>
-          <button type="button" role="menuitem" data-account-action="personalize">个性化</button>
-          <button type="button" role="menuitem" data-account-action="settings">设置</button>
           <div class="user-menu-divider"></div>
           <button id="logoutBtn" type="button" role="menuitem">退出登录</button>
         </div>
@@ -223,7 +221,7 @@
               <button id="profileEditShortcut" class="wiki-avatar-mini" type="button" aria-label="回到个人主页">YR</button>
               <button class="active" type="button" data-profile-tab="answers" title="近期文章">▤</button>
               <button type="button" data-profile-tab="questions" title="我的项目">◇</button>
-              <button type="button" data-profile-tab="collections" title="关于网站">◡</button>
+              <button type="button" data-profile-tab="collections" title="我的收藏">◡</button>
               <button type="button" data-profile-tab="notes" title="推荐分享">☆</button>
               <button type="button" data-profile-tab="prompts" title="个人信息">◎</button>
             </nav>
@@ -238,7 +236,7 @@
               <div class="wiki-menu-list" id="profileTabs" role="tablist" aria-label="个人内容">
                 <button class="active" type="button" role="tab" data-profile-tab="answers"><span>▤</span>近期文章</button>
                 <button type="button" role="tab" data-profile-tab="questions"><span>◇</span>我的项目</button>
-                <button type="button" role="tab" data-profile-tab="collections"><span>◡</span>关于网站</button>
+                <button type="button" role="tab" data-profile-tab="collections"><span>◡</span>我的收藏</button>
                 <button type="button" role="tab" data-profile-tab="notes"><span>☆</span>推荐分享</button>
                 <button type="button" role="tab" data-profile-tab="prompts"><span>◎</span>个人信息</button>
               </div>
@@ -285,6 +283,8 @@
             </section>
 
             <div class="wiki-social-row">
+              <button type="button" data-profile-social-list="following">关注 <span data-profile-following-count>0</span></button>
+              <button type="button" data-profile-social-list="followers">粉丝 <span data-profile-follower-count>0</span></button>
               <button type="button" data-profile-social="github">Github</button>
               <button type="button" data-profile-social="email">✉</button>
             </div>
@@ -601,19 +601,16 @@
     <div id="accountModal" class="account-modal" hidden>
       <div class="account-modal-backdrop"></div>
       <section class="account-panel" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
-        <aside class="account-sidebar" aria-label="账户设置导航">
-          <button id="closeAccountModalBtn" class="account-close-btn" type="button" aria-label="关闭">×</button>
-          <button class="account-side-item active" type="button" data-account-section="profile">个人资料</button>
-          <button class="account-side-item" type="button" data-account-section="personalize">个性化</button>
-          <button class="account-side-item" type="button" data-account-section="security">账户安全</button>
-        </aside>
         <form id="accountProfileForm" class="account-content">
           <header class="account-header">
             <div>
               <span>ACCOUNT</span>
               <h2 id="accountTitle">个人资料</h2>
             </div>
-            <button id="accountSaveBtn" class="account-save-btn" type="submit">保存</button>
+            <div class="account-header-actions">
+              <button id="closeAccountModalBtn" class="account-close-btn" type="button" aria-label="关闭">×</button>
+              <button id="accountSaveBtn" class="account-save-btn" type="submit">保存</button>
+            </div>
           </header>
           <div id="accountMessage" class="account-message" aria-live="polite"></div>
           <div class="account-profile-card">
@@ -632,20 +629,6 @@
               <span>邮箱</span>
               <input id="accountEmailInput" type="email" autocomplete="email" />
             </label>
-            <label class="account-field">
-              <span>头像文字</span>
-              <input id="accountAvatarInput" type="text" maxlength="2" />
-            </label>
-            <label class="account-field">
-              <span>主题色</span>
-              <select id="accountAccentInput">
-                <option value="teal">湖蓝绿</option>
-                <option value="blue">海蓝</option>
-                <option value="violet">紫罗兰</option>
-                <option value="gold">暖金</option>
-                <option value="rose">玫瑰</option>
-              </select>
-            </label>
             <label class="account-field account-field-wide">
               <span>空间描述</span>
               <input id="accountBioInput" type="text" maxlength="80" placeholder="例如：考研复习 / 算法训练 / 课程学习" />
@@ -659,38 +642,6 @@
               <input id="accountContactEmailInput" type="email" autocomplete="email" placeholder="用于主页邮箱按钮" />
             </label>
           </div>
-          <section class="account-section" data-account-panel="personalize" hidden>
-            <div class="account-section-card">
-              <h3>界面偏好</h3>
-              <div class="account-setting-row">
-                <div>
-                  <strong>外观</strong>
-                  <span>跟随当前工作台主题，保存后立即应用。</span>
-                </div>
-                <select id="accountThemeInput">
-                  <option value="system">系统</option>
-                  <option value="light">浅色</option>
-                  <option value="dark">深色</option>
-                </select>
-              </div>
-              <div class="account-setting-row">
-                <div>
-                  <strong>默认进入页面</strong>
-                  <span>登录后优先回到你最常用的工作区。</span>
-                </div>
-                <select id="accountDefaultPageInput">
-                  <option value="chat">对话</option>
-                  <option value="profile">画像</option>
-                  <option value="resource">资源</option>
-                  <option value="storage">存储</option>
-                </select>
-              </div>
-              <label class="account-field account-field-wide">
-                <span>回答偏好</span>
-                <textarea id="accountReplyStyleInput" rows="4" maxlength="180" placeholder="例如：解释时多给步骤、少一点废话、最后给练习题"></textarea>
-              </label>
-            </div>
-          </section>
           <section class="account-section" data-account-panel="security" hidden>
             <div class="account-section-card">
               <h3>账户安全</h3>

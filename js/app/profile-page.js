@@ -184,6 +184,7 @@ function renderPersonalProfileChrome() {
   renderWikiSummaryCards();
   renderWikiPhotoWall();
   renderWikiSocialLinks();
+  void loadProfileSocialStats();
   renderWikiMusicCard();
 }
 
@@ -221,6 +222,10 @@ function renderWikiSocialLinks() {
   const profile = accountProfileFor();
   const githubButton = document.querySelector('[data-profile-social="github"]');
   const emailButton = document.querySelector('[data-profile-social="email"]');
+  const followingCount = document.querySelector("[data-profile-following-count]");
+  const followerCount = document.querySelector("[data-profile-follower-count]");
+  if (followingCount) followingCount.textContent = String(state.profileSocial?.following?.length || 0);
+  if (followerCount) followerCount.textContent = String(state.profileSocial?.followers?.length || 0);
   if (githubButton) {
     githubButton.classList.toggle("is-disabled", !profile.githubUrl);
     githubButton.title = profile.githubUrl || "在个人信息里配置 GitHub 链接";
@@ -230,6 +235,54 @@ function renderWikiSocialLinks() {
     emailButton.classList.toggle("is-disabled", !email);
     emailButton.title = email || "在个人信息里配置联系邮箱";
   }
+}
+
+async function loadProfileSocialStats(force = false) {
+  if (!state.activeUser?.id || state.profileSocialLoading || (state.profileSocialLoaded && !force)) return;
+  state.profileSocialLoading = true;
+  try {
+    const payload = await apiJson("/api/feed/social", { method: "GET" });
+    state.profileSocial = {
+      following: Array.isArray(payload.following) ? payload.following : [],
+      followers: Array.isArray(payload.followers) ? payload.followers : [],
+    };
+    state.profileSocialLoaded = true;
+  } catch (e) {
+    console.warn("加载关注关系失败", e);
+  } finally {
+    state.profileSocialLoading = false;
+    renderWikiSocialLinks();
+  }
+}
+
+function renderProfileSocialList(type) {
+  if (!el.pushDetailModal) return;
+  const isFollowers = type === "followers";
+  const users = isFollowers ? (state.profileSocial?.followers || []) : (state.profileSocial?.following || []);
+  if (el.pushDetailType) el.pushDetailType.textContent = isFollowers ? "粉丝列表" : "关注列表";
+  if (el.pushDetailTitle) el.pushDetailTitle.textContent = isFollowers ? `粉丝 ${users.length}` : `关注 ${users.length}`;
+  if (el.pushDetailMeta) el.pushDetailMeta.innerHTML = `<span>点击昵称查看主页</span>`;
+  if (el.pushDetailBody) {
+    el.pushDetailBody.innerHTML = `
+      <section class="profile-social-list">
+        ${users.length ? users.map((user) => `
+          <button class="profile-social-person" type="button" data-feed-author-id="${escapeHtml(user.id)}">
+            <span>${escapeHtml(String(user.name || "社").slice(0, 2).toUpperCase())}</span>
+            <strong>${escapeHtml(user.name || "社区用户")}</strong>
+            <small>${user.posts || 0} 条动态 · ${user.followers || 0} 位粉丝${user.followed ? " · 已关注" : ""}</small>
+          </button>
+        `).join("") : `<div class="feed-comment-empty">${isFollowers ? "还没有粉丝。" : "还没有关注任何人。"}</div>`}
+      </section>
+    `;
+  }
+  el.pushDetailModal.hidden = false;
+}
+
+async function openProfileSocialList(type) {
+  if (!state.profileSocial?.following?.length && !state.profileSocial?.followers?.length) {
+    await loadProfileSocialStats(true);
+  }
+  renderProfileSocialList(type);
 }
 
 function openProfileSocialLink(kind) {
@@ -250,6 +303,260 @@ function openProfileSocialLink(kind) {
     }
     window.location.href = `mailto:${email}`;
   }
+}
+
+function defaultFavoriteCollections() {
+  return [{
+    id: "default",
+    name: "灵感收藏",
+    description: "收藏的帖子、问答、文章和经验都会先放在这里。",
+    visibility: "private",
+    postIds: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  }];
+}
+
+function normalizeFavoriteCollections(value) {
+  const raw = Array.isArray(value) ? value : [];
+  const folders = raw.map((folder) => ({
+    id: String(folder?.id || `fav-${Date.now()}`).slice(0, 80),
+    name: String(folder?.name || "未命名收藏夹").trim().slice(0, 32) || "未命名收藏夹",
+    description: String(folder?.description || "").trim().slice(0, 120),
+    visibility: folder?.visibility === "public" ? "public" : "private",
+    postIds: Array.from(new Set(Array.isArray(folder?.postIds) ? folder.postIds.map((id) => String(id)) : [])),
+    createdAt: folder?.createdAt || new Date().toISOString(),
+    updatedAt: folder?.updatedAt || new Date().toISOString(),
+  }));
+  return folders.length ? folders : defaultFavoriteCollections();
+}
+
+function loadFavoriteCollections() {
+  try {
+    state.favoriteCollections = normalizeFavoriteCollections(JSON.parse(localStorage.getItem(FAVORITE_COLLECTIONS_STORAGE) || "[]"));
+  } catch {
+    state.favoriteCollections = defaultFavoriteCollections();
+  }
+  if (!state.favoriteSelectedCollectionId && state.favoriteCollections.length) {
+    state.favoriteSelectedCollectionId = state.favoriteCollections[0].id;
+  }
+  return state.favoriteCollections;
+}
+
+function saveFavoriteCollections() {
+  state.favoriteCollections = normalizeFavoriteCollections(state.favoriteCollections);
+  localStorage.setItem(FAVORITE_COLLECTIONS_STORAGE, JSON.stringify(state.favoriteCollections));
+}
+
+function favoritePostById(postId) {
+  return state.favoritePosts.find((post) => String(post.id) === String(postId))
+    || state.feedPosts.find((post) => String(post.id) === String(postId))
+    || wikiPublicPosts().find((post) => String(post.id) === String(postId))
+    || null;
+}
+
+function syncFavoritePostsIntoCollections(posts) {
+  loadFavoriteCollections();
+  const favoriteIds = new Set(posts.map((post) => String(post.id)));
+  let changed = false;
+  state.favoriteCollections = state.favoriteCollections.map((folder) => {
+    const nextIds = folder.postIds.filter((id) => favoriteIds.has(String(id)));
+    if (nextIds.length !== folder.postIds.length) changed = true;
+    return { ...folder, postIds: nextIds };
+  });
+  const assigned = new Set(state.favoriteCollections.flatMap((folder) => folder.postIds.map(String)));
+  const fallback = state.favoriteCollections[0] || defaultFavoriteCollections()[0];
+  posts.forEach((post) => {
+    const id = String(post.id);
+    if (!assigned.has(id)) {
+      fallback.postIds.unshift(id);
+      fallback.updatedAt = new Date().toISOString();
+      changed = true;
+    }
+  });
+  if (!state.favoriteCollections.find((folder) => folder.id === fallback.id)) {
+    state.favoriteCollections.unshift(fallback);
+    changed = true;
+  }
+  if (changed) saveFavoriteCollections();
+}
+
+async function loadFavoritePostsForProfile(force = false) {
+  if (state.favoriteCollectionsLoading && !force) return;
+  state.favoriteCollectionsLoading = true;
+  renderFavoriteCollectionsPanel();
+  try {
+    const payload = await apiJson("/api/feed/favorites", { method: "GET" });
+    state.favoritePosts = Array.isArray(payload.posts) ? payload.posts : [];
+    syncFavoritePostsIntoCollections(state.favoritePosts);
+  } catch (e) {
+    showProfileSaveStatus(".wiki-content-panel", String(e?.message || "收藏加载失败"), "error");
+  } finally {
+    state.favoriteCollectionsLoading = false;
+    renderFavoriteCollectionsPanel();
+  }
+}
+
+function addFavoriteToDefaultCollection(post) {
+  if (!post?.id) return;
+  loadFavoriteCollections();
+  const folder = state.favoriteCollections[0] || defaultFavoriteCollections()[0];
+  if (!folder.postIds.includes(String(post.id))) {
+    folder.postIds.unshift(String(post.id));
+    folder.updatedAt = new Date().toISOString();
+  }
+  if (!state.favoriteCollections.find((item) => item.id === folder.id)) state.favoriteCollections.unshift(folder);
+  if (!state.favoritePosts.find((item) => String(item.id) === String(post.id))) state.favoritePosts.unshift(post);
+  saveFavoriteCollections();
+  if (state.personalProfileTab === "collections") renderFavoriteCollectionsPanel();
+}
+
+function removeFavoriteFromAllCollections(postId) {
+  loadFavoriteCollections();
+  state.favoriteCollections = state.favoriteCollections.map((folder) => ({
+    ...folder,
+    postIds: folder.postIds.filter((id) => String(id) !== String(postId)),
+    updatedAt: new Date().toISOString(),
+  }));
+  state.favoritePosts = state.favoritePosts.filter((post) => String(post.id) !== String(postId));
+  saveFavoriteCollections();
+  if (state.personalProfileTab === "collections") renderFavoriteCollectionsPanel();
+}
+
+function createFavoriteCollection() {
+  loadFavoriteCollections();
+  const name = window.prompt("收藏夹名称", "新的收藏夹");
+  if (!name) return;
+  const description = window.prompt("收藏夹描述", "用来收集值得回看的内容。") || "";
+  const folder = {
+    id: `fav-${Date.now()}`,
+    name: name.trim().slice(0, 32) || "新的收藏夹",
+    description: description.trim().slice(0, 120),
+    visibility: "private",
+    postIds: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  state.favoriteCollections.unshift(folder);
+  state.favoriteSelectedCollectionId = folder.id;
+  saveFavoriteCollections();
+  renderFavoriteCollectionsPanel();
+}
+
+function editFavoriteCollection(folderId) {
+  loadFavoriteCollections();
+  const folder = state.favoriteCollections.find((item) => item.id === folderId);
+  if (!folder) return;
+  const name = window.prompt("收藏夹名称", folder.name);
+  if (!name) return;
+  const description = window.prompt("收藏夹描述", folder.description || "") || "";
+  folder.name = name.trim().slice(0, 32) || folder.name;
+  folder.description = description.trim().slice(0, 120);
+  folder.updatedAt = new Date().toISOString();
+  saveFavoriteCollections();
+  renderFavoriteCollectionsPanel();
+}
+
+function toggleFavoriteCollectionVisibility(folderId) {
+  loadFavoriteCollections();
+  const folder = state.favoriteCollections.find((item) => item.id === folderId);
+  if (!folder) return;
+  folder.visibility = folder.visibility === "public" ? "private" : "public";
+  folder.updatedAt = new Date().toISOString();
+  saveFavoriteCollections();
+  renderFavoriteCollectionsPanel();
+}
+
+async function removePostFromFavoriteCollection(folderId, postId) {
+  loadFavoriteCollections();
+  const folder = state.favoriteCollections.find((item) => item.id === folderId);
+  if (!folder) return;
+  folder.postIds = folder.postIds.filter((id) => String(id) !== String(postId));
+  folder.updatedAt = new Date().toISOString();
+  const stillCollected = state.favoriteCollections.some((item) => item.postIds.includes(String(postId)));
+  if (!stillCollected) {
+    try {
+      const post = favoritePostById(postId);
+      if (post?.favorited !== false) await apiJson(`/api/feed/posts/${encodeURIComponent(postId)}/favorite`, { method: "POST" });
+      state.favoritePosts = state.favoritePosts.filter((item) => String(item.id) !== String(postId));
+      updateFeedPost(postId, (item) => {
+        item.favorited = false;
+        item.favorites = Math.max(0, Number(item.favorites || 0) - 1);
+        return item;
+      });
+    } catch (e) {
+      window.alert(String(e?.message || e));
+    }
+  }
+  saveFavoriteCollections();
+  renderFavoriteCollectionsPanel();
+}
+
+function renderFavoritePostCard(post, folderId) {
+  if (!post) return "";
+  const tags = Array.isArray(post.tags) ? post.tags.slice(0, 3) : [];
+  return `
+    <article class="wiki-favorite-post-card" data-profile-post-id="${escapeHtml(post.id)}">
+      <button class="wiki-favorite-remove" type="button" data-favorite-remove-post="${escapeHtml(post.id)}" data-favorite-folder-id="${escapeHtml(folderId)}" aria-label="移出收藏">×</button>
+      <span>${escapeHtml(post.contentType || "内容")} · ${escapeHtml(formatWikiDate(post.createdAt) || "")}</span>
+      <h4>${escapeHtml(post.title || "未命名内容")}</h4>
+      <p>${escapeHtml(post.summary || post.body || "")}</p>
+      <div>${tags.map((tag) => `<em>#${escapeHtml(tag)}</em>`).join("")}</div>
+      <small>${escapeHtml(post.author?.name || "社区用户")} · 赞 ${post.likes || 0} · 评 ${post.comments || 0}</small>
+    </article>
+  `;
+}
+
+function renderFavoriteCollectionsPanel() {
+  if (!el.profileContentPanel) return;
+  loadFavoriteCollections();
+  const selected = state.favoriteCollections.find((folder) => folder.id === state.favoriteSelectedCollectionId)
+    || state.favoriteCollections[0];
+  if (selected) state.favoriteSelectedCollectionId = selected.id;
+  const posts = selected
+    ? selected.postIds.map(favoritePostById).filter(Boolean)
+    : [];
+  el.profileContentPanel.innerHTML = `
+    <section class="wiki-favorites-shell">
+      <header class="wiki-favorites-head">
+        <div>
+          <span>FAVORITES</span>
+          <h3>我的收藏</h3>
+          <p>收藏夹可公开或仅自己可见；帖子、问答、文章都可以归档在这里。</p>
+        </div>
+        <button type="button" data-favorite-create-folder>新建收藏夹</button>
+      </header>
+      <div class="wiki-favorites-layout">
+        <div class="wiki-favorite-folder-list">
+          ${state.favoriteCollections.map((folder) => `
+            <button class="${folder.id === selected?.id ? "active" : ""}" type="button" data-favorite-folder="${escapeHtml(folder.id)}">
+              <strong>${escapeHtml(folder.name)}</strong>
+              <span>${folder.postIds.length} 条 · ${folder.visibility === "public" ? "公开" : "仅自己"}</span>
+            </button>
+          `).join("")}
+        </div>
+        <article class="wiki-favorite-folder-detail">
+          ${selected ? `
+            <div class="wiki-favorite-folder-title">
+              <div>
+                <span>${selected.visibility === "public" ? "公开可见" : "仅自己可见"}</span>
+                <h4>${escapeHtml(selected.name)}</h4>
+                <p>${escapeHtml(selected.description || "还没有描述。")}</p>
+              </div>
+              <div>
+                <button type="button" data-favorite-edit-folder="${escapeHtml(selected.id)}">编辑</button>
+                <button type="button" data-favorite-toggle-visibility="${escapeHtml(selected.id)}">${selected.visibility === "public" ? "设为私密" : "设为公开"}</button>
+              </div>
+            </div>
+            <div class="wiki-favorite-post-grid">
+              ${state.favoriteCollectionsLoading ? profileEmptyState("收藏同步中", "正在读取你收藏过的内容。") : ""}
+              ${posts.length ? posts.map((post) => renderFavoritePostCard(post, selected.id)).join("") : profileEmptyState("这个收藏夹还空着", "在推送页点星标收藏内容后，会先进入默认收藏夹。")}
+            </div>
+          ` : profileEmptyState("还没有收藏夹", "新建一个收藏夹开始收集内容。")}
+        </article>
+      </div>
+    </section>
+  `;
 }
 
 function resizeProfileAvatar(file) {
@@ -1079,15 +1386,8 @@ function renderProfileContentPanel() {
     return;
   }
   if (tab === "collections") {
-    const profile = state.studentProfile || createEmptyProfile();
-    const facts = PROFILE_FIELDS.map((key) => profile[key]?.value).filter(Boolean).slice(0, 4);
-    el.profileContentPanel.innerHTML = `
-      <article class="wiki-about-card">
-        <h3>Hi! I'm ${escapeHtml(state.activeUser?.name || "yrk")}</h3>
-        <p>${escapeHtml(accountProfileFor().bio || "这个主页会随着你的账号资料、学习画像和公开动态自动更新。")}</p>
-        ${facts.length ? facts.map((fact) => `<p>${escapeHtml(fact)}</p>`).join("") : `<p>继续对话和生成资源后，学习画像中的关键信息会出现在这里。</p>`}
-      </article>
-    `;
+    renderFavoriteCollectionsPanel();
+    void loadFavoritePostsForProfile();
     return;
   }
   if (tab === "notes") {

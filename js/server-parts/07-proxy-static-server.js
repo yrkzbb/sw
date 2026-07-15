@@ -314,6 +314,14 @@ const server = http.createServer((req, res) => {
       void getFeedList(req, res, url);
       return;
     }
+    if (url.pathname === "/api/feed/favorites" && req.method === "GET") {
+      void getFeedFavorites(req, res);
+      return;
+    }
+    if (url.pathname === "/api/feed/social" && req.method === "GET") {
+      void getFeedSocial(req, res);
+      return;
+    }
     if (url.pathname === "/api/feed/posts" && req.method === "POST") {
       void createFeedPost(req, res);
       return;
