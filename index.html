@@ -91,6 +91,15 @@
           </span>
           画像
         </button>
+        <button id="userInfoPageBtn" class="nav-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 21a8 8 0 0 0-16 0" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+          </span>
+          主页
+        </button>
         <button id="resourcePageBtn" class="nav-btn" type="button">
           <span class="nav-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
@@ -201,6 +210,197 @@
           </div>
           <div id="profileVisual" class="profile-visual" aria-live="polite"></div>
           <div id="profileGrid" class="profile-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="userInfoPage" class="profile-page personal-profile-page" hidden>
+          <div class="profile-shell-nav" aria-label="个人主页导航">
+            <div class="profile-shell-brand">
+              <span class="profile-shell-logo">问</span>
+              <strong>问阶</strong>
+            </div>
+            <label class="profile-global-search">
+              <span aria-hidden="true">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m16.5 16.5 4 4" />
+                </svg>
+              </span>
+              <input type="search" placeholder="搜索问题、回答、模型或用户" />
+            </label>
+            <div class="profile-shell-actions">
+              <button class="profile-icon-button" type="button" aria-label="通知">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+                  <path d="M10 21h4" />
+                </svg>
+              </button>
+              <button class="profile-create-button" type="button">创建提问</button>
+              <button id="profileEditShortcut" class="profile-avatar-menu" type="button" aria-label="编辑个人资料">YR</button>
+            </div>
+          </div>
+
+          <div class="profile-workspace">
+            <main class="profile-main-column">
+              <section class="profile-hero-card">
+                <div class="profile-hero-top">
+                  <button id="profileHeroAvatar" class="profile-hero-avatar" type="button" aria-label="编辑头像">YR</button>
+                  <div class="profile-hero-copy">
+                    <div class="profile-hero-name-row">
+                      <div>
+                        <h1 id="personalProfileName">yrk</h1>
+                        <p id="personalProfileHandle">@yrk</p>
+                      </div>
+                      <span class="profile-verify-badge">已认证</span>
+                    </div>
+                    <div class="profile-identity-tags">
+                      <span>AI 产品经理</span>
+                      <span>机器学习研究者</span>
+                      <span>高质量回答者</span>
+                    </div>
+                    <p id="personalProfileBio" class="profile-hero-bio">关注 AI 产品设计、大模型应用与知识工作流，擅长把复杂问题拆成可执行方案。</p>
+                    <div class="profile-hero-meta">
+                      <span>上海</span>
+                      <span>2026 年 3 月加入</span>
+                      <span>企业知识库方向认证</span>
+                    </div>
+                  </div>
+                </div>
+                <div class="profile-hero-bottom">
+                  <div class="profile-social-stats" aria-label="关注数据">
+                    <div><strong>128</strong><span>关注</span></div>
+                    <div><strong>4.2k</strong><span>粉丝</span></div>
+                    <div><strong>18.6k</strong><span>获赞</span></div>
+                    <div><strong>120</strong><span>被采纳</span></div>
+                  </div>
+                  <div class="profile-hero-actions">
+                    <button class="profile-follow-button" type="button">关注</button>
+                    <button class="profile-secondary-button" type="button">私信</button>
+                    <button id="profileEditButton" class="profile-secondary-button" type="button">编辑资料</button>
+                  </div>
+                </div>
+              </section>
+
+              <section class="profile-section-card">
+                <div class="profile-section-head">
+                  <div>
+                    <h2>能力与兴趣</h2>
+                    <p>高频领域会更突出，点击标签可筛选内容。</p>
+                  </div>
+                </div>
+                <div id="profileSkillTags" class="profile-skill-tags">
+                  <button class="skill-tag skill-tag-high active" type="button" data-profile-filter="大模型应用">大模型应用</button>
+                  <button class="skill-tag skill-tag-high" type="button" data-profile-filter="Prompt Engineering">Prompt Engineering</button>
+                  <button class="skill-tag skill-tag-high" type="button" data-profile-filter="RAG">RAG</button>
+                  <button class="skill-tag skill-tag-mid" type="button" data-profile-filter="AI 编程">AI 编程</button>
+                  <button class="skill-tag skill-tag-mid" type="button" data-profile-filter="产品设计">产品设计</button>
+                  <button class="skill-tag skill-tag-low" type="button" data-profile-filter="数据分析">数据分析</button>
+                </div>
+                <div class="profile-topic-strip">
+                  <span>最近关注</span>
+                  <button type="button" data-profile-filter="多智能体工作流">多智能体工作流</button>
+                  <button type="button" data-profile-filter="企业知识库">企业知识库</button>
+                  <button type="button" data-profile-filter="模型评测">模型评测</button>
+                  <button type="button" data-profile-filter="AI Coding">AI Coding</button>
+                </div>
+              </section>
+
+              <section class="profile-metrics-grid" aria-label="数据概览">
+                <article class="profile-metric-card"><span>总回答数</span><strong>286</strong><em>+18 本月</em></article>
+                <article class="profile-metric-card"><span>采纳率</span><strong>42%</strong><em>高于社区 23%</em></article>
+                <article class="profile-metric-card"><span>平均质量评分</span><strong>4.8</strong><em>满分 5.0</em></article>
+                <article class="profile-metric-card"><span>收藏数</span><strong>1,248</strong><em>回答被收藏</em></article>
+                <article class="profile-metric-card"><span>连续活跃</span><strong>23 天</strong><em>保持贡献节奏</em></article>
+                <article class="profile-trend-card">
+                  <div class="profile-trend-head">
+                    <span>最近 30 天贡献趋势</span>
+                    <strong>84 次</strong>
+                  </div>
+                  <div id="profileTrendChart" class="profile-trend-chart" aria-label="最近 30 天贡献趋势"></div>
+                </article>
+              </section>
+
+              <section class="profile-content-card">
+                <div id="profileTabs" class="profile-tabs" role="tablist" aria-label="个人内容">
+                  <button class="active" type="button" role="tab" data-profile-tab="answers">回答</button>
+                  <button type="button" role="tab" data-profile-tab="questions">提问</button>
+                  <button type="button" role="tab" data-profile-tab="collections">收藏</button>
+                  <button type="button" role="tab" data-profile-tab="notes">专栏/笔记</button>
+                  <button type="button" role="tab" data-profile-tab="modelUsage">模型记录</button>
+                  <button type="button" role="tab" data-profile-tab="prompts">Prompt 模板</button>
+                </div>
+                <div id="profileFilterNotice" class="profile-filter-notice" hidden></div>
+                <div id="profileContentPanel" class="profile-content-panel" aria-live="polite"></div>
+              </section>
+            </main>
+
+            <aside class="profile-sidebar">
+              <section class="profile-side-card">
+                <h2>AI 使用偏好</h2>
+                <div class="profile-model-list">
+                  <span>GPT-5</span>
+                  <span>Claude</span>
+                  <span>Gemini</span>
+                  <span>本地模型</span>
+                </div>
+                <div class="profile-preference-list">
+                  <div><strong>回答风格</strong><span>结构化、详细、代码优先、产品分析</span></div>
+                  <div><strong>默认要求</strong><span>优先带来源，结论前置，保留风险提示</span></div>
+                  <div><strong>公开模型记录</strong><span class="profile-switch is-on">已公开</span></div>
+                </div>
+              </section>
+              <section class="profile-side-card">
+                <h2>可信度与贡献</h2>
+                <div class="profile-trust-list">
+                  <div><strong>认证专家</strong><span>AI 产品与知识工作流方向</span></div>
+                  <div><strong>社区等级</strong><span>Lv. 7 可信贡献者</span></div>
+                  <div><strong>高质量徽章</strong><span>连续 30 天高赞回答 · 被采纳 120 次</span></div>
+                </div>
+                <p class="profile-risk-note">AI 辅助回答可能存在错误，请结合来源引用、上下文和人工判断使用。</p>
+              </section>
+              <section class="profile-side-card">
+                <h2>个人成就</h2>
+                <div class="profile-badge-grid">
+                  <span>高赞答主</span>
+                  <span>RAG 专家</span>
+                  <span>Prompt 设计</span>
+                  <span>连续活跃</span>
+                </div>
+              </section>
+              <section class="profile-side-card">
+                <h2>最近收藏</h2>
+                <div class="profile-mini-list">
+                  <button type="button">企业知识库权限设计清单</button>
+                  <button type="button">Claude 与 GPT-5 长上下文对比</button>
+                  <button type="button">AI Coding 代码审查模板</button>
+                </div>
+              </section>
+              <section class="profile-side-card">
+                <h2>关注的话题</h2>
+                <div class="profile-followed-topics">
+                  <button type="button" data-profile-filter="RAG">RAG</button>
+                  <button type="button" data-profile-filter="模型评测">模型评测</button>
+                  <button type="button" data-profile-filter="AI 产品">AI 产品</button>
+                  <button type="button" data-profile-filter="数据分析">数据分析</button>
+                </div>
+              </section>
+              <section class="profile-side-card">
+                <h2>推荐关注</h2>
+                <div class="profile-user-suggest">
+                  <div><span>LC</span><strong>Lin Chen</strong><em>模型评测</em></div>
+                  <div><span>KM</span><strong>Kai Ming</strong><em>AI Coding</em></div>
+                </div>
+              </section>
+              <section class="profile-side-card">
+                <h2>个人链接</h2>
+                <div class="profile-link-list">
+                  <a href="#" aria-label="GitHub">GitHub</a>
+                  <a href="#" aria-label="知乎">知乎</a>
+                  <a href="#" aria-label="博客">博客</a>
+                  <a href="#" aria-label="LinkedIn">LinkedIn</a>
+                </div>
+              </section>
+            </aside>
+          </div>
         </section>
 
         <section id="resourcePage" class="resource-page" hidden>

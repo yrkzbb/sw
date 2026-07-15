@@ -109,6 +109,7 @@ const el = {
   home: document.querySelector("#home"),
   chat: document.querySelector("#chat"),
   profilePage: document.querySelector("#profilePage"),
+  userInfoPage: document.querySelector("#userInfoPage"),
   resourcePage: document.querySelector("#resourcePage"),
   pushPage: document.querySelector("#pushPage"),
   pathPage: document.querySelector("#pathPage"),
@@ -117,6 +118,7 @@ const el = {
   mistakePage: document.querySelector("#mistakePage"),
   chatPageBtn: document.querySelector("#chatPageBtn"),
   profilePageBtn: document.querySelector("#profilePageBtn"),
+  userInfoPageBtn: document.querySelector("#userInfoPageBtn"),
   resourcePageBtn: document.querySelector("#resourcePageBtn"),
   pushPageBtn: document.querySelector("#pushPageBtn"),
   pathPageBtn: document.querySelector("#pathPageBtn"),
@@ -223,6 +225,17 @@ const el = {
   accountPreviewAvatar: document.querySelector("#accountPreviewAvatar"),
   accountPreviewName: document.querySelector("#accountPreviewName"),
   accountPreviewBio: document.querySelector("#accountPreviewBio"),
+  personalProfileName: document.querySelector("#personalProfileName"),
+  personalProfileHandle: document.querySelector("#personalProfileHandle"),
+  personalProfileBio: document.querySelector("#personalProfileBio"),
+  profileHeroAvatar: document.querySelector("#profileHeroAvatar"),
+  profileEditButton: document.querySelector("#profileEditButton"),
+  profileEditShortcut: document.querySelector("#profileEditShortcut"),
+  profileTabs: document.querySelector("#profileTabs"),
+  profileContentPanel: document.querySelector("#profileContentPanel"),
+  profileTrendChart: document.querySelector("#profileTrendChart"),
+  profileSkillTags: document.querySelector("#profileSkillTags"),
+  profileFilterNotice: document.querySelector("#profileFilterNotice"),
   announcementCenter: document.querySelector("#announcementCenter"),
   announcementToggle: document.querySelector("#announcementToggle"),
   announcementUnreadCount: document.querySelector("#announcementUnreadCount"),
@@ -246,6 +259,9 @@ const state = {
   attachedFiles: [],
   attachedImages: [], 
   uiVersion: 0,
+  personalProfileTab: "answers",
+  personalProfileFilter: "",
+  personalProfileAnswers: [],
 
   isGenerating: false,
   abortController: null,
@@ -510,6 +526,9 @@ function updateUserChrome() {
     avatar.style.background = accountAccentGradient(profile.accent);
   }
   if (el.authOverlay) el.authOverlay.hidden = !!user;
+  if (el.userInfoPage && el.userInfoPage.hidden === false) {
+    renderPersonalProfilePage();
+  }
 }
 
 function setUserMenuOpen(open) {
@@ -5534,6 +5553,230 @@ function renderStudentProfile() {
   }
 }
 
+const PROFILE_DEMO_ANSWERS = [
+  {
+    id: "rag-eval",
+    title: "如何设计一个企业内部 RAG 知识库的评测体系？",
+    summary: "我会把评测拆成检索质量、生成质量、事实一致性、权限安全和业务可用性五个层面，并分别设置离线评测与真实用户反馈指标。",
+    extra: "离线侧建议保留黄金问答集、难例集和权限边界样本；线上侧记录无答案率、追问率、人工纠错率和引用点击率。评测不只看答案像不像，还要看它是否能被业务团队稳定信任。",
+    model: "GPT-5",
+    status: "已采纳",
+    statusClass: "",
+    likes: 128,
+    comments: 24,
+    collections: 61,
+    time: "2 小时前",
+    topics: ["RAG", "企业知识库", "模型评测"],
+  },
+  {
+    id: "prompt-product",
+    title: "产品经理如何写出可复用的 Prompt 模板？",
+    summary: "好的 Prompt 模板应该包含角色、输入结构、约束、输出格式、质量标准和反例，重点是让团队成员能稳定复用，而不是只在一次对话里得到好答案。",
+    extra: "我通常把模板拆成任务定义、上下文槽位、检查清单和输出 schema 四层。团队使用时只改变量，不改推理框架，这样更容易沉淀成工作流资产。",
+    model: "Claude",
+    status: "高赞",
+    statusClass: "",
+    likes: 96,
+    comments: 18,
+    collections: 44,
+    time: "昨天",
+    topics: ["Prompt Engineering", "产品设计", "AI 产品"],
+  },
+  {
+    id: "ai-coding-review",
+    title: "AI Coding 生成的代码应该怎么做人工审查？",
+    summary: "建议先审边界条件、权限与数据流，再审可维护性和测试覆盖。AI 代码不要只看能不能跑，还要看是否符合项目已有约定。",
+    extra: "审查清单可以固定为：输入校验、错误处理、异步状态、依赖边界、日志与隐私、测试缺口。对于关键路径，必须补一条能失败的测试。",
+    model: "Gemini",
+    status: "待完善",
+    statusClass: "needs",
+    likes: 42,
+    comments: 9,
+    collections: 17,
+    time: "3 天前",
+    topics: ["AI 编程", "代码审查", "工程实践"],
+  },
+];
+
+function ensurePersonalProfileAnswers() {
+  if (!Array.isArray(state.personalProfileAnswers) || state.personalProfileAnswers.length === 0) {
+    state.personalProfileAnswers = PROFILE_DEMO_ANSWERS.map((item) => ({
+      ...item,
+      liked: false,
+      collected: item.id === "rag-eval",
+      expanded: false,
+    }));
+  }
+  return state.personalProfileAnswers;
+}
+
+function renderPersonalProfileChrome() {
+  const profile = accountProfileFor();
+  const userName = state.activeUser?.name || "yrk";
+  const handle = `@${normalizeUsername(userName) || "yrk"}`;
+  const bio = profile.bio && profile.bio !== "个人学习空间"
+    ? profile.bio
+    : "关注 AI 产品设计、大模型应用与知识工作流，擅长把复杂问题拆成可执行方案。";
+  const avatarText = profile.avatarInitial || String(userName || "YR").slice(0, 2).toUpperCase();
+  const avatarGradient = accountAccentGradient(profile.accent);
+  if (el.personalProfileName) el.personalProfileName.textContent = userName;
+  if (el.personalProfileHandle) el.personalProfileHandle.textContent = handle;
+  if (el.personalProfileBio) el.personalProfileBio.textContent = bio;
+  [el.profileHeroAvatar, el.profileEditShortcut].forEach((node) => {
+    if (!node) return;
+    node.textContent = avatarText;
+    node.style.background = avatarGradient;
+  });
+}
+
+function contributionValues() {
+  return [2, 4, 1, 5, 3, 6, 4, 7, 3, 2, 6, 9, 4, 5, 8, 6, 4, 7, 10, 5, 3, 6, 8, 7, 5, 9, 6, 4, 8, 11];
+}
+
+function renderProfileTrendChart() {
+  if (!el.profileTrendChart) return;
+  const values = contributionValues();
+  const max = Math.max(...values);
+  el.profileTrendChart.innerHTML = values.map((value, index) => {
+    const height = Math.max(16, Math.round((value / max) * 82));
+    const day = index + 1;
+    const accepted = Math.max(0, Math.round(value * 0.32));
+    return `<span class="trend-bar" style="height:${height}px" data-tip="7月${day}日：${value} 次贡献，${accepted} 次采纳"></span>`;
+  }).join("");
+}
+
+function profileEmptyState(title, text, action = "") {
+  return `
+    <div class="profile-empty-state">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(text)}</span>
+      ${action ? `<button class="profile-follow-button" type="button">${escapeHtml(action)}</button>` : ""}
+    </div>
+  `;
+}
+
+function answerCardTemplate(answer) {
+  const topics = answer.topics.map((topic) => `<span>${escapeHtml(topic)}</span>`).join("");
+  return `
+    <article class="answer-card ${answer.expanded ? "expanded" : ""}" data-answer-id="${escapeHtml(answer.id)}">
+      <h3>${escapeHtml(answer.title)}</h3>
+      <p>${escapeHtml(answer.summary)}</p>
+      <p class="answer-extra">${escapeHtml(answer.extra)}</p>
+      <div class="answer-meta-row">
+        <span class="answer-model">${escapeHtml(answer.model)}</span>
+        <span class="answer-status ${answer.statusClass}">${escapeHtml(answer.status)}</span>
+        <div class="answer-topic-tags">${topics}</div>
+      </div>
+      <div class="answer-card-foot">
+        <span>${answer.likes} 赞 · ${answer.comments} 评论 · ${answer.collections} 收藏 · ${escapeHtml(answer.time)}</span>
+        <div class="answer-actions">
+          <button class="answer-action ${answer.liked ? "active" : ""}" type="button" data-answer-action="like">${answer.liked ? "已赞" : "点赞"}</button>
+          <button class="answer-action ${answer.collected ? "active" : ""}" type="button" data-answer-action="collect">${answer.collected ? "已收藏" : "收藏"}</button>
+          <button class="answer-action" type="button" data-answer-action="expand">${answer.expanded ? "收起摘要" : "展开摘要"}</button>
+          <button class="answer-action" type="button">查看详情</button>
+        </div>
+      </div>
+    </article>
+  `;
+}
+
+function filteredProfileAnswers() {
+  const answers = ensurePersonalProfileAnswers();
+  const filter = state.personalProfileFilter;
+  if (!filter) return answers;
+  return answers.filter((answer) => answer.topics.some((topic) => topic.includes(filter) || filter.includes(topic)));
+}
+
+function renderProfileContentPanel() {
+  if (!el.profileContentPanel) return;
+  const tab = state.personalProfileTab;
+  if (el.profileTabs) {
+    el.profileTabs.querySelectorAll("[data-profile-tab]").forEach((button) => {
+      button.classList.toggle("active", button.getAttribute("data-profile-tab") === tab);
+      button.setAttribute("aria-selected", String(button.getAttribute("data-profile-tab") === tab));
+    });
+  }
+  if (el.profileFilterNotice) {
+    el.profileFilterNotice.hidden = !state.personalProfileFilter;
+    el.profileFilterNotice.textContent = state.personalProfileFilter
+      ? `正在筛选：${state.personalProfileFilter}。再次点击同一标签可取消筛选。`
+      : "";
+  }
+  if (tab === "answers") {
+    const answers = filteredProfileAnswers();
+    el.profileContentPanel.innerHTML = answers.length
+      ? answers.map(answerCardTemplate).join("")
+      : profileEmptyState("还没有匹配的回答", "换一个标签，或去回答第一个相关问题。", "去回答问题");
+    return;
+  }
+  const panels = {
+    questions: [
+      ["企业内部知识库如何定义“可信回答”？", "RAG · 质量评估 · 12 个回答"],
+      ["AI 产品需求评审中哪些部分最适合交给模型先做？", "AI 产品 · 工作流 · 8 个回答"],
+    ],
+    collections: [
+      ["企业知识库权限设计清单", "已收藏 · 昨天"],
+      ["Claude 与 GPT-5 长上下文对比", "已收藏 · 3 天前"],
+    ],
+    notes: [
+      ["RAG 评测框架：从检索命中到业务可用", "专栏 · 2,418 阅读"],
+      ["Prompt 模板如何进入团队工作流", "笔记 · 928 阅读"],
+    ],
+    modelUsage: [
+      ["GPT-5", "本周 46 次 · 偏复杂推理与代码审查"],
+      ["Claude", "本周 21 次 · 偏产品分析与长文总结"],
+      ["本地模型", "本周 8 次 · 偏隐私数据草稿"],
+    ],
+    prompts: [
+      ["产品需求拆解模板", "目标、用户、场景、约束、验收标准"],
+      ["代码审查清单模板", "边界条件、状态流、测试缺口、风险等级"],
+      ["RAG 评测框架模板", "检索、生成、事实性、权限、业务反馈"],
+    ],
+  };
+  const rows = panels[tab] || [];
+  el.profileContentPanel.innerHTML = rows.length
+    ? rows.map(([title, meta]) => `
+      <article class="answer-card">
+        <h3>${escapeHtml(title)}</h3>
+        <p>${escapeHtml(meta)}</p>
+      </article>
+    `).join("")
+    : profileEmptyState("这里还没有内容", "内容产生后会自动展示在这个列表里。");
+}
+
+function renderPersonalProfilePage() {
+  renderPersonalProfileChrome();
+  renderProfileTrendChart();
+  renderProfileContentPanel();
+}
+
+function toggleProfileFilter(filter) {
+  state.personalProfileFilter = state.personalProfileFilter === filter ? "" : filter;
+  document.querySelectorAll("[data-profile-filter]").forEach((button) => {
+    button.classList.toggle("active", button.getAttribute("data-profile-filter") === state.personalProfileFilter);
+  });
+  state.personalProfileTab = "answers";
+  renderProfileContentPanel();
+}
+
+function handleProfileAnswerAction(button) {
+  const card = button.closest("[data-answer-id]");
+  const action = button.getAttribute("data-answer-action");
+  if (!card || !action) return;
+  const answer = ensurePersonalProfileAnswers().find((item) => item.id === card.getAttribute("data-answer-id"));
+  if (!answer) return;
+  if (action === "like") {
+    answer.liked = !answer.liked;
+    answer.likes += answer.liked ? 1 : -1;
+  } else if (action === "collect") {
+    answer.collected = !answer.collected;
+    answer.collections += answer.collected ? 1 : -1;
+  } else if (action === "expand") {
+    answer.expanded = !answer.expanded;
+  }
+  renderProfileContentPanel();
+}
+
 function extractJsonObject(text) {
   const raw = String(text || "").trim();
   if (!raw) return null;
@@ -5792,6 +6035,7 @@ function ensureChatVisible() {
   if (!el.chat || !el.home) return;
   setComposerVisible(true);
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -5802,6 +6046,7 @@ function ensureChatVisible() {
   el.chat.hidden = false;
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -5825,6 +6070,7 @@ function showHome() {
   el.messages.innerHTML = "";
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -5834,6 +6080,7 @@ function showHome() {
   if (el.home) el.home.hidden = false;
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -5848,6 +6095,7 @@ function showProfilePage() {
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -5857,6 +6105,7 @@ function showProfilePage() {
   el.profilePage.hidden = false;
   el.profilePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -5867,12 +6116,39 @@ function showProfilePage() {
   renderStudentProfile();
 }
 
+function showUserInfoPage() {
+  if (!el.userInfoPage) return;
+  setComposerVisible(false);
+  if (el.home) el.home.hidden = true;
+  if (el.chat) el.chat.hidden = true;
+  if (el.profilePage) el.profilePage.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
+  if (el.pushPage) el.pushPage.hidden = true;
+  if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
+  if (el.mistakePage) el.mistakePage.hidden = true;
+  el.userInfoPage.hidden = false;
+  el.userInfoPageBtn?.classList.add("active");
+  el.chatPageBtn?.classList.remove("active");
+  el.profilePageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
+  el.pushPageBtn?.classList.remove("active");
+  el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
+  el.mistakePageBtn?.classList.remove("active");
+  setPageHash("#user-info");
+  renderPersonalProfilePage();
+}
+
 function showResourcePage() {
   if (!el.resourcePage) return;
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
   if (el.assessmentPage) el.assessmentPage.hidden = true;
@@ -5882,6 +6158,7 @@ function showResourcePage() {
   el.resourcePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
   el.assessmentPageBtn?.classList.remove("active");
@@ -5897,6 +6174,7 @@ function showPushPage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
   if (el.assessmentPage) el.assessmentPage.hidden = true;
@@ -5906,6 +6184,7 @@ function showPushPage() {
   el.pushPageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
   el.assessmentPageBtn?.classList.remove("active");
@@ -5921,6 +6200,7 @@ function showPathPage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.assessmentPage) el.assessmentPage.hidden = true;
@@ -5930,6 +6210,7 @@ function showPathPage() {
   el.pathPageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.assessmentPageBtn?.classList.remove("active");
@@ -5945,6 +6226,7 @@ function showAssessmentPage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -5954,6 +6236,7 @@ function showAssessmentPage() {
   el.assessmentPageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -5969,6 +6252,7 @@ function showStoragePage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -5978,6 +6262,7 @@ function showStoragePage() {
   el.storagePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -5993,6 +6278,7 @@ function showMistakePage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -6002,6 +6288,7 @@ function showMistakePage() {
   el.mistakePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -6023,6 +6310,8 @@ function showChatPage() {
 function restoreViewFromHash() {
   if (window.location.hash === "#profile") {
     showProfilePage();
+  } else if (window.location.hash === "#user-info") {
+    showUserInfoPage();
   } else if (window.location.hash === "#resources") {
     showResourcePage();
   } else if (window.location.hash === "#push") {
@@ -6548,6 +6837,28 @@ function initEventHandlers() {
   });
 
   el.profilePageBtn?.addEventListener("click", showProfilePage);
+  el.userInfoPageBtn?.addEventListener("click", showUserInfoPage);
+  el.profileEditButton?.addEventListener("click", () => openAccountModal("profile"));
+  el.profileEditShortcut?.addEventListener("click", () => openAccountModal("profile"));
+  el.profileHeroAvatar?.addEventListener("click", () => openAccountModal("profile"));
+  el.profileTabs?.addEventListener("click", (event) => {
+    const button = event.target instanceof HTMLElement ? event.target.closest("[data-profile-tab]") : null;
+    if (!button) return;
+    state.personalProfileTab = button.getAttribute("data-profile-tab") || "answers";
+    renderProfileContentPanel();
+  });
+  el.userInfoPage?.addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const filterButton = target?.closest("[data-profile-filter]");
+    if (filterButton) {
+      toggleProfileFilter(filterButton.getAttribute("data-profile-filter") || "");
+      return;
+    }
+    const answerButton = target?.closest("[data-answer-action]");
+    if (answerButton) {
+      handleProfileAnswerAction(answerButton);
+    }
+  });
   el.chatPageBtn?.addEventListener("click", showChatPage);
   el.resourcePageBtn?.addEventListener("click", showResourcePage);
   el.pushPageBtn?.addEventListener("click", showPushPage);
