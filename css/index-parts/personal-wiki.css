@@ -785,15 +785,17 @@
 
 .wiki-post-reader {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 220px;
-  gap: 26px;
+  grid-template-columns: minmax(0, 1fr) 240px;
+  gap: 32px;
   align-items: start;
+  width: min(1220px, 100%);
+  margin: 0 auto;
 }
 
 .wiki-post-main {
   min-height: 620px;
   border-radius: 8px;
-  padding: 42px 44px 56px;
+  padding: 48px 54px 64px;
   background: rgba(255, 255, 255, 0.62);
 }
 
@@ -840,14 +842,191 @@
 
 .wiki-post-body {
   color: #34484b;
-  font-size: 17px;
-  line-height: 1.9;
+  font-size: 18px;
+  line-height: 1.95;
 }
 
 .wiki-post-body h1,
 .wiki-post-body h2,
 .wiki-post-body h3 {
   color: #34484b;
+  margin: 2.2em 0 0.9em;
+  line-height: 1.35;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.wiki-post-body h1 {
+  font-size: 30px;
+}
+
+.wiki-post-body h2 {
+  font-size: 26px;
+}
+
+.wiki-post-body h3 {
+  font-size: 22px;
+}
+
+.wiki-post-body h1::before,
+.wiki-post-body h2::before,
+.wiki-post-body h3::before {
+  content: "#";
+  margin-right: 10px;
+  color: #8bdacf;
+}
+
+.wiki-post-body p,
+.wiki-post-body li {
+  color: #40575b;
+}
+
+.wiki-post-body strong {
+  color: #54bfae;
+  font-weight: 950;
+}
+
+.wiki-post-body a {
+  color: #3f7df4;
+  font-weight: 900;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 4px;
+}
+
+.wiki-post-body hr {
+  height: 1px;
+  border: 0;
+  margin: 36px 0;
+  background: rgba(127, 151, 150, 0.18);
+}
+
+.wiki-post-body blockquote {
+  margin: 24px 0;
+  border-left: 4px solid #8bdacf;
+  border-radius: 0 14px 14px 0;
+  padding: 14px 18px;
+  color: #587074;
+  background: rgba(223, 245, 235, 0.58);
+}
+
+.wiki-post-body ul,
+.wiki-post-body ol {
+  padding-left: 1.35em;
+}
+
+.wiki-post-body li::marker {
+  color: #58c7b4;
+}
+
+.wiki-post-body :not(pre) > code {
+  border: 1px solid rgba(88, 199, 180, 0.22);
+  border-radius: 8px;
+  padding: 0.08em 0.34em;
+  color: #34484b;
+  background: rgba(226, 246, 241, 0.82);
+  font-family: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+  font-size: 0.9em;
+  font-weight: 850;
+}
+
+.wiki-post-body .codeblock {
+  overflow: hidden;
+  border: 1px solid rgba(94, 125, 130, 0.14);
+  border-radius: 14px;
+  margin: 28px 0;
+  background: rgba(255, 255, 255, 0.7);
+  box-shadow: 0 16px 38px rgba(95, 120, 111, 0.08);
+}
+
+.wiki-post-body .codeblock-toolbar {
+  min-height: 0;
+  justify-content: flex-end;
+  border-bottom: 1px solid rgba(94, 125, 130, 0.08);
+  padding: 8px 10px;
+  background: rgba(248, 251, 249, 0.82);
+}
+
+.wiki-post-body .code-copy-btn {
+  border: 1px solid rgba(94, 125, 130, 0.14);
+  border-radius: 10px;
+  padding: 5px 10px;
+  color: #6f8084;
+  background: rgba(255, 255, 255, 0.74);
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.wiki-post-body pre {
+  margin: 0;
+  padding: 18px 22px;
+  color: #51656a;
+  background: transparent !important;
+  font-size: 16px;
+  line-height: 1.7;
+}
+
+.wiki-post-body pre code {
+  color: #51656a;
+  background: transparent !important;
+  text-shadow: none;
+  font-family: "SFMono-Regular", "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+}
+
+.wiki-post-body .token.comment,
+.wiki-post-body .token.prolog,
+.wiki-post-body .token.doctype,
+.wiki-post-body .token.cdata {
+  color: #8a9a9d;
+}
+
+.wiki-post-body .token.keyword,
+.wiki-post-body .token.selector,
+.wiki-post-body .token.important,
+.wiki-post-body .token.atrule {
+  color: #3f7df4;
+}
+
+.wiki-post-body .token.string,
+.wiki-post-body .token.char,
+.wiki-post-body .token.attr-value,
+.wiki-post-body .token.regex {
+  color: #58a850;
+}
+
+.wiki-post-body .token.number,
+.wiki-post-body .token.boolean,
+.wiki-post-body .token.constant,
+.wiki-post-body .token.symbol {
+  color: #a57424;
+}
+
+.wiki-post-body .token.function,
+.wiki-post-body .token.class-name {
+  color: #2f9d91;
+}
+
+.wiki-post-body .token.operator,
+.wiki-post-body .token.punctuation {
+  color: #8a6d2f;
+}
+
+.wiki-post-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 26px 0;
+  overflow: hidden;
+  border-radius: 12px;
+}
+
+.wiki-post-body th,
+.wiki-post-body td {
+  border: 1px solid rgba(94, 125, 130, 0.14);
+  padding: 10px 12px;
+}
+
+.wiki-post-body th {
+  color: #34484b;
+  background: rgba(226, 246, 241, 0.72);
 }
 
 .wiki-post-side {
@@ -887,6 +1066,22 @@
   font: inherit;
   font-weight: 950;
   cursor: pointer;
+}
+
+.wiki-post-delete-action {
+  min-height: 44px;
+  border: 1px solid rgba(226, 103, 118, 0.22);
+  border-radius: 12px;
+  color: #c85565;
+  background: rgba(255, 239, 241, 0.72);
+  font: inherit;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.wiki-post-delete-action:hover {
+  color: #fff;
+  background: #d95e6e;
 }
 
 .wiki-post-editor {
@@ -1026,7 +1221,7 @@
 
 .personal-profile-page.wiki-archive-mode .wiki-content-stage {
   display: block;
-  width: min(920px, 100%);
+  width: min(1280px, 100%);
   min-height: 0;
   margin-top: 18px;
   padding: 0;
@@ -1243,7 +1438,7 @@
 
 .personal-profile-page.wiki-archive-mode .wiki-content-stage {
   display: block;
-  width: min(920px, 100%);
+  width: min(1280px, 100%);
   min-height: 0;
   margin-top: 18px;
   padding: 0;

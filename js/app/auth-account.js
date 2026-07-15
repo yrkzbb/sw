@@ -231,11 +231,11 @@ function updateUserChrome() {
   const avatar = el.userChip?.querySelector(".user-avatar");
   if (avatar) {
     const profile = accountProfileFor(user);
-    avatar.textContent = profile.avatarInitial || "L";
     avatar.style.background = accountAccentGradient(profile.accent);
     avatar.style.backgroundImage = profile.avatarImage ? `url("${profile.avatarImage}")` : "";
     avatar.style.backgroundSize = "cover";
     avatar.style.backgroundPosition = "center";
+    avatar.textContent = profile.avatarImage ? "" : (profile.avatarInitial || "L");
   }
   if (el.authOverlay) el.authOverlay.hidden = !!user;
   if (el.userInfoPage && el.userInfoPage.hidden === false) {

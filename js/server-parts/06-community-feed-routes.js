@@ -553,6 +553,33 @@ async function updateFeedPost(req, res, postId) {
   }
 }
 
+async function deleteFeedPost(req, res, postId) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  try {
+    const pool = await getMysql();
+    const [existing] = await pool.query(
+      `SELECT author_id FROM ${tableName("feed_posts")} WHERE id = ? AND status = 'published' LIMIT 1`,
+      [postId]
+    );
+    if (!existing.length) {
+      sendJson(res, 404, { error: "内容不存在或已删除。" });
+      return;
+    }
+    if (String(existing[0].author_id) !== String(user.id)) {
+      sendJson(res, 403, { error: "只能删除自己发布的内容。" });
+      return;
+    }
+    await pool.query(
+      `UPDATE ${tableName("feed_posts")} SET status = 'hidden', updated_at = NOW() WHERE id = ?`,
+      [postId]
+    );
+    sendJson(res, 200, { ok: true, deleted: true, postId: String(postId) });
+  } catch (e) {
+    sendJson(res, 500, { error: String(e?.message || e) });
+  }
+}
+
 async function toggleFeedInteraction(req, res, postId, interactionType) {
   const user = await requireUser(req, res);
   if (!user) return;

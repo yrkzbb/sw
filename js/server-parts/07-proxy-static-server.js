@@ -327,6 +327,10 @@ const server = http.createServer((req, res) => {
       void updateFeedPost(req, res, feedPostMatch[1]);
       return;
     }
+    if (feedPostMatch && req.method === "DELETE") {
+      void deleteFeedPost(req, res, feedPostMatch[1]);
+      return;
+    }
     if (url.pathname === "/api/feed/interests" && req.method === "PUT") {
       void updateFeedInterests(req, res);
       return;

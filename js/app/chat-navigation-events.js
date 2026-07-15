@@ -1060,15 +1060,13 @@ function initEventHandlers() {
 
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.userInfoPageBtn?.addEventListener("click", showUserInfoPage);
-  el.profileEditButton?.addEventListener("click", () => {
-    if (state.personalProfileView === "detail" && state.personalProfilePostEditable) {
-      state.personalProfileView = "editing";
-      renderProfileContentPanel();
-      return;
-    }
-    openAccountModal("profile");
+  el.profileEditShortcut?.addEventListener("click", () => {
+    state.personalProfileView = "archive";
+    state.personalProfileSelectedPostId = "";
+    state.personalProfileSelectedPost = null;
+    setWikiArchiveMode(false);
+    renderPersonalProfilePage();
   });
-  el.profileEditShortcut?.addEventListener("click", () => openAccountModal("profile"));
   el.profileHeroAvatar?.addEventListener("click", () => {
     const input = document.querySelector("#profileAvatarImageInput");
     if (input instanceof HTMLInputElement) input.click();
@@ -1106,6 +1104,10 @@ function initEventHandlers() {
     if (target?.closest("[data-profile-edit-post]")) {
       state.personalProfileView = "editing";
       renderProfileContentPanel();
+      return;
+    }
+    if (target?.closest("[data-profile-delete-post]")) {
+      void deleteProfilePost();
       return;
     }
     if (target?.closest("[data-profile-cancel-edit]")) {

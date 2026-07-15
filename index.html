@@ -18,21 +18,21 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260715-avatar-bio" />
+    <link rel="stylesheet" href="./css/index.css?v=20260715-delete-post" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
     <script src="./js/app/config-state.js?v=20260715-profile-archives" defer></script>
-    <script src="./js/app/auth-account.js?v=20260715-avatar-bio" defer></script>
+    <script src="./js/app/auth-account.js?v=20260715-delete-post" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260715-split" defer></script>
     <script src="./js/app/resources.js?v=20260715-split" defer></script>
     <script src="./js/app/learning-path-assessment.js?v=20260715-split" defer></script>
     <script src="./js/app/community-feed.js?v=20260715-feed-social" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260715-split" defer></script>
-    <script src="./js/app/profile-page.js?v=20260715-avatar-bio" defer></script>
-    <script src="./js/app/chat-navigation-events.js?v=20260715-avatar-bio" defer></script>
+    <script src="./js/app/profile-page.js?v=20260715-delete-post" defer></script>
+    <script src="./js/app/chat-navigation-events.js?v=20260715-delete-post" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
   <body data-theme="dark">
@@ -64,11 +64,6 @@
             <span id="userNameLabel">未登录</span>
             <small id="userBioLabel">个人学习空间</small>
           </span>
-        </button>
-        <button id="userMenuBtn" class="user-menu-btn" type="button" aria-label="账户菜单" aria-haspopup="menu" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="m8 10 4 4 4-4" />
-          </svg>
         </button>
         <div id="userMenu" class="user-menu" role="menu" hidden>
           <button type="button" role="menuitem" data-account-action="profile">个人资料</button>
@@ -225,15 +220,13 @@
         <section id="userInfoPage" class="profile-page personal-profile-page" hidden>
           <div class="wiki-profile-canvas">
             <nav class="wiki-float-nav" aria-label="个人主页导航">
-              <button id="profileEditShortcut" class="wiki-avatar-mini" type="button" aria-label="编辑个人资料">YR</button>
+              <button id="profileEditShortcut" class="wiki-avatar-mini" type="button" aria-label="回到个人主页">YR</button>
               <button class="active" type="button" data-profile-tab="answers" title="近期文章">▤</button>
               <button type="button" data-profile-tab="questions" title="我的项目">◇</button>
               <button type="button" data-profile-tab="collections" title="关于网站">◡</button>
               <button type="button" data-profile-tab="notes" title="推荐分享">☆</button>
               <button type="button" data-profile-tab="prompts" title="个人链接">◎</button>
             </nav>
-            <button id="profileEditButton" class="wiki-edit-btn" type="button">编辑</button>
-
             <section class="wiki-name-card wiki-glass">
               <div class="wiki-name-inner">
                 <button id="profileHeroAvatar" class="wiki-avatar" type="button" aria-label="编辑头像">YR</button>

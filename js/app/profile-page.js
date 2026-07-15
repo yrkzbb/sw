@@ -843,7 +843,10 @@ function renderProfilePostDetail(post, editable = false) {
           <span>${Number(post.likes || 0)} 赞 · ${Number(post.comments || 0)} 评论</span>
           <span>热度 ${Number(post.heatScore || 0).toFixed(1)}</span>
         </section>
-        ${editable ? `<button class="wiki-post-edit-action" type="button" data-profile-edit-post>编辑文章</button>` : ""}
+        ${editable ? `
+          <button class="wiki-post-edit-action" type="button" data-profile-edit-post>编辑文章</button>
+          <button class="wiki-post-delete-action" type="button" data-profile-delete-post>删除内容</button>
+        ` : ""}
       </aside>
     </article>
   `;
@@ -894,9 +897,6 @@ function renderProfilePostEditor(post) {
 
 function renderProfilePostView() {
   const post = state.personalProfileSelectedPost;
-  if (el.profileEditButton) {
-    el.profileEditButton.textContent = state.personalProfilePostEditable && state.personalProfileView === "detail" ? "编辑文章" : "编辑";
-  }
   if (!post) {
     el.profileContentPanel.innerHTML = profileEmptyState("文章加载中", "正在读取这篇文章。");
     return;
@@ -959,13 +959,31 @@ async function saveProfilePostEdit(form) {
   }
 }
 
+async function deleteProfilePost() {
+  const post = state.personalProfileSelectedPost;
+  if (!post) return;
+  const ok = window.confirm(`确定删除《${post.title || "这条内容"}》吗？删除后不会再出现在推送和归档里。`);
+  if (!ok) return;
+  try {
+    await apiJson(`/api/feed/posts/${encodeURIComponent(post.id)}`, { method: "DELETE" });
+    state.personalProfilePosts = wikiPublicPosts().filter((item) => String(item.id) !== String(post.id));
+    state.personalProfileView = "archive";
+    state.personalProfileSelectedPostId = "";
+    state.personalProfileSelectedPost = null;
+    state.personalProfilePostEditable = false;
+    renderPersonalProfileChrome();
+    renderProfileContentPanel();
+  } catch (e) {
+    window.alert(String(e?.message || e));
+  }
+}
+
 function renderProfileContentPanel() {
   if (!el.profileContentPanel) return;
   if (state.personalProfileView === "detail" || state.personalProfileView === "editing") {
     renderProfilePostView();
     return;
   }
-  if (el.profileEditButton) el.profileEditButton.textContent = "编辑";
   const tab = state.personalProfileTab;
   const isArticleArchive = tab === "answers";
   renderProfileArchiveTabs(isArticleArchive);
