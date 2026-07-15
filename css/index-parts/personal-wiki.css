@@ -528,6 +528,10 @@
   background: #111;
 }
 
+.wiki-social-row button.is-disabled {
+  opacity: 0.62;
+}
+
 .wiki-recommend-card {
   grid-area: recommend;
   width: 100%;
@@ -1303,7 +1307,8 @@
 
 .wiki-project-card,
 .wiki-share-card,
-.wiki-about-card {
+.wiki-about-card,
+.wiki-account-card {
   border: 1px solid rgba(255, 255, 255, 0.76);
   border-radius: 28px;
   padding: 22px;
@@ -1312,7 +1317,8 @@
 
 .wiki-project-card h3,
 .wiki-share-card h3,
-.wiki-about-card h3 {
+.wiki-about-card h3,
+.wiki-account-card h3 {
   margin: 0 0 10px;
   color: #34484b;
   font-size: 20px;
@@ -1320,12 +1326,67 @@
 
 .wiki-project-card p,
 .wiki-share-card p,
-.wiki-about-card p {
+.wiki-about-card p,
+.wiki-account-card p {
   margin: 0;
   color: #718186;
   font-size: 14px;
   line-height: 1.65;
   font-weight: 850;
+}
+
+.wiki-account-card {
+  display: grid;
+  gap: 22px;
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.wiki-account-card span {
+  color: #64c8b7;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.wiki-account-card dl {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 12px 18px;
+  margin: 0;
+}
+
+.wiki-account-card dt {
+  color: #829096;
+  font-weight: 950;
+}
+
+.wiki-account-card dd {
+  min-width: 0;
+  margin: 0;
+  color: #34484b;
+  font-weight: 950;
+  overflow-wrap: anywhere;
+}
+
+.wiki-account-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.wiki-account-actions button {
+  min-height: 46px;
+  border-radius: 14px;
+  padding: 0 20px;
+  background: rgba(95, 199, 184, 0.86);
+  color: #fff;
+  font-weight: 950;
+}
+
+.wiki-account-actions button + button {
+  background: rgba(255, 255, 255, 0.52);
+  color: #34484b;
 }
 
 .wiki-hidden-trend {

@@ -220,6 +220,8 @@ const el = {
   accountTitle: document.querySelector("#accountTitle"),
   accountNameInput: document.querySelector("#accountNameInput"),
   accountEmailInput: document.querySelector("#accountEmailInput"),
+  accountGithubInput: document.querySelector("#accountGithubInput"),
+  accountContactEmailInput: document.querySelector("#accountContactEmailInput"),
   accountAvatarInput: document.querySelector("#accountAvatarInput"),
   accountAccentInput: document.querySelector("#accountAccentInput"),
   accountBioInput: document.querySelector("#accountBioInput"),

@@ -281,6 +281,51 @@ function setPageHash(hash) {
   window.history.replaceState(null, "", hash || `${window.location.pathname}${window.location.search}`);
 }
 
+const USER_INFO_ROUTE_BY_TAB = {
+  answers: "blog",
+  questions: "projects",
+  collections: "about",
+  notes: "share",
+  prompts: "account",
+};
+
+const USER_INFO_TAB_BY_ROUTE = Object.fromEntries(
+  Object.entries(USER_INFO_ROUTE_BY_TAB).map(([tab, route]) => [route, tab]),
+);
+USER_INFO_TAB_BY_ROUTE.blogroll = "prompts";
+
+function userInfoRouteForTab(tab) {
+  return USER_INFO_ROUTE_BY_TAB[tab] || USER_INFO_ROUTE_BY_TAB.answers;
+}
+
+function userInfoHashFor(tab = "answers", options = {}) {
+  const route = userInfoRouteForTab(tab);
+  const postId = options.postId ? encodeURIComponent(String(options.postId)) : "";
+  if (route === "blog" && postId) return `#user-info/blog/${postId}`;
+  const group = options.group || "";
+  const query = route === "blog" && group && group !== "year" ? `?group=${encodeURIComponent(group)}` : "";
+  return `#user-info/${route}${query}`;
+}
+
+function setUserInfoArchiveRoute(tab = "answers", group = "") {
+  setPageHash(userInfoHashFor(tab, { group }));
+}
+
+function parseUserInfoHash(hash) {
+  const raw = String(hash || "").replace(/^#user-info\/?/, "");
+  if (!raw) return { mode: "home" };
+  const [pathPart, queryPart = ""] = raw.split("?");
+  const parts = pathPart.split("/").filter(Boolean).map((part) => decodeURIComponent(part));
+  const route = parts[0] || "blog";
+  if (route === "blog" && parts[1]) return { mode: "post", postId: parts[1] };
+  const params = new URLSearchParams(queryPart);
+  return {
+    mode: "archive",
+    tab: USER_INFO_TAB_BY_ROUTE[route] || "answers",
+    group: params.get("group") || "",
+  };
+}
+
 function showHome() {
   setComposerVisible(true);
   state.messages = [];
@@ -337,8 +382,9 @@ function showProfilePage() {
   renderStudentProfile();
 }
 
-function showUserInfoPage() {
+function showUserInfoPage(options = {}) {
   if (!el.userInfoPage) return;
+  const mode = options.mode || "home";
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -359,9 +405,36 @@ function showUserInfoPage() {
   el.assessmentPageBtn?.classList.remove("active");
   el.storagePageBtn?.classList.remove("active");
   el.mistakePageBtn?.classList.remove("active");
-  setPageHash("#user-info");
-  setWikiArchiveMode(false);
+  if (mode === "home") {
+    state.personalProfileView = "archive";
+    state.personalProfileSelectedPostId = "";
+    state.personalProfileSelectedPost = null;
+    state.personalProfilePostEditable = false;
+    if (options.updateHash !== false) setPageHash("#user-info");
+    setWikiArchiveMode(false);
+  } else if (mode === "post") {
+    state.personalProfileTab = "answers";
+    state.personalProfileView = "detail";
+    state.personalProfileSelectedPostId = String(options.postId || "");
+    if (options.updateHash !== false) setPageHash(userInfoHashFor("answers", { postId: options.postId }));
+    setWikiArchiveMode(true);
+  } else {
+    state.personalProfileTab = options.tab || state.personalProfileTab || "answers";
+    state.personalProfileFilter = "";
+    state.personalProfileView = "archive";
+    state.personalProfileSelectedPostId = "";
+    state.personalProfileSelectedPost = null;
+    state.personalProfilePostEditable = false;
+    if (options.group) state.personalArchiveGroup = options.group;
+    if (options.updateHash !== false) {
+      setPageHash(userInfoHashFor(state.personalProfileTab, { group: state.personalArchiveGroup }));
+    }
+    setWikiArchiveMode(true);
+  }
   renderPersonalProfilePage();
+  if (mode === "post" && options.postId) {
+    void openProfilePost(options.postId);
+  }
 }
 
 function showResourcePage() {
@@ -532,8 +605,15 @@ function showChatPage() {
 function restoreViewFromHash() {
   if (window.location.hash === "#profile") {
     showProfilePage();
-  } else if (window.location.hash === "#user-info") {
-    showUserInfoPage();
+  } else if (window.location.hash === "#user-info" || window.location.hash.startsWith("#user-info/")) {
+    const route = parseUserInfoHash(window.location.hash);
+    if (route.mode === "post") {
+      showUserInfoPage({ mode: "post", postId: route.postId, updateHash: false });
+    } else if (route.mode === "archive") {
+      showUserInfoPage({ mode: "archive", tab: route.tab, group: route.group, updateHash: false });
+    } else {
+      showUserInfoPage({ updateHash: false });
+    }
   } else if (window.location.hash === "#resources") {
     showResourcePage();
   } else if (window.location.hash === "#push") {
@@ -1060,13 +1140,7 @@ function initEventHandlers() {
 
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.userInfoPageBtn?.addEventListener("click", showUserInfoPage);
-  el.profileEditShortcut?.addEventListener("click", () => {
-    state.personalProfileView = "archive";
-    state.personalProfileSelectedPostId = "";
-    state.personalProfileSelectedPost = null;
-    setWikiArchiveMode(false);
-    renderPersonalProfilePage();
-  });
+  el.profileEditShortcut?.addEventListener("click", () => showUserInfoPage());
   el.profileHeroAvatar?.addEventListener("click", () => {
     const input = document.querySelector("#profileAvatarImageInput");
     if (input instanceof HTMLInputElement) input.click();
@@ -1074,31 +1148,35 @@ function initEventHandlers() {
   el.profileTabs?.addEventListener("click", (event) => {
     const button = event.target instanceof HTMLElement ? event.target.closest("[data-profile-tab]") : null;
     if (!button) return;
-    state.personalProfileTab = button.getAttribute("data-profile-tab") || "answers";
-    state.personalProfileView = "archive";
-    setWikiArchiveMode(true);
-    renderProfileContentPanel();
+    showUserInfoPage({ mode: "archive", tab: button.getAttribute("data-profile-tab") || "answers" });
   });
   el.userInfoPage?.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     const floatTabButton = target?.closest(".wiki-float-nav [data-profile-tab]");
     if (floatTabButton) {
-      state.personalProfileTab = floatTabButton.getAttribute("data-profile-tab") || "answers";
-      state.personalProfileView = "archive";
-      setWikiArchiveMode(true);
-      renderProfileContentPanel();
+      showUserInfoPage({ mode: "archive", tab: floatTabButton.getAttribute("data-profile-tab") || "answers" });
       return;
     }
     const postButton = target?.closest("[data-profile-post-id]");
     if (postButton) {
-      void openProfilePost(postButton.getAttribute("data-profile-post-id"));
+      showUserInfoPage({ mode: "post", postId: postButton.getAttribute("data-profile-post-id") });
+      return;
+    }
+    const socialButton = target?.closest("[data-profile-social]");
+    if (socialButton) {
+      openProfileSocialLink(socialButton.getAttribute("data-profile-social") || "");
+      return;
+    }
+    if (target?.closest("[data-open-account-profile]")) {
+      openAccountModal("profile");
+      return;
+    }
+    if (target?.closest("[data-open-account-security]")) {
+      openAccountModal("security");
       return;
     }
     if (target?.closest("[data-profile-back-archive]")) {
-      state.personalProfileView = "archive";
-      state.personalProfileSelectedPostId = "";
-      state.personalProfileSelectedPost = null;
-      renderProfileContentPanel();
+      showUserInfoPage({ mode: "archive", tab: state.personalProfileTab || "answers" });
       return;
     }
     if (target?.closest("[data-profile-edit-post]")) {
@@ -1132,12 +1210,11 @@ function initEventHandlers() {
     }
     const archiveButton = target?.closest("[data-profile-archive]");
     if (archiveButton) {
-      state.personalArchiveGroup = archiveButton.getAttribute("data-profile-archive") || "year";
-      state.personalProfileTab = "answers";
-      state.personalProfileFilter = "";
-      state.personalProfileView = "archive";
-      setWikiArchiveMode(true);
-      renderProfileContentPanel();
+      showUserInfoPage({
+        mode: "archive",
+        tab: "answers",
+        group: archiveButton.getAttribute("data-profile-archive") || "year",
+      });
       return;
     }
     if (target?.closest("#profileMusicButton")) {

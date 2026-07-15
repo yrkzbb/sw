@@ -183,6 +183,7 @@ function renderPersonalProfileChrome() {
   renderWikiDateTime();
   renderWikiSummaryCards();
   renderWikiPhotoWall();
+  renderWikiSocialLinks();
   renderWikiMusicCard();
 }
 
@@ -202,6 +203,8 @@ function saveAccountProfilePatch(patch) {
         theme: profile.theme,
         defaultPage: profile.defaultPage,
         replyStyle: profile.replyStyle,
+        githubUrl: profile.githubUrl,
+        contactEmail: profile.contactEmail,
         photoWall: profile.photoWall,
         musicTrack: profile.musicTrack,
         ...patch,
@@ -212,6 +215,41 @@ function saveAccountProfilePatch(patch) {
     renderPersonalProfileChrome();
     return payload;
   });
+}
+
+function renderWikiSocialLinks() {
+  const profile = accountProfileFor();
+  const githubButton = document.querySelector('[data-profile-social="github"]');
+  const emailButton = document.querySelector('[data-profile-social="email"]');
+  if (githubButton) {
+    githubButton.classList.toggle("is-disabled", !profile.githubUrl);
+    githubButton.title = profile.githubUrl || "在个人信息里配置 GitHub 链接";
+  }
+  if (emailButton) {
+    const email = profile.contactEmail || state.activeUser?.email || "";
+    emailButton.classList.toggle("is-disabled", !email);
+    emailButton.title = email || "在个人信息里配置联系邮箱";
+  }
+}
+
+function openProfileSocialLink(kind) {
+  const profile = accountProfileFor();
+  if (kind === "github") {
+    if (!profile.githubUrl) {
+      openAccountModal("profile");
+      return;
+    }
+    window.open(profile.githubUrl, "_blank", "noopener,noreferrer");
+    return;
+  }
+  if (kind === "email") {
+    const email = profile.contactEmail || state.activeUser?.email || "";
+    if (!email) {
+      openAccountModal("profile");
+      return;
+    }
+    window.location.href = `mailto:${email}`;
+  }
 }
 
 function resizeProfileAvatar(file) {
@@ -971,6 +1009,9 @@ async function deleteProfilePost() {
     state.personalProfileSelectedPostId = "";
     state.personalProfileSelectedPost = null;
     state.personalProfilePostEditable = false;
+    if (typeof setUserInfoArchiveRoute === "function") {
+      setUserInfoArchiveRoute(state.personalProfileTab || "answers", state.personalArchiveGroup || "year");
+    }
     renderPersonalProfileChrome();
     renderProfileContentPanel();
   } catch (e) {
@@ -1049,7 +1090,7 @@ function renderProfileContentPanel() {
     `;
     return;
   }
-  if (tab === "notes" || tab === "prompts") {
+  if (tab === "notes") {
     const shares = wikiStoredDocs().map((doc) => ({
       title: doc.title || doc.filename || "未命名文档",
       tag: doc.category || "文档",
@@ -1073,6 +1114,35 @@ function renderProfileContentPanel() {
           </article>
         `).join("")}
       </div>
+    `;
+    return;
+  }
+  if (tab === "prompts") {
+    const profile = accountProfileFor();
+    const github = profile.githubUrl || "未配置";
+    const contactEmail = profile.contactEmail || state.activeUser?.email || "未配置";
+    el.profileContentPanel.innerHTML = `
+      <article class="wiki-account-card wiki-glass">
+        <div>
+          <span>ACCOUNT</span>
+          <h3>个人信息</h3>
+          <p>修改昵称、邮箱、密码和主页联系方式。GitHub 与邮箱按钮会使用这里的配置。</p>
+        </div>
+        <dl>
+          <dt>昵称</dt>
+          <dd>${escapeHtml(state.activeUser?.name || "-")}</dd>
+          <dt>登录邮箱</dt>
+          <dd>${escapeHtml(state.activeUser?.email || "-")}</dd>
+          <dt>GitHub</dt>
+          <dd>${escapeHtml(github)}</dd>
+          <dt>联系邮箱</dt>
+          <dd>${escapeHtml(contactEmail)}</dd>
+        </dl>
+        <div class="wiki-account-actions">
+          <button type="button" data-open-account-profile>编辑资料</button>
+          <button type="button" data-open-account-security>修改密码</button>
+        </div>
+      </article>
     `;
     return;
   }

@@ -18,21 +18,21 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260715-delete-post" />
+    <link rel="stylesheet" href="./css/index.css?v=20260715-account-links" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/app/config-state.js?v=20260715-profile-archives" defer></script>
-    <script src="./js/app/auth-account.js?v=20260715-delete-post" defer></script>
+    <script src="./js/app/config-state.js?v=20260715-account-links" defer></script>
+    <script src="./js/app/auth-account.js?v=20260715-account-links" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260715-split" defer></script>
     <script src="./js/app/resources.js?v=20260715-split" defer></script>
     <script src="./js/app/learning-path-assessment.js?v=20260715-split" defer></script>
     <script src="./js/app/community-feed.js?v=20260715-feed-social" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260715-split" defer></script>
-    <script src="./js/app/profile-page.js?v=20260715-delete-post" defer></script>
-    <script src="./js/app/chat-navigation-events.js?v=20260715-delete-post" defer></script>
+    <script src="./js/app/profile-page.js?v=20260715-account-links" defer></script>
+    <script src="./js/app/chat-navigation-events.js?v=20260715-account-links" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
   <body data-theme="dark">
@@ -225,7 +225,7 @@
               <button type="button" data-profile-tab="questions" title="我的项目">◇</button>
               <button type="button" data-profile-tab="collections" title="关于网站">◡</button>
               <button type="button" data-profile-tab="notes" title="推荐分享">☆</button>
-              <button type="button" data-profile-tab="prompts" title="个人链接">◎</button>
+              <button type="button" data-profile-tab="prompts" title="个人信息">◎</button>
             </nav>
             <section class="wiki-name-card wiki-glass">
               <div class="wiki-name-inner">
@@ -240,7 +240,7 @@
                 <button type="button" role="tab" data-profile-tab="questions"><span>◇</span>我的项目</button>
                 <button type="button" role="tab" data-profile-tab="collections"><span>◡</span>关于网站</button>
                 <button type="button" role="tab" data-profile-tab="notes"><span>☆</span>推荐分享</button>
-                <button type="button" role="tab" data-profile-tab="prompts"><span>◎</span>优秀博客</button>
+                <button type="button" role="tab" data-profile-tab="prompts"><span>◎</span>个人信息</button>
               </div>
             </section>
 
@@ -285,10 +285,8 @@
             </section>
 
             <div class="wiki-social-row">
-              <button type="button">Github</button>
-              <button type="button">Bilibili</button>
-              <button type="button">小红书</button>
-              <button type="button">✉</button>
+              <button type="button" data-profile-social="github">Github</button>
+              <button type="button" data-profile-social="email">✉</button>
             </div>
 
             <section class="wiki-recommend-card wiki-glass">
@@ -651,6 +649,14 @@
             <label class="account-field account-field-wide">
               <span>空间描述</span>
               <input id="accountBioInput" type="text" maxlength="80" placeholder="例如：考研复习 / 算法训练 / 课程学习" />
+            </label>
+            <label class="account-field">
+              <span>GitHub 链接</span>
+              <input id="accountGithubInput" type="url" inputmode="url" placeholder="https://github.com/username" />
+            </label>
+            <label class="account-field">
+              <span>联系邮箱</span>
+              <input id="accountContactEmailInput" type="email" autocomplete="email" placeholder="用于主页邮箱按钮" />
             </label>
           </div>
           <section class="account-section" data-account-panel="personalize" hidden>

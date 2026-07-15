@@ -138,6 +138,8 @@ function normalizeAccountProfile(profile = {}) {
   const theme = String(source.theme || "system").trim();
   const defaultPage = String(source.defaultPage || "chat").trim();
   const replyStyle = String(source.replyStyle || "").trim().replace(/\s+/g, " ").slice(0, 180);
+  const githubUrl = String(source.githubUrl || "").trim().slice(0, 240);
+  const contactEmail = normalizeEmail(source.contactEmail || "");
   const photoWall = Array.isArray(source.photoWall)
     ? source.photoWall
         .map((item) => String(item || "").trim())
@@ -163,6 +165,8 @@ function normalizeAccountProfile(profile = {}) {
     theme: allowedThemes.has(theme) ? theme : "system",
     defaultPage: allowedPages.has(defaultPage) ? defaultPage : "chat",
     replyStyle,
+    githubUrl: /^https:\/\/(www\.)?github\.com\/[\w.-]+\/?$/i.test(githubUrl) ? githubUrl : "",
+    contactEmail: /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail) ? contactEmail : "",
     photoWall,
     musicTrack,
   };

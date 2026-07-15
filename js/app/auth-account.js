@@ -58,6 +58,21 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase().slice(0, 80);
 }
 
+function normalizeGithubUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(withProtocol);
+    if (url.hostname.replace(/^www\./i, "").toLowerCase() !== "github.com") return "";
+    const username = url.pathname.split("/").filter(Boolean)[0] || "";
+    if (!/^[\w.-]+$/.test(username)) return "";
+    return `https://github.com/${username}`;
+  } catch {
+    return "";
+  }
+}
+
 function getStoredAuthMode() {
   return rawStorageGet(AUTH_MODE_STORAGE) === "login" ? "login" : "register";
 }
@@ -216,6 +231,8 @@ function accountProfileFor(user = state.activeUser) {
     theme: profile.theme || "system",
     defaultPage: profile.defaultPage || "chat",
     replyStyle: profile.replyStyle || "",
+    githubUrl: normalizeGithubUrl(profile.githubUrl || ""),
+    contactEmail: normalizeEmail(profile.contactEmail || ""),
     photoWall,
     musicTrack,
   };
@@ -277,6 +294,8 @@ function openAccountModal(section = "profile") {
   if (el.accountAvatarInput) el.accountAvatarInput.value = profile.avatarInitial || "";
   if (el.accountAccentInput) el.accountAccentInput.value = profile.accent || "teal";
   if (el.accountBioInput) el.accountBioInput.value = profile.bio || "";
+  if (el.accountGithubInput) el.accountGithubInput.value = profile.githubUrl || "";
+  if (el.accountContactEmailInput) el.accountContactEmailInput.value = profile.contactEmail || state.activeUser.email || "";
   if (el.accountThemeInput) el.accountThemeInput.value = profile.theme || "system";
   if (el.accountDefaultPageInput) el.accountDefaultPageInput.value = profile.defaultPage || "chat";
   if (el.accountReplyStyleInput) el.accountReplyStyleInput.value = profile.replyStyle || "";
@@ -335,6 +354,8 @@ async function handleAccountProfileSubmit(event) {
   const avatarInitial = String(el.accountAvatarInput?.value || "").trim().slice(0, 2).toUpperCase();
   const accent = String(el.accountAccentInput?.value || "teal");
   const bio = String(el.accountBioInput?.value || "").trim().replace(/\s+/g, " ").slice(0, 80);
+  const githubUrl = normalizeGithubUrl(el.accountGithubInput?.value || "");
+  const contactEmail = normalizeEmail(el.accountContactEmailInput?.value || "");
   const theme = String(el.accountThemeInput?.value || "system");
   const defaultPage = String(el.accountDefaultPageInput?.value || "chat");
   const replyStyle = String(el.accountReplyStyleInput?.value || "").trim().replace(/\s+/g, " ").slice(0, 180);
@@ -344,6 +365,14 @@ async function handleAccountProfileSubmit(event) {
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     setAccountMessage("请输入有效邮箱。");
+    return;
+  }
+  if (el.accountGithubInput?.value && !githubUrl) {
+    setAccountMessage("GitHub 链接格式应类似 https://github.com/username。");
+    return;
+  }
+  if (contactEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contactEmail)) {
+    setAccountMessage("请输入有效的联系邮箱。");
     return;
   }
   if (el.accountSaveBtn) el.accountSaveBtn.disabled = true;
@@ -359,6 +388,8 @@ async function handleAccountProfileSubmit(event) {
           avatarImage: accountProfileFor().avatarImage,
           accent,
           bio,
+          githubUrl,
+          contactEmail,
           theme,
           defaultPage,
           replyStyle,
