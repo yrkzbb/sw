@@ -615,9 +615,23 @@ function renderWikiPortraitRadar(fieldData) {
     const point = radarPoint(cx, cy, radius + 25, index, total);
     return `<text class="wiki-radar-label" x="${point.x.toFixed(1)}" y="${point.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${escapeHtml(item.meta.title)}</text>`;
   }).join("");
-  const dots = areaPoints.map((point) =>
-    `<circle class="wiki-radar-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.5" />`
-  ).join("");
+  const dots = areaPoints.map((point, index) => {
+    const item = fieldData[index];
+    const tooltipX = Math.max(54, Math.min(266, point.x));
+    const tooltipY = Math.max(22, point.y - 22);
+    const label = `${item.meta.title} ${item.score}`;
+    return `
+      <g class="wiki-radar-dot-group" tabindex="0" role="img" aria-label="${escapeHtml(item.meta.title)}：${item.score}">
+        <title>${escapeHtml(item.meta.title)}：${item.score}</title>
+        <circle class="wiki-radar-hit" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="13" />
+        <circle class="wiki-radar-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.5" />
+        <g class="wiki-radar-tooltip" transform="translate(${tooltipX.toFixed(1)} ${tooltipY.toFixed(1)})">
+          <rect x="-38" y="-18" width="76" height="26" rx="10" />
+          <text text-anchor="middle" dominant-baseline="middle">${escapeHtml(label)}</text>
+        </g>
+      </g>
+    `;
+  }).join("");
   return `
     <svg class="wiki-portrait-radar" viewBox="0 0 320 270" role="img" aria-label="学习画像八维雷达图">
       ${grid}
@@ -626,6 +640,26 @@ function renderWikiPortraitRadar(fieldData) {
       ${dots}
       ${labels}
     </svg>
+  `;
+}
+
+function renderWikiPortraitNarrative(fieldData) {
+  const sentence = fieldData.map((field) => {
+    const value = field.item.value || "待补充";
+    return `${field.meta.title}：${value}`;
+  }).join("；");
+  const evidenceText = fieldData
+    .map((field) => field.item.evidence)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join("；");
+  return `
+    <div class="wiki-portrait-text">
+      <span>PROFILE SUMMARY</span>
+      <h4>我的画像</h4>
+      <p>${escapeHtml(sentence)}。</p>
+      ${evidenceText ? `<small>${escapeHtml(evidenceText)}</small>` : ""}
+    </div>
   `;
 }
 
@@ -638,66 +672,19 @@ function renderWikiPortraitPanel() {
     const score = profileScore(item);
     return { key, meta, item, score };
   });
-  const average = Math.round(fieldData.reduce((sum, item) => sum + item.score, 0) / Math.max(1, fieldData.length));
-  const sureCount = fieldData.filter((item) => item.item.confidence === "确定").length;
-  const pendingCount = fieldData.filter((item) => !item.item.value).length;
-  const reason = profile.last_updated_reason || "画像会根据对话持续更新";
   el.profileContentPanel.innerHTML = `
     <section class="wiki-portrait-shell">
-      <header class="wiki-portrait-head wiki-glass">
+      <header class="wiki-portrait-head wiki-favorites-head">
         <div>
           <span>LEARNING PORTRAIT</span>
           <h3>学习画像</h3>
-          <p>${escapeHtml(state.profileUpdating ? "正在根据最新对话更新画像..." : reason)}</p>
         </div>
-        <div class="wiki-portrait-score">
-          <strong>${average}</strong>
-          <span>清晰度</span>
-        </div>
+        <button type="button" data-profile-refresh-portrait ${state.profileUpdating ? "disabled" : ""}>${state.profileUpdating ? "刷新中" : "刷新画像"}</button>
       </header>
-      <div class="wiki-portrait-summary">
-        <article class="wiki-portrait-stat wiki-glass">
-          <strong>${average}</strong>
-          <span>综合清晰度</span>
-        </article>
-        <article class="wiki-portrait-stat wiki-glass">
-          <strong>${sureCount}</strong>
-          <span>确定维度</span>
-        </article>
-        <article class="wiki-portrait-stat wiki-glass">
-          <strong>${pendingCount}</strong>
-          <span>待补充维度</span>
-        </article>
-      </div>
       <article class="wiki-portrait-radar-card wiki-glass">
-        <div>
-          <span>RADAR</span>
-          <h4>画像清晰度雷达</h4>
-          <p>根据每个维度已收集的信息数量、证据和可信度生成，不代表能力水平。</p>
-        </div>
         ${renderWikiPortraitRadar(fieldData)}
+        ${renderWikiPortraitNarrative(fieldData)}
       </article>
-      <div class="wiki-portrait-grid">
-        ${fieldData.map((field) => {
-          const confidence = field.item.confidence || "待补充";
-          const value = field.item.value || "还没有足够信息";
-          const evidence = field.item.evidence || "继续对话后，我会从你的表达中补充这一项。";
-          return `
-            <article class="wiki-portrait-card wiki-glass">
-              <div class="wiki-portrait-card-head">
-                <div>
-                  <span>${escapeHtml(confidence)}</span>
-                  <h4>${escapeHtml(field.meta.title)}</h4>
-                </div>
-                <em>${field.score}</em>
-              </div>
-              <div class="wiki-portrait-meter" aria-hidden="true"><i style="width:${field.score}%"></i></div>
-              <p>${escapeHtml(value)}</p>
-              <small>${escapeHtml(evidence)}</small>
-            </article>
-          `;
-        }).join("")}
-      </div>
     </section>
   `;
 }

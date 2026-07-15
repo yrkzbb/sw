@@ -1431,6 +1431,20 @@ function initEventHandlers() {
     const answerButton = target?.closest("[data-answer-action]");
     if (answerButton) {
       handleProfileAnswerAction(answerButton);
+      return;
+    }
+    if (target?.closest("[data-profile-refresh-portrait]")) {
+      if (!state.activeUser) {
+        state.profileUpdating = false;
+        renderProfileContentPanel();
+        return;
+      }
+      state.profileUpdating = true;
+      renderProfileContentPanel();
+      requestStudentProfileRefreshFromActivity("manual_portrait_refresh", {
+        source: "learning_portrait_tab",
+      });
+      return;
     }
   });
   el.userInfoPage?.addEventListener("submit", (event) => {

@@ -579,104 +579,49 @@
 }
 
 .wiki-portrait-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  border-radius: 28px;
-  padding: 24px;
-}
-
-.wiki-portrait-head span,
-.wiki-portrait-card-head span {
-  color: #64c8b7;
-  font-size: 12px;
-  font-weight: 950;
-}
-
-.wiki-portrait-head h3 {
-  margin: 4px 0 0;
-  color: #34484b;
-  font-size: 28px;
-}
-
-.wiki-portrait-head p {
-  margin: 8px 0 0;
-  color: #718186;
-  font-weight: 850;
-  line-height: 1.55;
-}
-
-.wiki-portrait-score,
-.wiki-portrait-stat {
-  display: grid;
-  place-items: center;
-  text-align: center;
-}
-
-.wiki-portrait-score {
-  min-width: 108px;
-  min-height: 108px;
-  border-radius: 28px;
-  background: rgba(255, 255, 255, 0.44);
-}
-
-.wiki-portrait-score strong,
-.wiki-portrait-stat strong {
-  color: #34484b;
-  font-size: 34px;
-  line-height: 1;
-}
-
-.wiki-portrait-score span,
-.wiki-portrait-stat span {
-  margin-top: 6px;
-  color: #829096;
-  font-weight: 950;
-}
-
-.wiki-portrait-summary {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.wiki-portrait-stat {
-  min-height: 112px;
-  border-radius: 24px;
-  padding: 18px;
+  min-height: 0;
 }
 
 .wiki-portrait-radar-card {
   display: grid;
-  grid-template-columns: minmax(180px, 0.7fr) minmax(320px, 1fr);
+  grid-template-columns: minmax(360px, 0.95fr) minmax(320px, 1fr);
   align-items: center;
-  gap: 20px;
+  gap: 34px;
   border-radius: 28px;
-  padding: 24px;
+  padding: 30px 34px;
 }
 
-.wiki-portrait-radar-card span {
+.wiki-portrait-text span {
   color: #64c8b7;
   font-size: 12px;
   font-weight: 950;
 }
 
-.wiki-portrait-radar-card h4 {
-  margin: 6px 0 8px;
+.wiki-portrait-text h4 {
+  margin: 8px 0 12px;
   color: #34484b;
-  font-size: 24px;
+  font-size: 28px;
 }
 
-.wiki-portrait-radar-card p {
+.wiki-portrait-text p {
   margin: 0;
+  color: #405457;
+  font-size: 17px;
+  font-weight: 900;
+  line-height: 1.85;
+}
+
+.wiki-portrait-text small {
+  display: block;
+  margin-top: 14px;
   color: #718186;
+  font-size: 14px;
   font-weight: 850;
-  line-height: 1.6;
+  line-height: 1.7;
 }
 
 .wiki-portrait-radar {
-  width: min(100%, 520px);
+  width: min(100%, 560px);
   justify-self: center;
   overflow: visible;
 }
@@ -700,71 +645,55 @@
   stroke-width: 2.4;
 }
 
+.wiki-radar-hit {
+  fill: transparent;
+  cursor: help;
+}
+
+.wiki-radar-dot-group {
+  outline: none;
+}
+
+.wiki-radar-dot-group:hover .wiki-radar-dot,
+.wiki-radar-dot-group:focus-visible .wiki-radar-dot {
+  fill: #52c4b2;
+  stroke: #fff;
+  stroke-width: 3.2;
+}
+
+.wiki-radar-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transform-box: fill-box;
+  transition: opacity 140ms ease;
+}
+
+.wiki-radar-dot-group:hover .wiki-radar-tooltip,
+.wiki-radar-dot-group:focus-visible .wiki-radar-tooltip {
+  opacity: 1;
+}
+
+.wiki-radar-tooltip rect {
+  fill: rgba(52, 72, 75, 0.92);
+  stroke: rgba(255, 255, 255, 0.82);
+  stroke-width: 1;
+}
+
+.wiki-radar-tooltip text {
+  fill: #fff;
+  font-size: 10px;
+  font-weight: 950;
+}
+
 .wiki-radar-label {
   fill: #34484b;
-  font-size: 15px;
+  font-size: 10px;
   font-weight: 950;
 }
 
-.wiki-portrait-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.wiki-portrait-card {
-  display: grid;
-  gap: 12px;
-  border-radius: 24px;
-  padding: 20px;
-}
-
-.wiki-portrait-card-head {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.wiki-portrait-card h4 {
-  margin: 4px 0 0;
-  color: #34484b;
-  font-size: 18px;
-}
-
-.wiki-portrait-card em {
-  min-width: 48px;
-  text-align: right;
-  color: #34484b;
-  font-size: 24px;
-  font-style: normal;
-  font-weight: 950;
-}
-
-.wiki-portrait-meter {
-  height: 10px;
-  overflow: hidden;
-  border-radius: 999px;
-  background: rgba(134, 151, 154, 0.14);
-}
-
-.wiki-portrait-meter i {
-  display: block;
-  height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #5b8df3, #5fd0b8);
-}
-
-.wiki-portrait-card p,
-.wiki-portrait-card small {
-  margin: 0;
-  color: #718186;
-  line-height: 1.6;
-  font-weight: 850;
-}
-
-.wiki-portrait-card small {
-  color: #8a989c;
+.wiki-portrait-head button[disabled] {
+  cursor: wait;
+  opacity: 0.68;
 }
 
 .profile-social-list {
@@ -2318,17 +2247,6 @@
     font-size: 20px;
   }
 
-  .wiki-portrait-head {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .wiki-portrait-score {
-    min-height: 86px;
-  }
-
-  .wiki-portrait-summary,
-  .wiki-portrait-grid,
   .wiki-portrait-radar-card {
     grid-template-columns: 1fr;
   }
@@ -2339,6 +2257,14 @@
 
   .wiki-portrait-radar {
     width: 100%;
+  }
+
+  .wiki-portrait-text h4 {
+    font-size: 24px;
+  }
+
+  .wiki-portrait-text p {
+    font-size: 15px;
   }
 
   .personal-profile-page {
