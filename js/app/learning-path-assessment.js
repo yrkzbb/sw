@@ -810,6 +810,7 @@ function openPushResourceDetail(resourceIndex) {
   const activeData = getActivePathData();
   const resource = collectPushedResources(activeData).find((item) => item.index === resourceIndex);
   if (!resource || !el.pushDetailModal) return;
+  el.pushDetailModal.classList.remove("profile-social-modal");
   const meta = [
     resource.label || resource.type,
     resource.agent || "智能体推荐",
@@ -830,6 +831,7 @@ function openPushResourceDetail(resourceIndex) {
 
 function closePushResourceDetail() {
   if (!el.pushDetailModal) return;
+  el.pushDetailModal.classList.remove("profile-social-modal");
   el.pushDetailModal.hidden = true;
   if (el.pushDetailBody) el.pushDetailBody.innerHTML = "";
 }
@@ -1177,4 +1179,3 @@ function renderAssessmentPage() {
     ` : ""}
   `;
 }
-

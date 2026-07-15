@@ -18,7 +18,7 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260715-social-follow" />
+    <link rel="stylesheet" href="./css/index.css?v=20260716-remove-project-tab" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
@@ -28,10 +28,10 @@
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260715-split" defer></script>
     <script src="./js/app/resources.js?v=20260715-split" defer></script>
-    <script src="./js/app/learning-path-assessment.js?v=20260715-split" defer></script>
-    <script src="./js/app/community-feed.js?v=20260715-social-follow" defer></script>
+    <script src="./js/app/learning-path-assessment.js?v=20260715-profile-modal-style" defer></script>
+    <script src="./js/app/community-feed.js?v=20260715-profile-modal-grid" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260715-split" defer></script>
-    <script src="./js/app/profile-page.js?v=20260715-social-follow" defer></script>
+    <script src="./js/app/profile-page.js?v=20260716-remove-project-tab" defer></script>
     <script src="./js/app/chat-navigation-events.js?v=20260715-social-follow" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
@@ -220,7 +220,6 @@
             <nav class="wiki-float-nav" aria-label="个人主页导航">
               <button id="profileEditShortcut" class="wiki-avatar-mini" type="button" aria-label="回到个人主页">YR</button>
               <button class="active" type="button" data-profile-tab="answers" title="近期文章">▤</button>
-              <button type="button" data-profile-tab="questions" title="我的项目">◇</button>
               <button type="button" data-profile-tab="collections" title="我的收藏">◡</button>
               <button type="button" data-profile-tab="notes" title="推荐分享">☆</button>
               <button type="button" data-profile-tab="prompts" title="个人信息">◎</button>
@@ -235,7 +234,6 @@
               </div>
               <div class="wiki-menu-list" id="profileTabs" role="tablist" aria-label="个人内容">
                 <button class="active" type="button" role="tab" data-profile-tab="answers"><span>▤</span>近期文章</button>
-                <button type="button" role="tab" data-profile-tab="questions"><span>◇</span>我的项目</button>
                 <button type="button" role="tab" data-profile-tab="collections"><span>◡</span>我的收藏</button>
                 <button type="button" role="tab" data-profile-tab="notes"><span>☆</span>推荐分享</button>
                 <button type="button" role="tab" data-profile-tab="prompts"><span>◎</span>个人信息</button>

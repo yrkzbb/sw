@@ -534,11 +534,6 @@
   background: rgba(255, 255, 255, 0.46);
 }
 
-.wiki-social-row button[data-profile-social="github"] {
-  color: #fff;
-  background: #111;
-}
-
 .wiki-social-row button.is-disabled {
   opacity: 0.62;
 }
@@ -591,6 +586,295 @@
 .profile-social-person small {
   color: #829096;
   font-weight: 850;
+}
+
+.push-detail-modal.profile-social-modal {
+  padding: 28px;
+}
+
+.push-detail-modal.profile-social-modal .storage-modal-backdrop {
+  background:
+    radial-gradient(circle at 22% 78%, rgba(116, 219, 194, 0.32), transparent 36%),
+    radial-gradient(circle at 56% 85%, rgba(245, 225, 107, 0.26), transparent 31%),
+    radial-gradient(circle at 84% 74%, rgba(149, 214, 123, 0.30), transparent 36%),
+    rgba(58, 72, 75, 0.44);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.push-detail-modal.profile-social-modal .push-detail-panel {
+  width: min(1120px, calc(100vw - 56px));
+  max-height: min(82vh, 820px);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at 18% 92%, rgba(116, 219, 194, 0.20), transparent 34%),
+    radial-gradient(circle at 76% 82%, rgba(149, 214, 123, 0.22), transparent 32%),
+    rgba(255, 255, 255, 0.54);
+  box-shadow: 0 30px 90px rgba(61, 82, 78, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.64);
+  backdrop-filter: blur(24px) saturate(1.12);
+  -webkit-backdrop-filter: blur(24px) saturate(1.12);
+}
+
+.push-detail-modal.profile-social-modal .storage-modal-head {
+  align-items: flex-start;
+  border-bottom: 0;
+  padding: 30px 34px 14px;
+}
+
+.push-detail-modal.profile-social-modal .storage-modal-kicker {
+  width: fit-content;
+  border: 1px solid rgba(96, 200, 183, 0.28);
+  border-radius: 999px;
+  padding: 5px 11px;
+  color: #4ebfae;
+  background: rgba(255, 255, 255, 0.46);
+  letter-spacing: 0;
+}
+
+.push-detail-modal.profile-social-modal .storage-modal-title {
+  margin-top: 8px;
+  color: #34484b;
+  font-size: 30px;
+  line-height: 1.1;
+}
+
+.push-detail-modal.profile-social-modal .storage-icon-btn {
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(255, 255, 255, 0.82);
+  border-radius: 50%;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.54);
+  box-shadow: 0 14px 32px rgba(95, 130, 125, 0.14);
+}
+
+.push-detail-modal.profile-social-modal .push-detail-meta {
+  gap: 12px;
+  padding: 0 34px 18px;
+}
+
+.push-detail-modal.profile-social-modal .push-detail-meta span,
+.push-detail-modal.profile-social-modal .feed-author-link {
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  padding: 0 16px;
+  color: #5f7478;
+  background: rgba(255, 255, 255, 0.46);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+.push-detail-modal.profile-social-modal .feed-author-link {
+  color: #fff;
+  background: rgba(95, 199, 184, 0.88);
+}
+
+.push-detail-modal.profile-social-modal .feed-author-link.active {
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.56);
+}
+
+.push-detail-modal.profile-social-modal .push-detail-body {
+  display: grid;
+  gap: 22px;
+  border-top: 1px solid rgba(255, 255, 255, 0.62);
+  padding: 24px 34px 34px;
+}
+
+.profile-social-hero,
+.feed-author-identity-card,
+.feed-author-welcome-card,
+.feed-author-stat-card,
+.push-detail-modal.profile-social-modal .feed-author-posts button,
+.push-detail-modal.profile-social-modal .profile-social-person,
+.push-detail-modal.profile-social-modal .feed-comment-empty {
+  border: 1px solid rgba(255, 255, 255, 0.76);
+  border-radius: 28px;
+  background: rgba(255, 255, 255, 0.44);
+  box-shadow: 0 22px 64px rgba(88, 139, 128, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.54);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+.profile-social-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px;
+}
+
+.profile-social-hero-avatar {
+  width: 68px;
+  height: 68px;
+}
+
+.profile-social-hero-avatar,
+.push-detail-modal.profile-social-modal .profile-social-person span,
+.feed-author-avatar {
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, #5b8df3, #29c4b7);
+  font-weight: 950;
+}
+
+.profile-social-hero strong {
+  display: block;
+  color: #34484b;
+  font-size: 24px;
+  font-weight: 950;
+}
+
+.profile-social-hero span {
+  display: block;
+  margin-top: 4px;
+  color: #7c8d91;
+  font-weight: 900;
+}
+
+.push-detail-modal.profile-social-modal .profile-social-list {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
+.push-detail-modal.profile-social-modal .profile-social-person {
+  min-height: 96px;
+  border-radius: 24px;
+  padding: 18px;
+}
+
+.feed-author-home {
+  display: grid;
+  grid-template-columns: minmax(220px, 0.75fr) minmax(320px, 1.2fr) minmax(180px, 0.65fr);
+  grid-template-areas:
+    "identity welcome stat-one"
+    "identity welcome stat-two"
+    "posts posts posts";
+  gap: 18px;
+  width: 100%;
+}
+
+.feed-author-identity-card {
+  grid-area: identity;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 260px;
+  padding: 22px;
+}
+
+.feed-author-identity-card h3,
+.feed-author-welcome-card h3 {
+  margin: 0;
+  color: #34484b;
+  font-weight: 950;
+}
+
+.feed-author-identity-card p {
+  margin: 4px 0 0;
+  color: #64c8b7;
+  font-weight: 950;
+}
+
+.feed-author-welcome-card {
+  grid-area: welcome;
+  display: grid;
+  justify-items: center;
+  min-height: 260px;
+  padding: 30px 24px;
+  text-align: center;
+}
+
+.feed-author-welcome-card h3 {
+  margin-top: 16px;
+  font-size: 32px;
+}
+
+.feed-author-welcome-card p {
+  margin: 8px 0 0;
+  color: #34484b;
+  font-size: 24px;
+  font-weight: 950;
+}
+
+.feed-author-welcome-card p strong {
+  color: #5ecdbc;
+}
+
+.feed-author-welcome-card span {
+  max-width: 560px;
+  margin-top: 12px;
+  color: #7c8d91;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.6;
+}
+
+.feed-author-avatar {
+  width: 58px;
+  height: 58px;
+  font-size: 18px;
+}
+
+.feed-author-avatar-large {
+  width: 108px;
+  height: 108px;
+  font-size: 30px;
+  box-shadow: 0 18px 44px rgba(87, 147, 139, 0.20);
+}
+
+.feed-author-stat-card {
+  display: grid;
+  place-items: center;
+  min-height: 122px;
+  padding: 20px;
+  text-align: center;
+}
+
+.feed-author-stat-card:nth-of-type(3) {
+  grid-area: stat-one;
+}
+
+.feed-author-stat-card:nth-of-type(4) {
+  grid-area: stat-two;
+}
+
+.feed-author-stat-card strong {
+  color: #34484b;
+  font-size: 38px;
+  line-height: 1;
+}
+
+.feed-author-stat-card span {
+  color: #829096;
+  font-weight: 950;
+}
+
+.push-detail-modal.profile-social-modal .feed-author-posts {
+  grid-area: posts;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-content: start;
+  border-top: 0;
+  padding-top: 0;
+}
+
+.push-detail-modal.profile-social-modal .feed-author-posts button {
+  border-radius: 22px;
+  padding: 18px;
+}
+
+.push-detail-modal.profile-social-modal .feed-author-posts button strong {
+  color: #34484b;
+  font-size: 16px;
+}
+
+.push-detail-modal.profile-social-modal .feed-author-posts button span,
+.push-detail-modal.profile-social-modal .feed-comment-empty {
+  color: #7c8d91;
 }
 
 .wiki-recommend-card {
@@ -1766,6 +2050,45 @@
 }
 
 @media (max-width: 680px) {
+  .push-detail-modal.profile-social-modal {
+    padding: 12px;
+  }
+
+  .push-detail-modal.profile-social-modal .push-detail-panel {
+    width: 100%;
+    max-height: calc(100vh - 24px);
+    border-radius: 24px;
+  }
+
+  .push-detail-modal.profile-social-modal .storage-modal-head,
+  .push-detail-modal.profile-social-modal .push-detail-meta,
+  .push-detail-modal.profile-social-modal .push-detail-body {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .push-detail-modal.profile-social-modal .storage-modal-title {
+    font-size: 24px;
+  }
+
+  .feed-author-home {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "identity"
+      "welcome"
+      "stat-one"
+      "stat-two"
+      "posts";
+  }
+
+  .feed-author-welcome-card h3 {
+    font-size: 26px;
+  }
+
+  .feed-author-welcome-card p {
+    font-size: 20px;
+  }
+
   .personal-profile-page {
     padding: 14px 12px 64px;
   }

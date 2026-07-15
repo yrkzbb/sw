@@ -259,12 +259,25 @@ function renderProfileSocialList(type) {
   if (!el.pushDetailModal) return;
   const isFollowers = type === "followers";
   const users = isFollowers ? (state.profileSocial?.followers || []) : (state.profileSocial?.following || []);
+  el.pushDetailModal.classList.add("profile-social-modal");
   if (el.pushDetailType) el.pushDetailType.textContent = isFollowers ? "粉丝列表" : "关注列表";
   if (el.pushDetailTitle) el.pushDetailTitle.textContent = isFollowers ? `粉丝 ${users.length}` : `关注 ${users.length}`;
-  if (el.pushDetailMeta) el.pushDetailMeta.innerHTML = `<span>点击昵称查看主页</span>`;
+  if (el.pushDetailMeta) {
+    el.pushDetailMeta.innerHTML = `
+      <span>${isFollowers ? "关注你的人" : "你正在关注"}</span>
+      <span>点击昵称查看主页</span>
+    `;
+  }
   if (el.pushDetailBody) {
     el.pushDetailBody.innerHTML = `
-      <section class="profile-social-list">
+      <section class="profile-social-hero">
+        <div class="profile-social-hero-avatar">${escapeHtml(String(state.activeUser?.name || "我").slice(0, 2).toUpperCase())}</div>
+        <div>
+          <strong>${escapeHtml(state.activeUser?.name || "我的主页")}</strong>
+          <span>${isFollowers ? "粉丝列表" : "关注列表"}</span>
+        </div>
+      </section>
+      <section class="profile-social-list" aria-label="${isFollowers ? "粉丝列表" : "关注列表"}">
         ${users.length ? users.map((user) => `
           <button class="profile-social-person" type="button" data-feed-author-id="${escapeHtml(user.id)}">
             <span>${escapeHtml(String(user.name || "社").slice(0, 2).toUpperCase())}</span>

@@ -254,6 +254,7 @@ function feedPostMarkdown(post) {
 
 function openFeedPostDetail(post) {
   if (!post || !el.pushDetailModal) return;
+  el.pushDetailModal.classList.remove("profile-social-modal");
   const type = FEED_TYPE_LABELS[post.contentType] || "动态";
   const tags = (post.tags || []).map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("");
   if (el.pushDetailType) el.pushDetailType.textContent = type;
@@ -318,8 +319,11 @@ async function loadFeedComments(postId) {
 
 function renderFeedAuthorProfile(author, posts = []) {
   if (!el.pushDetailModal) return;
+  el.pushDetailModal.classList.add("profile-social-modal");
+  const authorName = author.name || "社区用户";
+  const initials = String(authorName || "社").slice(0, 2).toUpperCase();
   if (el.pushDetailType) el.pushDetailType.textContent = "博主主页";
-  if (el.pushDetailTitle) el.pushDetailTitle.textContent = author.name || "社区用户";
+  if (el.pushDetailTitle) el.pushDetailTitle.textContent = authorName;
   if (el.pushDetailMeta) {
     el.pushDetailMeta.innerHTML = `
       <span>${author.posts || 0} 条动态</span>
@@ -331,20 +335,36 @@ function renderFeedAuthorProfile(author, posts = []) {
   }
   if (el.pushDetailBody) {
     el.pushDetailBody.innerHTML = `
-      <section class="feed-author-profile">
-        <div class="feed-author-avatar">${escapeHtml(String(author.name || "社").slice(0, 2).toUpperCase())}</div>
-        <div>
-          <h3>${escapeHtml(author.name || "社区用户")}</h3>
-          <p>这个主页会展示博主发布过的公开动态，关注后 TA 的内容会优先进入你的推荐候选集。</p>
+      <section class="feed-author-home">
+        <div class="feed-author-identity-card">
+          <div class="feed-author-avatar">${escapeHtml(initials)}</div>
+          <div>
+            <h3>${escapeHtml(authorName)}</h3>
+            <p>@${escapeHtml(normalizeUsername(authorName) || "author")}</p>
+          </div>
         </div>
-      </section>
-      <section class="feed-author-posts">
-        ${posts.length ? posts.map((post) => `
-          <button type="button" data-feed-open-post="${escapeHtml(post.id)}">
-            <strong>${escapeHtml(post.title)}</strong>
-            <span>${escapeHtml(FEED_TYPE_LABELS[post.contentType] || "动态")} · ${escapeHtml(formatFeedTime(post.createdAt))}</span>
-          </button>
-        `).join("") : `<div class="feed-comment-empty">这个博主还没有公开动态。</div>`}
+        <div class="feed-author-welcome-card">
+          <div class="feed-author-avatar feed-author-avatar-large">${escapeHtml(initials)}</div>
+          <h3>Good Evening</h3>
+          <p>I'm <strong>${escapeHtml(authorName)}</strong>, nice to meet you!</p>
+          <span>这个主页会展示博主发布过的公开动态，关注后 TA 的内容会优先进入你的推荐候选集。</span>
+        </div>
+        <div class="feed-author-stat-card">
+          <strong>${author.posts || 0}</strong>
+          <span>公开动态</span>
+        </div>
+        <div class="feed-author-stat-card">
+          <strong>${author.followers || 0}</strong>
+          <span>关注者</span>
+        </div>
+        <section class="feed-author-posts" aria-label="博主动态">
+          ${posts.length ? posts.map((post) => `
+            <button type="button" data-feed-open-post="${escapeHtml(post.id)}">
+              <strong>${escapeHtml(post.title)}</strong>
+              <span>${escapeHtml(FEED_TYPE_LABELS[post.contentType] || "动态")} · ${escapeHtml(formatFeedTime(post.createdAt))}</span>
+            </button>
+          `).join("") : `<div class="feed-comment-empty">这个博主还没有公开动态。</div>`}
+        </section>
       </section>
     `;
   }
