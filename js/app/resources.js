@@ -15,7 +15,7 @@ function renderAgentPipeline(status = "idle") {
     return `
       <${tag} class="agent-card ${cls}" ${attrs}>
         <div class="agent-role"><span class="agent-dot" aria-hidden="true"></span>${escapeHtml(agent.role)}</div>
-        <div class="agent-task">${escapeHtml(agent.task)}</div>
+        ${agent.task ? `<div class="agent-task">${escapeHtml(agent.task)}</div>` : ""}
       </${tag}>
     `;
   }).join("");
@@ -1799,4 +1799,3 @@ function normalizeGeneratedResources(data, demand) {
     resources,
   };
 }
-

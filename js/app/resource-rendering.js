@@ -12,7 +12,7 @@ function renderLearningResources() {
   }
   const data = state.learningResources;
   if (!data?.resources?.length) {
-    el.resourceGrid.innerHTML = `<div class="resource-empty">填写课程内容或学习需求后，点击“生成资源”。系统会优先围绕你本次输入的主题生成资料，画像只用于调整难度和讲解风格。<br>${escapeHtml(flowText)}</div>`;
+    el.resourceGrid.innerHTML = `<div class="resource-empty">填写课程内容或学习需求后，点击“生成资源”。<br>${escapeHtml(flowText)}</div>`;
     return;
   }
   el.resourceGrid.innerHTML = data.resources.map((item, index) => {
