@@ -157,14 +157,17 @@ function renderStudentProfile() {
 }
 
 function renderPersonalProfileChrome() {
-  const profile = accountProfileFor();
-  const userName = state.activeUser?.name || "yrk";
+  const publicProfile = state.publicProfile || null;
+  const publicAuthor = publicProfile?.author || null;
+  const profile = publicAuthor?.profile || accountProfileFor();
+  const userName = publicAuthor?.name || state.activeUser?.name || "yrk";
   const handle = `@${normalizeUsername(userName) || "yrk"}`;
   const bio = profile.bio && profile.bio !== "个人学习空间"
     ? profile.bio
     : "关注 AI 产品设计、大模型应用与知识工作流，擅长把复杂问题拆成可执行方案。";
   const avatarText = profile.avatarInitial || String(userName || "YR").slice(0, 2).toUpperCase();
   const avatarGradient = accountAccentGradient(profile.accent);
+  el.userInfoPage?.classList.toggle("wiki-public-view", Boolean(publicProfile));
   if (el.personalProfileName) el.personalProfileName.textContent = userName;
   if (el.personalProfileHandle) el.personalProfileHandle.textContent = handle;
   if (el.personalProfileBio) el.personalProfileBio.textContent = bio;
@@ -184,7 +187,7 @@ function renderPersonalProfileChrome() {
   renderWikiSummaryCards();
   renderWikiPhotoWall();
   renderWikiSocialLinks();
-  void loadProfileSocialStats();
+  if (!publicProfile) void loadProfileSocialStats();
   renderWikiMusicCard();
 }
 
@@ -219,18 +222,32 @@ function saveAccountProfilePatch(patch) {
 }
 
 function renderWikiSocialLinks() {
+  const publicProfile = state.publicProfile || null;
   const profile = accountProfileFor();
   const githubButton = document.querySelector('[data-profile-social="github"]');
   const emailButton = document.querySelector('[data-profile-social="email"]');
+  const followingButton = document.querySelector('[data-profile-social-list="following"]');
+  const followerButton = document.querySelector('[data-profile-social-list="followers"]');
   const followingCount = document.querySelector("[data-profile-following-count]");
   const followerCount = document.querySelector("[data-profile-follower-count]");
-  if (followingCount) followingCount.textContent = String(state.profileSocial?.following?.length || 0);
-  if (followerCount) followerCount.textContent = String(state.profileSocial?.followers?.length || 0);
+  document.querySelectorAll('[data-profile-tab="prompts"]').forEach((button) => {
+    button.hidden = Boolean(publicProfile);
+  });
+  if (followingCount) followingCount.textContent = publicProfile ? String(publicProfile.posts?.length || 0) : String(state.profileSocial?.following?.length || 0);
+  if (followerCount) followerCount.textContent = publicProfile ? String(publicProfile.author?.followers || 0) : String(state.profileSocial?.followers?.length || 0);
+  if (followingButton) {
+    followingButton.childNodes[0].textContent = publicProfile ? "动态 " : "关注 ";
+  }
+  if (followerButton) {
+    followerButton.childNodes[0].textContent = "粉丝 ";
+  }
   if (githubButton) {
+    githubButton.hidden = Boolean(publicProfile);
     githubButton.classList.toggle("is-disabled", !profile.githubUrl);
     githubButton.title = profile.githubUrl || "在个人信息里配置 GitHub 链接";
   }
   if (emailButton) {
+    emailButton.hidden = Boolean(publicProfile);
     const email = profile.contactEmail || state.activeUser?.email || "";
     emailButton.classList.toggle("is-disabled", !email);
     emailButton.title = email || "在个人信息里配置联系邮箱";
@@ -520,6 +537,58 @@ function renderFavoritePostCard(post, folderId) {
   `;
 }
 
+function renderPublicFavoritePostCard(post) {
+  if (!post) return "";
+  const tags = Array.isArray(post.tags) ? post.tags.slice(0, 3) : [];
+  return `
+    <article class="wiki-favorite-post-card" data-profile-post-id="${escapeHtml(post.id)}">
+      <span>${escapeHtml(post.contentType || "内容")} · ${escapeHtml(formatWikiDate(post.createdAt) || "")}</span>
+      <h4>${escapeHtml(post.title || "未命名内容")}</h4>
+      <p>${escapeHtml(post.summary || post.body || "")}</p>
+      <div>${tags.map((tag) => `<em>#${escapeHtml(tag)}</em>`).join("")}</div>
+      <small>${escapeHtml(post.author?.name || "社区用户")} · 赞 ${post.likes || 0} · 评 ${post.comments || 0}</small>
+    </article>
+  `;
+}
+
+function renderPublicFavoriteCollectionsPanel() {
+  if (!el.profileContentPanel) return;
+  const collections = Array.isArray(state.publicProfile?.publicCollections)
+    ? state.publicProfile.publicCollections
+    : [];
+  if (!collections.length) {
+    el.profileContentPanel.innerHTML = profileEmptyState("没有公开收藏", "这个用户还没有公开可见的收藏夹。");
+    return;
+  }
+  el.profileContentPanel.innerHTML = `
+    <section class="wiki-favorites-shell">
+      <header class="wiki-favorites-head">
+        <div>
+          <span>PUBLIC FAVORITES</span>
+          <h3>公开收藏</h3>
+          <p>这里只展示对外公开的收藏夹；仅自己可见的收藏不会显示。</p>
+        </div>
+      </header>
+      <div class="wiki-public-favorite-grid">
+        ${collections.map((folder) => `
+          <article class="wiki-favorite-folder-detail">
+            <div class="wiki-favorite-folder-title">
+              <div>
+                <span>公开可见</span>
+                <h4>${escapeHtml(folder.name)}</h4>
+                <p>${escapeHtml(folder.description || "这个收藏夹没有描述。")}</p>
+              </div>
+            </div>
+            <div class="wiki-favorite-post-grid">
+              ${folder.posts?.length ? folder.posts.map(renderPublicFavoritePostCard).join("") : profileEmptyState("这个公开收藏夹还空着", "暂无可展示内容。")}
+            </div>
+          </article>
+        `).join("")}
+      </div>
+    </section>
+  `;
+}
+
 function renderFavoriteCollectionsPanel() {
   if (!el.profileContentPanel) return;
   loadFavoriteCollections();
@@ -677,7 +746,7 @@ function currentProfileGreeting() {
 function renderWikiPhotoWall() {
   const grid = document.querySelector(".wiki-polaroid-grid");
   if (!grid) return;
-  const photos = accountProfileFor().photoWall || [];
+  const photos = state.publicProfile?.author?.profile?.photoWall || accountProfileFor().photoWall || [];
   grid.innerHTML = Array.from({ length: 4 }, (_, index) => {
     const src = photos[index];
     return `<span class="${src ? "has-photo" : ""}">${src ? `<img src="${escapeHtml(src)}" alt="" />` : ""}</span>`;
@@ -894,18 +963,22 @@ function formatWikiFullDate(value) {
 }
 
 function wikiPublicPosts() {
+  if (state.publicProfile) return Array.isArray(state.publicProfile.posts) ? state.publicProfile.posts : [];
   return Array.isArray(state.personalProfilePosts) ? state.personalProfilePosts : [];
 }
 
 function wikiStoredDocs() {
+  if (state.publicProfile) return [];
   return Array.isArray(state.storedMarkdownFiles) ? state.storedMarkdownFiles : [];
 }
 
 function wikiResources() {
+  if (state.publicProfile) return [];
   return Array.isArray(state.learningResources?.resources) ? state.learningResources.resources : [];
 }
 
 function wikiPathEntries() {
+  if (state.publicProfile) return [];
   return Object.entries(state.learningPathLibrary || {}).map(([category, data]) => ({
     category,
     topic: data?.topic || category,
@@ -998,6 +1071,7 @@ function renderProfileFilterTags() {
 }
 
 async function loadPersonalProfileRemoteData() {
+  if (state.publicProfile) return;
   if (!state.activeUser?.id || state.personalProfileLoading) return;
   state.personalProfileLoading = true;
   try {
@@ -1010,6 +1084,33 @@ async function loadPersonalProfileRemoteData() {
     console.warn("加载个人主页动态失败", e);
   } finally {
     state.personalProfileLoading = false;
+  }
+}
+
+async function openPublicAuthorProfilePage(authorId) {
+  if (!authorId) return;
+  try {
+    const payload = await apiJson(`/api/feed/authors/${encodeURIComponent(authorId)}`, { method: "GET" });
+    state.publicProfile = {
+      author: payload.author || null,
+      posts: Array.isArray(payload.posts) ? payload.posts : [],
+      publicCollections: Array.isArray(payload.publicCollections) ? payload.publicCollections : [],
+    };
+    state.personalProfileTab = "answers";
+    state.personalProfileFilter = "";
+    state.personalProfileView = "archive";
+    state.personalProfileSelectedPostId = "";
+    state.personalProfileSelectedPost = null;
+    state.personalProfilePostEditable = false;
+    if (el.pushDetailModal) el.pushDetailModal.hidden = true;
+    if (typeof showUserInfoPage === "function") {
+      showUserInfoPage({ mode: "home", updateHash: false, keepPublicProfile: true });
+    } else {
+      renderPersonalProfilePage();
+    }
+    window.location.hash = `#user-info/author/${encodeURIComponent(authorId)}`;
+  } catch (e) {
+    window.alert(String(e?.message || "作者主页加载失败。"));
   }
 }
 
@@ -1341,6 +1442,9 @@ async function deleteProfilePost() {
 
 function renderProfileContentPanel() {
   if (!el.profileContentPanel) return;
+  if (state.publicProfile && state.personalProfileTab === "prompts") {
+    state.personalProfileTab = "answers";
+  }
   if (state.personalProfileView === "detail" || state.personalProfileView === "editing") {
     renderProfilePostView();
     return;
@@ -1399,6 +1503,10 @@ function renderProfileContentPanel() {
     return;
   }
   if (tab === "collections") {
+    if (state.publicProfile) {
+      renderPublicFavoriteCollectionsPanel();
+      return;
+    }
     renderFavoriteCollectionsPanel();
     void loadFavoritePostsForProfile();
     return;

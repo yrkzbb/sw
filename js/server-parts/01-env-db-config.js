@@ -24,6 +24,7 @@ const USER_DATA_KEYS = {
   mistakes: "LINGXI_MISTAKE_BOOK",
   pathLibrary: "LINGXI_LEARNING_PATH_LIBRARY",
   accountProfile: "LINGXI_ACCOUNT_PROFILE",
+  favoriteCollections: "LINGXI_FAVORITE_COLLECTIONS",
 };
 const OPENAI_PROXY_BASE_URL = (
   process.env.OPENAI_PROXY_BASE_URL ||

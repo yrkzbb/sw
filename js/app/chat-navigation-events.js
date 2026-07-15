@@ -320,6 +320,7 @@ function parseUserInfoHash(hash) {
   const route = parts[0] || "blog";
   if (route === "blog" && parts[1]) return { mode: "post", postId: parts[1] };
   const params = new URLSearchParams(queryPart);
+  if (route === "author" && parts[1]) return { mode: "author", authorId: parts[1] };
   return {
     mode: "archive",
     tab: USER_INFO_TAB_BY_ROUTE[route] || "answers",
@@ -386,6 +387,7 @@ function showProfilePage() {
 function showUserInfoPage(options = {}) {
   if (!el.userInfoPage) return;
   const mode = options.mode || "home";
+  if (!options.keepPublicProfile) state.publicProfile = null;
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -411,7 +413,7 @@ function showUserInfoPage(options = {}) {
     state.personalProfileSelectedPostId = "";
     state.personalProfileSelectedPost = null;
     state.personalProfilePostEditable = false;
-    if (options.updateHash !== false) setPageHash("#user-info");
+    if (options.updateHash !== false) setPageHash(state.publicProfile?.author?.id ? `#user-info/author/${encodeURIComponent(state.publicProfile.author.id)}` : "#user-info");
     setWikiArchiveMode(false);
   } else if (mode === "post") {
     state.personalProfileTab = "answers";
@@ -610,6 +612,12 @@ function restoreViewFromHash() {
     const route = parseUserInfoHash(window.location.hash);
     if (route.mode === "post") {
       showUserInfoPage({ mode: "post", postId: route.postId, updateHash: false });
+    } else if (route.mode === "author") {
+      if (typeof openPublicAuthorProfilePage === "function") {
+        void openPublicAuthorProfilePage(route.authorId);
+      } else {
+        showUserInfoPage({ updateHash: false });
+      }
     } else if (route.mode === "archive") {
       showUserInfoPage({ mode: "archive", tab: route.tab, group: route.group, updateHash: false });
     } else {
@@ -1149,13 +1157,13 @@ function initEventHandlers() {
   el.profileTabs?.addEventListener("click", (event) => {
     const button = event.target instanceof HTMLElement ? event.target.closest("[data-profile-tab]") : null;
     if (!button) return;
-    showUserInfoPage({ mode: "archive", tab: button.getAttribute("data-profile-tab") || "answers" });
+    showUserInfoPage({ mode: "archive", tab: button.getAttribute("data-profile-tab") || "answers", keepPublicProfile: Boolean(state.publicProfile) });
   });
   el.userInfoPage?.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     const floatTabButton = target?.closest(".wiki-float-nav [data-profile-tab]");
     if (floatTabButton) {
-      showUserInfoPage({ mode: "archive", tab: floatTabButton.getAttribute("data-profile-tab") || "answers" });
+      showUserInfoPage({ mode: "archive", tab: floatTabButton.getAttribute("data-profile-tab") || "answers", keepPublicProfile: Boolean(state.publicProfile) });
       return;
     }
     const removeFavoritePost = target?.closest("[data-favorite-remove-post]");
@@ -1189,6 +1197,15 @@ function initEventHandlers() {
     }
     const postButton = target?.closest("[data-profile-post-id]");
     if (postButton) {
+      if (state.publicProfile) {
+        const post = (state.publicProfile.posts || [])
+          .concat((state.publicProfile.publicCollections || []).flatMap((folder) => folder.posts || []))
+          .find((item) => String(item.id) === String(postButton.getAttribute("data-profile-post-id")));
+        if (post && typeof openFeedPostDetail === "function") {
+          openFeedPostDetail(post);
+          return;
+        }
+      }
       showUserInfoPage({ mode: "post", postId: postButton.getAttribute("data-profile-post-id") });
       return;
     }
@@ -1199,6 +1216,7 @@ function initEventHandlers() {
     }
     const socialListButton = target?.closest("[data-profile-social-list]");
     if (socialListButton) {
+      if (state.publicProfile) return;
       void openProfileSocialList(socialListButton.getAttribute("data-profile-social-list") || "following");
       return;
     }
@@ -1211,7 +1229,7 @@ function initEventHandlers() {
       return;
     }
     if (target?.closest("[data-profile-back-archive]")) {
-      showUserInfoPage({ mode: "archive", tab: state.personalProfileTab || "answers" });
+      showUserInfoPage({ mode: "archive", tab: state.personalProfileTab || "answers", keepPublicProfile: Boolean(state.publicProfile) });
       return;
     }
     if (target?.closest("[data-profile-edit-post]")) {

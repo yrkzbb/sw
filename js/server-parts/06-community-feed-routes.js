@@ -328,6 +328,39 @@ function publicFeedPost(row, signals = {}) {
   };
 }
 
+function publicAccountProfileForAuthor(value) {
+  const profile = parseStoredJson(value, {});
+  const avatarImage = /^data:image\/(png|jpe?g|webp);base64,/i.test(String(profile.avatarImage || ""))
+    ? String(profile.avatarImage)
+    : "";
+  const photoWall = Array.isArray(profile.photoWall)
+    ? profile.photoWall.filter((item) => /^data:image\/(png|jpe?g|webp);base64,/i.test(String(item || ""))).slice(0, 4)
+    : [];
+  return {
+    avatarInitial: String(profile.avatarInitial || "").trim().slice(0, 2).toUpperCase(),
+    avatarImage,
+    bio: String(profile.bio || "个人学习空间").trim().slice(0, 120),
+    accent: profile.accent || "teal",
+    photoWall,
+  };
+}
+
+function publicFavoriteCollections(value) {
+  const raw = parseStoredJson(value, []);
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .filter((folder) => folder?.visibility === "public")
+    .map((folder) => ({
+      id: String(folder?.id || "").slice(0, 80),
+      name: String(folder?.name || "公开收藏夹").trim().slice(0, 32) || "公开收藏夹",
+      description: String(folder?.description || "").trim().slice(0, 120),
+      visibility: "public",
+      postIds: Array.from(new Set(Array.isArray(folder?.postIds) ? folder.postIds.map((id) => String(id)) : [])).slice(0, 40),
+      updatedAt: toIso(folder?.updatedAt || folder?.createdAt || new Date().toISOString()),
+    }))
+    .filter((folder) => folder.id);
+}
+
 function publicFeedComment(row) {
   return {
     id: String(row.id),
@@ -839,6 +872,29 @@ async function getFeedAuthor(req, res, authorId) {
     );
     const signals = await loadFeedUserSignals(pool, user.id);
     const author = authorRows[0];
+    const [authorDataRows] = await pool.query(
+      `SELECT data_key, data_value FROM ${tableName("user_data")} WHERE user_id = ? AND data_key IN (?)`,
+      [authorId, [USER_DATA_KEYS.accountProfile, USER_DATA_KEYS.favoriteCollections]]
+    );
+    const authorData = new Map(authorDataRows.map((row) => [row.data_key, row.data_value]));
+    const profile = publicAccountProfileForAuthor(authorData.get(USER_DATA_KEYS.accountProfile));
+    const collections = publicFavoriteCollections(authorData.get(USER_DATA_KEYS.favoriteCollections));
+    const favoritePostIds = Array.from(new Set(collections.flatMap((folder) => folder.postIds))).slice(0, 80);
+    const favoriteRows = favoritePostIds.length
+      ? await fetchFeedRows(
+          pool,
+          user.id,
+          "AND p.id IN (?)",
+          [favoritePostIds],
+          "p.created_at DESC",
+          80,
+          "favorite"
+        )
+      : [];
+    const favoritePosts = new Map(favoriteRows.map((row) => {
+      const post = publicFeedPost(row, signals);
+      return [String(post.id), post];
+    }));
     sendJson(res, 200, {
       author: {
         id: String(author.id),
@@ -847,8 +903,13 @@ async function getFeedAuthor(req, res, authorId) {
         followed: Boolean(author.followed),
         followers: Number(author.follower_count || 0),
         posts: Number(author.post_count || 0),
+        profile,
       },
       posts: posts.map((row) => publicFeedPost(row, signals)),
+      publicCollections: collections.map((folder) => ({
+        ...folder,
+        posts: folder.postIds.map((id) => favoritePosts.get(String(id))).filter(Boolean),
+      })).filter((folder) => folder.posts.length),
     });
   } catch (e) {
     sendJson(res, 500, { error: String(e?.message || e) });

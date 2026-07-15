@@ -538,6 +538,23 @@
   opacity: 0.62;
 }
 
+.personal-profile-page.wiki-public-view .wiki-photo-edit,
+.personal-profile-page.wiki-public-view .wiki-write-btn,
+.personal-profile-page.wiki-public-view .wiki-avatar-large,
+.personal-profile-page.wiki-public-view #profileHeroAvatar {
+  pointer-events: none;
+}
+
+.personal-profile-page.wiki-public-view .wiki-photo-edit,
+.personal-profile-page.wiki-public-view .wiki-write-btn {
+  display: none;
+}
+
+.wiki-public-favorite-grid {
+  display: grid;
+  gap: 18px;
+}
+
 .profile-social-list {
   display: grid;
   gap: 12px;

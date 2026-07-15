@@ -373,6 +373,10 @@ function renderFeedAuthorProfile(author, posts = []) {
 
 async function openFeedAuthorProfile(authorId) {
   if (!authorId) return;
+  if (typeof openPublicAuthorProfilePage === "function") {
+    await openPublicAuthorProfilePage(authorId);
+    return;
+  }
   try {
     const payload = await apiJson(`/api/feed/authors/${encodeURIComponent(authorId)}`, { method: "GET" });
     (payload.posts || []).forEach(upsertFeedPost);

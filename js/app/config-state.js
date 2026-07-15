@@ -291,6 +291,7 @@ const state = {
   personalProfilePostEditable: false,
   personalProfilePosts: [],
   personalProfileStats: null,
+  publicProfile: null,
   personalProfileLoading: false,
   favoriteCollections: [],
   favoritePosts: [],
