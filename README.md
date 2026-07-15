@@ -82,16 +82,16 @@ WPS 灵犀风格 AI 对话助手，HTML / CSS / JavaScript 实现。
 | 要求 | 实现说明 |
 |------|----------|
 | 欢迎标题与副标题 | `index.html`：`#home` 内 `.title`、`.subtitle` |
-| 标题渐变色文字 | `css/index.css`：`.grad-text`（`background-clip: text`） |
+| 标题渐变色文字 | `css/index-parts/base-navigation-profile.css` / `visual-refresh.css`：`.grad-text` |
 | 4 张横向卡片、异色图标 | `index.html`：`.card-row`、`.suggest-card`、`.card-icon-1`～`4` |
-| 点击卡片发 AI | `js/index.js`：`startIfNeededFromCard` → `generateAssistantFromUserText` |
+| 点击卡片发 AI | `js/app/chat-navigation-events.js`：`startIfNeededFromCard` → `generateAssistantFromUserText` |
 
 ### A.2 对话功能
 
 | 要求 | 实现说明 |
 |------|----------|
-| OpenAI 兼容代理问答 | `js/index.js`：`CHAT_ENDPOINT`、`DEFAULT_MODEL` |
-| 用户右 / AI 左带头像 | `css/index.css`：`.message-row.user`、`.avatar`；`createAvatarSvg()` |
+| OpenAI 兼容代理问答 | `js/app/config-state.js`：`CHAT_ENDPOINT`、`DEFAULT_MODEL` |
+| 用户右 / AI 左带头像 | `css/index-parts/storage-mindmap-chat-profile.css`：`.message-row.user`、`.avatar`；`createAvatarSvg()` |
 | 流式 + 打字机 | `applyDashscopeSsePayload` + `setInterval`；结束 `renderMarkdownInto` |
 | 隐藏欢迎区与卡片 | `ensureChatVisible()` |
 
@@ -99,7 +99,7 @@ WPS 灵犀风格 AI 对话助手，HTML / CSS / JavaScript 实现。
 
 | 要求 | 实现说明 |
 |------|----------|
-| 标题、表格、代码块、列表、引用等 | `marked` + `css/index.css` 中 `.markdown-body` |
+| 标题、表格、代码块、列表、引用等 | `marked` + `css/index-parts/storage-mindmap-chat-profile.css` 中 `.markdown-body` |
 
 ### A.4 主题
 
@@ -137,10 +137,36 @@ lingxi/
 ├── assets/
 ├   ├── ***.png
 ├── js/
-│   ├── index.js                    # 主逻辑
-│   └── server.js                   # 可选本地代理
+│   ├── index.js                    # 前端拆分说明入口
+│   ├── app/
+│   │   ├── config-state.js         # 常量、DOM 引用、全局状态
+│   │   ├── auth-account.js         # 注册登录、账户资料和用户数据同步
+│   │   ├── announcements.js        # 公告中心
+│   │   ├── content-storage.js      # Markdown、学习数据、存储页和错题本
+│   │   ├── resources.js            # 资源生成、视频、思维导图和兜底资源
+│   │   ├── learning-path-assessment.js # 学习路径、推送和复盘评估
+│   │   ├── resource-rendering.js   # 资源卡片渲染
+│   │   ├── profile-page.js         # 学习画像和个人主页
+│   │   ├── chat-navigation-events.js # 对话、页面切换和事件绑定
+│   │   └── init.js                 # 应用初始化
+│   ├── server.js                   # 服务端片段加载入口
+│   └── server-parts/
+│       ├── 01-env-db-config.js     # 环境变量、数据库初始化和配置
+│       ├── 02-http-auth-core.js    # HTTP 工具、Cookie、密码和会话核心
+│       ├── 03-auth-user-data.js    # 登录注册、个人资料和用户数据 API
+│       ├── 04-admin-users.js       # 管理员用户管理
+│       ├── 05-admin-system-audit.js # 系统状态、运营总览、会话和审计日志
+│       ├── 06-announcements-admin-routes.js # 公告和管理员路由分发
+│       └── 07-proxy-static-server.js # AI 代理、视频代理、静态资源和启动
 └── css/
-    └── index.css
+    ├── index.css                   # 样式分层入口
+    └── index-parts/
+        ├── base-navigation-profile.css
+        ├── learning-resources-assessment.css
+        ├── storage-mindmap-chat-profile.css
+        ├── chat-modals-setup-responsive.css
+        ├── visual-refresh.css
+        └── auth-account.css
 ```
 
 ## 使用方式
