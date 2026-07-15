@@ -403,6 +403,28 @@ async function submitFeedPost(e) {
   setFeedMessage("");
   try {
     await apiJson("/api/feed/posts", { method: "POST", body: JSON.stringify(payload) });
+    recordLearningDemand("feed", `${payload.title} ${payload.body}`, {
+      category: payload.category,
+      topic: payload.title,
+      content: payload.body,
+    });
+    if (typeof recordLearningBehavior === "function") {
+      recordLearningBehavior("feed_post_created", {
+        category: payload.category,
+        topic: payload.title,
+        title: payload.title,
+        meta: { contentType: payload.contentType, tags: payload.tags },
+      });
+    }
+    if (typeof requestStudentProfileRefreshFromActivity === "function") {
+      requestStudentProfileRefreshFromActivity("feed_post_created", {
+        contentType: payload.contentType,
+        title: payload.title,
+        category: payload.category,
+        tags: payload.tags,
+        body: compactProfileEvidenceText(payload.body, 240),
+      });
+    }
     if (el.feedTitleInput) el.feedTitleInput.value = "";
     if (el.feedBodyInput) el.feedBodyInput.value = "";
     setFeedComposerOpen(false);

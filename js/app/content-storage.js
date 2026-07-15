@@ -256,6 +256,9 @@ function saveStudentProfile(profile) {
     console.warn("保存学生画像失败", e);
   }
   renderStudentProfile();
+  if (typeof renderProfileContentPanel === "function" && state.personalProfileTab === "notes" && !state.publicProfile) {
+    renderProfileContentPanel();
+  }
 }
 
 function loadLearningResources() {
@@ -1033,6 +1036,19 @@ function storeAndDownloadResource(index) {
   };
   const next = [file].concat(state.storedMarkdownFiles || []);
   saveStoredMarkdownFiles(next);
+  recordLearningBehavior("storage_saved", {
+    category: file.category,
+    topic: title,
+    title,
+    meta: { type: file.type },
+  });
+  if (typeof requestStudentProfileRefreshFromActivity === "function") {
+    requestStudentProfileRefreshFromActivity("storage_saved", {
+      category: file.category,
+      title,
+      preview: compactProfileEvidenceText(content, 240),
+    });
+  }
   downloadMarkdownFile(file);
 }
 
@@ -1122,4 +1138,3 @@ function renderMistakeBookPage() {
     </section>
   `).join("");
 }
-

@@ -145,21 +145,145 @@ function commitAssistantTurn(assistantPlainText, newHistory, uiVersion) {
   saveMessagesPersist();
 }
 
-async function updateStudentProfileAfterTurn(userPersist, assistantText, uiVersion) {
+function compactProfileEvidenceText(value, max = 180) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max);
+}
+
+function summarizeProfileEvidence(activity = {}) {
+  const messages = (state.messages || []).slice(-10).map((item) => ({
+    role: item.role,
+    content: compactProfileEvidenceText(item.content, 180),
+  }));
+  const activeUserId = state.activeUser?.id != null ? String(state.activeUser.id) : "";
+  const activeUserName = state.activeUser?.name || "";
+  const ownPosts = (state.feedPosts || [])
+    .filter((post) => {
+      if (!post?.author) return false;
+      if (activeUserId && String(post.author.id) === activeUserId) return true;
+      return activeUserName && post.author.name === activeUserName;
+    })
+    .slice(0, 8)
+    .map((post) => ({
+      type: post.contentType || "thought",
+      title: compactProfileEvidenceText(post.title, 80),
+      category: post.category || "",
+      tags: (post.tags || []).slice(0, 5),
+      summary: compactProfileEvidenceText(post.summary || post.body, 220),
+      created_at: post.createdAt || "",
+    }));
+  const storedDocs = (state.storedMarkdownFiles || []).slice(0, 8).map((file) => ({
+    title: compactProfileEvidenceText(file.title || file.filename, 80),
+    category: file.category || "",
+    preview: compactProfileEvidenceText(file.content, 220),
+    updated_at: file.updatedAt || file.createdAt || "",
+  }));
+  const resources = (state.learningResources?.resources || []).slice(0, 8).map((item) => ({
+    type: item.type || "",
+    title: compactProfileEvidenceText(item.title, 90),
+    preview: compactProfileEvidenceText(item.preview || item.description || item.content, 180),
+  }));
+  const mistakes = (state.mistakeBookItems || []).slice(0, 8).map((item) => ({
+    category: item.category || "",
+    difficulty: item.difficulty || "",
+    type: item.type || "",
+    question: compactProfileEvidenceText(item.question, 140),
+  }));
+  const behavior = (state.learningBehaviorEvents || []).slice(0, 16).map((item) => ({
+    type: item.type,
+    category: item.category || "",
+    topic: compactProfileEvidenceText(item.topic, 80),
+    title: compactProfileEvidenceText(item.title, 90),
+    created_at: item.createdAt || "",
+  }));
+  const demands = (state.learningDemandEvents || []).slice(0, 12).map((item) => ({
+    source: item.source,
+    category: item.category || "",
+    demand: compactProfileEvidenceText(item.demand, 120),
+    created_at: item.createdAt || "",
+  }));
+  const pathEvidence = typeof buildLearningEvidence === "function"
+    ? (() => {
+      const evidence = buildLearningEvidence();
+      return {
+        chat: evidence.chat,
+        demands: evidence.demands,
+        path_progress: evidence.path_progress,
+        resource_usage: evidence.resource_usage,
+        mistake_performance: evidence.mistake_performance,
+        resources: evidence.resources,
+        recent_behavior: evidence.recent_behavior,
+      };
+    })()
+    : null;
+  return {
+    activity,
+    recent_chat: messages,
+    authored_posts: ownPosts,
+    stored_documents: storedDocs,
+    generated_resources: {
+      topic: state.learningResources?.topic || "",
+      category: state.learningResources?.category || "",
+      items: resources,
+    },
+    mistake_book: mistakes,
+    behavior_trace: behavior,
+    demand_trace: demands,
+    learning_evidence: pathEvidence,
+  };
+}
+
+function requestStudentProfileRefreshFromActivity(source, detail = {}) {
+  if (!state.activeUser) return;
+  clearTimeout(state.profileRefreshTimer);
+  state.profileRefreshTimer = setTimeout(() => {
+    state.profileUpdateInFlight = updateStudentProfileAfterTurn(
+      {
+        content: `学习行为更新：${source}`,
+        imageUrls: [],
+      },
+      "",
+      state.uiVersion,
+      {
+        source,
+        detail,
+      },
+    );
+  }, 650);
+}
+
+window.compactProfileEvidenceText = compactProfileEvidenceText;
+window.summarizeProfileEvidence = summarizeProfileEvidence;
+window.requestStudentProfileRefreshFromActivity = requestStudentProfileRefreshFromActivity;
+
+async function updateStudentProfileAfterTurn(userPersist, assistantText, uiVersion, activity = null) {
   if (state.uiVersion !== uiVersion) return;
   state.profileUpdating = true;
   renderStudentProfile();
+  if (typeof renderProfileContentPanel === "function" && state.personalProfileTab === "notes" && !state.publicProfile) {
+    renderProfileContentPanel();
+  }
   const previousProfile = state.studentProfile || createEmptyProfile();
+  const evidenceSummary = summarizeProfileEvidence(activity || {
+    source: "chat_turn",
+    detail: {
+      user_message: compactProfileEvidenceText(userPersist.content, 220),
+      assistant_reply: compactProfileEvidenceText(assistantText, 220),
+    },
+  });
   const imageNote = userPersist.imageUrls?.length
     ? `本轮学生还上传了 ${userPersist.imageUrls.length} 张图片。`
     : "本轮学生未上传图片。";
 
   const updaterSystem = `你是学生画像 JSON 更新器。请只输出一个合法 JSON 对象，不要输出 Markdown、解释或代码块。
 
-你需要根据“旧画像”和“本轮对话”更新学生画像。保留仍然有效的旧信息；新信息更具体或冲突时，以新信息为准，并在 evidence 或 last_updated_reason 中说明依据。
+你需要根据“旧画像”和“最新学习轨迹证据”更新学生画像。证据可能来自对话、发布的文章/问答、保存的文档、生成资源、学习路径、错题本和学习行为记录。保留仍然有效的旧信息；新信息更具体或冲突时，以新信息为准，并在 evidence 或 last_updated_reason 中说明依据。
 每个维度都可能由多个子事实组成，禁止因为确认了一个事实就把整个维度当作完全完整。
 如果新信息与旧信息不冲突，应累积到同一字段中，而不是覆盖。例如知识基础可以同时包含“Java 循环薄弱；希望深入学习 C++ 面向对象；数据库基础待确认”。
 confidence 只表示该字段中已有信息的可信度，不表示该维度已经 100% 完整。
+文章、问答、错题和资源使用可以用于推断学习目标、知识基础、易错点、学习习惯和互动偏好；只能标为“确定”或“推测”，不要把一次行为夸大成长期稳定特征。
 
 必须严格使用以下字段：
 major_background, learning_goals, knowledge_foundation, cognitive_style, learning_habits, error_patterns, interaction_preference, motivation_emotion, last_updated_reason。
@@ -176,6 +300,9 @@ ${imageNote}
 
 本轮助手回答：
 ${assistantText}
+
+最新学习轨迹证据摘要：
+${JSON.stringify(evidenceSummary, null, 2)}
 
 请输出更新后的完整学生画像 JSON。`;
 
@@ -203,6 +330,9 @@ ${assistantText}
   } finally {
     state.profileUpdating = false;
     renderStudentProfile();
+    if (typeof renderProfileContentPanel === "function" && state.personalProfileTab === "notes" && !state.publicProfile) {
+      renderProfileContentPanel();
+    }
   }
 }
 
@@ -1149,7 +1279,11 @@ function initEventHandlers() {
 
   el.profilePageBtn?.addEventListener("click", showProfilePage);
   el.userInfoPageBtn?.addEventListener("click", showUserInfoPage);
-  el.profileEditShortcut?.addEventListener("click", () => showUserInfoPage());
+  el.profileEditShortcut?.addEventListener("click", () => {
+    if (state.publicProfile) return;
+    showUserInfoPage();
+  });
+  el.profileOwnHomeBtn?.addEventListener("click", () => showUserInfoPage());
   el.profileHeroAvatar?.addEventListener("click", () => {
     const input = document.querySelector("#profileAvatarImageInput");
     if (input instanceof HTMLInputElement) input.click();
@@ -1385,6 +1519,11 @@ function initEventHandlers() {
         topic: getActivePathData()?.topic || "",
         title: key,
       });
+      requestStudentProfileRefreshFromActivity("path_todo_done", {
+        category: state.activePathCategory,
+        topic: getActivePathData()?.topic || "",
+        title: key,
+      });
     } else {
       delete state.learningPathTodoDone[key];
       recordLearningBehavior("path_todo_reopen", {
@@ -1476,6 +1615,13 @@ function initEventHandlers() {
           topic: resource?.title || "",
           title: exercise.question || "",
           meta: { difficulty: exercise.difficulty || "", type: exercise.type || "" },
+        });
+        requestStudentProfileRefreshFromActivity("mistake_added", {
+          category: exercise.knowledge || resource?.category || activeData?.category,
+          topic: resource?.title || "",
+          question: compactProfileEvidenceText(exercise.question, 180),
+          difficulty: exercise.difficulty || "",
+          type: exercise.type || "",
         });
         mistakeBtn.textContent = "已加入错题本";
       }

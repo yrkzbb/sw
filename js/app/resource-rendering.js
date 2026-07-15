@@ -236,6 +236,14 @@ ${JSON.stringify(learningSignals, null, 2)}
       title: demand,
       meta: { resourceCount: normalized.resources.length },
     });
+    if (typeof requestStudentProfileRefreshFromActivity === "function") {
+      requestStudentProfileRefreshFromActivity("resource_generated", {
+        category: normalized.category,
+        topic: normalized.topic,
+        title: demand,
+        resourceCount: normalized.resources.length,
+      });
+    }
   } catch (e) {
     console.error(e);
     el.resourceGrid.innerHTML = `<div class="resource-empty">资源生成失败：${escapeHtml(String(e?.message || e))}</div>`;
@@ -244,4 +252,3 @@ ${JSON.stringify(learningSignals, null, 2)}
     renderLearningResources();
   }
 }
-

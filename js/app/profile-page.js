@@ -168,6 +168,13 @@ function renderPersonalProfileChrome() {
   const avatarText = profile.avatarInitial || String(userName || "YR").slice(0, 2).toUpperCase();
   const avatarGradient = accountAccentGradient(profile.accent);
   el.userInfoPage?.classList.toggle("wiki-public-view", Boolean(publicProfile));
+  if (el.profileEditShortcut) {
+    el.profileEditShortcut.classList.toggle("is-display-only", Boolean(publicProfile));
+    el.profileEditShortcut.setAttribute("aria-label", publicProfile ? "正在查看的用户头像" : "回到我的主页");
+  }
+  if (el.profileOwnHomeBtn) {
+    el.profileOwnHomeBtn.hidden = !publicProfile;
+  }
   if (el.personalProfileName) el.personalProfileName.textContent = userName;
   if (el.personalProfileHandle) el.personalProfileHandle.textContent = handle;
   if (el.personalProfileBio) el.personalProfileBio.textContent = bio;
@@ -230,7 +237,7 @@ function renderWikiSocialLinks() {
   const followerButton = document.querySelector('[data-profile-social-list="followers"]');
   const followingCount = document.querySelector("[data-profile-following-count]");
   const followerCount = document.querySelector("[data-profile-follower-count]");
-  document.querySelectorAll('[data-profile-tab="prompts"]').forEach((button) => {
+  document.querySelectorAll('[data-profile-tab="prompts"], [data-profile-tab="notes"]').forEach((button) => {
     button.hidden = Boolean(publicProfile);
   });
   if (followingCount) followingCount.textContent = publicProfile ? String(publicProfile.posts?.length || 0) : String(state.profileSocial?.following?.length || 0);
@@ -584,6 +591,112 @@ function renderPublicFavoriteCollectionsPanel() {
             </div>
           </article>
         `).join("")}
+      </div>
+    </section>
+  `;
+}
+
+function renderWikiPortraitRadar(fieldData) {
+  const cx = 160;
+  const cy = 145;
+  const radius = 94;
+  const total = fieldData.length;
+  const levels = [0.25, 0.5, 0.75, 1];
+  const areaPoints = fieldData.map((item, index) => radarPoint(cx, cy, radius, index, total, item.score));
+  const grid = levels.map((level) => {
+    const points = fieldData.map((_, index) => radarPoint(cx, cy, radius * level, index, total));
+    return `<polygon class="wiki-radar-grid" points="${radarPolygon(points)}" />`;
+  }).join("");
+  const axes = fieldData.map((_, index) => {
+    const end = radarPoint(cx, cy, radius, index, total);
+    return `<line class="wiki-radar-axis" x1="${cx}" y1="${cy}" x2="${end.x.toFixed(1)}" y2="${end.y.toFixed(1)}" />`;
+  }).join("");
+  const labels = fieldData.map((item, index) => {
+    const point = radarPoint(cx, cy, radius + 25, index, total);
+    return `<text class="wiki-radar-label" x="${point.x.toFixed(1)}" y="${point.y.toFixed(1)}" text-anchor="middle" dominant-baseline="middle">${escapeHtml(item.meta.title)}</text>`;
+  }).join("");
+  const dots = areaPoints.map((point) =>
+    `<circle class="wiki-radar-dot" cx="${point.x.toFixed(1)}" cy="${point.y.toFixed(1)}" r="4.5" />`
+  ).join("");
+  return `
+    <svg class="wiki-portrait-radar" viewBox="0 0 320 270" role="img" aria-label="学习画像八维雷达图">
+      ${grid}
+      ${axes}
+      <polygon class="wiki-radar-area" points="${radarPolygon(areaPoints)}" />
+      ${dots}
+      ${labels}
+    </svg>
+  `;
+}
+
+function renderWikiPortraitPanel() {
+  if (!el.profileContentPanel) return;
+  const profile = state.studentProfile || createEmptyProfile();
+  const fieldData = PROFILE_FIELDS.map((key) => {
+    const meta = PROFILE_FIELD_META[key];
+    const item = profile[key] || {};
+    const score = profileScore(item);
+    return { key, meta, item, score };
+  });
+  const average = Math.round(fieldData.reduce((sum, item) => sum + item.score, 0) / Math.max(1, fieldData.length));
+  const sureCount = fieldData.filter((item) => item.item.confidence === "确定").length;
+  const pendingCount = fieldData.filter((item) => !item.item.value).length;
+  const reason = profile.last_updated_reason || "画像会根据对话持续更新";
+  el.profileContentPanel.innerHTML = `
+    <section class="wiki-portrait-shell">
+      <header class="wiki-portrait-head wiki-glass">
+        <div>
+          <span>LEARNING PORTRAIT</span>
+          <h3>学习画像</h3>
+          <p>${escapeHtml(state.profileUpdating ? "正在根据最新对话更新画像..." : reason)}</p>
+        </div>
+        <div class="wiki-portrait-score">
+          <strong>${average}</strong>
+          <span>清晰度</span>
+        </div>
+      </header>
+      <div class="wiki-portrait-summary">
+        <article class="wiki-portrait-stat wiki-glass">
+          <strong>${average}</strong>
+          <span>综合清晰度</span>
+        </article>
+        <article class="wiki-portrait-stat wiki-glass">
+          <strong>${sureCount}</strong>
+          <span>确定维度</span>
+        </article>
+        <article class="wiki-portrait-stat wiki-glass">
+          <strong>${pendingCount}</strong>
+          <span>待补充维度</span>
+        </article>
+      </div>
+      <article class="wiki-portrait-radar-card wiki-glass">
+        <div>
+          <span>RADAR</span>
+          <h4>画像清晰度雷达</h4>
+          <p>根据每个维度已收集的信息数量、证据和可信度生成，不代表能力水平。</p>
+        </div>
+        ${renderWikiPortraitRadar(fieldData)}
+      </article>
+      <div class="wiki-portrait-grid">
+        ${fieldData.map((field) => {
+          const confidence = field.item.confidence || "待补充";
+          const value = field.item.value || "还没有足够信息";
+          const evidence = field.item.evidence || "继续对话后，我会从你的表达中补充这一项。";
+          return `
+            <article class="wiki-portrait-card wiki-glass">
+              <div class="wiki-portrait-card-head">
+                <div>
+                  <span>${escapeHtml(confidence)}</span>
+                  <h4>${escapeHtml(field.meta.title)}</h4>
+                </div>
+                <em>${field.score}</em>
+              </div>
+              <div class="wiki-portrait-meter" aria-hidden="true"><i style="width:${field.score}%"></i></div>
+              <p>${escapeHtml(value)}</p>
+              <small>${escapeHtml(evidence)}</small>
+            </article>
+          `;
+        }).join("")}
       </div>
     </section>
   `;
@@ -1442,7 +1555,7 @@ async function deleteProfilePost() {
 
 function renderProfileContentPanel() {
   if (!el.profileContentPanel) return;
-  if (state.publicProfile && state.personalProfileTab === "prompts") {
+  if (state.publicProfile && (state.personalProfileTab === "prompts" || state.personalProfileTab === "notes")) {
     state.personalProfileTab = "answers";
   }
   if (state.personalProfileView === "detail" || state.personalProfileView === "editing") {
@@ -1512,30 +1625,7 @@ function renderProfileContentPanel() {
     return;
   }
   if (tab === "notes") {
-    const shares = wikiStoredDocs().map((doc) => ({
-      title: doc.title || doc.filename || "未命名文档",
-      tag: doc.category || "文档",
-      meta: `${String(doc.content || "").length} 字符 · ${formatWikiDate(doc.updatedAt || doc.addedAt)}`,
-    })).concat(wikiResources().map((resource) => ({
-      title: resource.title || "学习资源",
-      tag: resource.type || "资源",
-      meta: state.learningResources?.topic || "当前资源库",
-    }))).slice(0, 8);
-    if (!shares.length) {
-      el.profileContentPanel.innerHTML = profileEmptyState("还没有分享资源", "保存文档或生成学习资源后，会自动成为可展示的分享卡。");
-      return;
-    }
-    el.profileContentPanel.innerHTML = `
-      <div class="wiki-share-grid">
-        ${shares.map(({ title, tag, meta }) => `
-          <article class="wiki-share-card">
-            <h3>${escapeHtml(title)}</h3>
-            <p>${escapeHtml(tag)}</p>
-            <p>${escapeHtml(meta)}</p>
-          </article>
-        `).join("")}
-      </div>
-    `;
+    renderWikiPortraitPanel();
     return;
   }
   if (tab === "prompts") {
