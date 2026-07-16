@@ -218,7 +218,7 @@ async function initMysqlSchema(pool) {
     CREATE TABLE IF NOT EXISTS ${tableName("feed_posts")} (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       author_id BIGINT UNSIGNED NOT NULL,
-      content_type ENUM('question', 'answer', 'thought', 'article', 'document', 'video') NOT NULL DEFAULT 'thought',
+      content_type ENUM('question', 'answer', 'thought', 'article', 'document', 'video', 'quiz') NOT NULL DEFAULT 'thought',
       title VARCHAR(180) NOT NULL,
       summary VARCHAR(320) NOT NULL,
       body TEXT NOT NULL,
@@ -353,7 +353,7 @@ async function ensureUserColumn(pool, columnName, definition) {
 async function ensureFeedPostContentTypes(pool) {
   await pool.query(
     `ALTER TABLE ${tableName("feed_posts")}
-     MODIFY content_type ENUM('question', 'answer', 'thought', 'article', 'document', 'video') NOT NULL DEFAULT 'thought'`
+     MODIFY content_type ENUM('question', 'answer', 'thought', 'article', 'document', 'video', 'quiz') NOT NULL DEFAULT 'thought'`
   ).catch(() => {});
 }
 

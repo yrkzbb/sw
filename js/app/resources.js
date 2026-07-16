@@ -1113,7 +1113,7 @@ function normalizeExerciseList(content, title) {
     const difficulty = joined.match(/难度[:：]\s*(.+)/)?.[1] || inferExerciseDifficulty(joined, index);
     const type = joined.match(/类型[:：]\s*(.+)/)?.[1] || inferExerciseType(joined, index);
     return normalizeExerciseItem({ question, answer, explanation, source, difficulty, type }, index, title);
-  }).filter((item) => item.question && item.question.length > 8);
+  }).filter((item) => item.question && item.question.length > 4);
 }
 
 function normalizeExerciseItem(item, index, title) {

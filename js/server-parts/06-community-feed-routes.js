@@ -1,4 +1,4 @@
-const FEED_TYPES = new Set(["question", "answer", "thought", "article", "document", "video"]);
+const FEED_TYPES = new Set(["question", "answer", "thought", "article", "document", "video", "quiz"]);
 const FEED_SORTS = new Set(["recommended", "latest", "hot", "follow"]);
 const FEED_DEMO_AUTHORS = [
   { username: "Lin Chen", email: "lin.chen.feed@example.local" },
@@ -83,6 +83,40 @@ const FEED_DEMO_POSTS = [
     comment_count: 13,
     favorite_count: 22,
     view_count: 528,
+  },
+  {
+    author: "Kai Ming",
+    content_type: "quiz",
+    title: "上下文有关文法基础题库",
+    summary: "一组用于检查 1 型文法、非收缩性质和常见误区的练习题。",
+    body: JSON.stringify({
+      questions: [
+        {
+          type: "基础题",
+          difficulty: "基础",
+          knowledge: "1 型文法定义",
+          source: "课程常见题型改编",
+          question: "说明 1 型文法产生式的一般形式，并解释其中上下文的含义。",
+          answer: "一般形式可写为 αAβ -> αγβ，其中 γ 非空。",
+          explanation: "关键是非终结符 A 的改写依赖左右两侧上下文 α 和 β。答题时要说明上下文是符号串环境，不是日常语言中的语境。",
+        },
+        {
+          type: "易错题",
+          difficulty: "中等",
+          knowledge: "非收缩性质",
+          source: "课堂易错题改编",
+          question: "判断产生式 AB -> a 是否满足 1 型文法的非收缩要求，并说明理由。",
+          answer: "不满足。",
+          explanation: "左部长度为 2，右部长度为 1，发生了收缩。1 型文法通常要求产生式右部长度不小于左部长度。",
+        },
+      ],
+    }),
+    category: "编译原理",
+    tags: ["题库", "编译原理", "练习"],
+    like_count: 12,
+    comment_count: 3,
+    favorite_count: 9,
+    view_count: 168,
   },
 ];
 

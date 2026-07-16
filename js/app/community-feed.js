@@ -5,6 +5,7 @@ const FEED_TYPE_LABELS = {
   thought: "想法",
   article: "文章",
   document: "文档",
+  quiz: "题库",
   video: "视频",
 };
 const FEED_TYPE_META = {
@@ -13,6 +14,7 @@ const FEED_TYPE_META = {
   thought: { icon: "✦", cls: "thought", cover: "灵感想法" },
   article: { icon: "文", cls: "article", cover: "深度文章" },
   document: { icon: "页", cls: "document", cover: "知识文档" },
+  quiz: { icon: "题", cls: "quiz", cover: "练习题库" },
   video: { icon: "▶", cls: "video", cover: "视频笔记" },
 };
 const FEED_DRAFT_KEY = "LINGXI_FEED_COMPOSE_DRAFT";
@@ -54,6 +56,12 @@ const FEED_TEMPLATES = {
     category: "资源推荐",
     tags: "资源 推荐 学习路径",
     body: "## 推荐资源\n\n## 适合谁\n\n## 为什么值得看\n> \n\n## 使用方式\n1. 先看：\n2. 再做：\n3. 最后复盘：\n\n## 相关链接\n[资源名称](https://example.com)",
+  },
+  quiz: {
+    contentType: "quiz",
+    category: "题库练习",
+    tags: "题库 练习 易错题",
+    body: "## 题库说明\n适合对象：正在巩固这个知识点的同学。\n使用方式：先独立作答，再展开答案和解析复盘。\n\n## 题目 1：基础题\n类型：基础题\n难度：基础\n知识点：知识点名称\n来源：课程常见题型改编\n题目：请写出一道用于检查基础概念是否掌握的题目。\n答案：把标准答案写在这里。\n解析：分步骤说明为什么这样做，并写出检查方法。\n\n## 题目 2：易错题\n类型：易错题\n难度：中等\n知识点：知识点名称\n来源：课堂易错题改编\n题目：请写出一道容易混淆条件或步骤的题目。\n答案：把答案写在这里。\n解析：说明容易错在哪里，以及如何避免。",
   },
 };
 
@@ -276,6 +284,12 @@ function renderFeedCard(post) {
   const type = FEED_TYPE_LABELS[post.contentType] || "动态";
   const meta = FEED_TYPE_META[post.contentType] || FEED_TYPE_META.thought;
   const tags = (post.tags || []).map((tag) => `<span>#${escapeHtml(tag)}</span>`).join("");
+  const quizItems = post.contentType === "quiz" && typeof normalizeExerciseList === "function"
+    ? normalizeExerciseList(post.body || "", post.title || "")
+    : [];
+  const quizSummary = quizItems.length
+    ? `题目 ${quizItems.length} 道 · ${Array.from(new Set(quizItems.map((item) => item.difficulty).filter(Boolean))).slice(0, 3).join(" / ") || "综合难度"}`
+    : "";
   const reason = post.recommendationReasons || {};
   const reasonText = reason.followedAuthor
     ? "关注作者"
@@ -295,6 +309,7 @@ function renderFeedCard(post) {
         </div>
         ${post.contentType === "video" ? `<b class="feed-play-mark">▶</b>` : ""}
         ${post.contentType === "document" ? `<b class="feed-doc-mark">PDF</b>` : ""}
+        ${post.contentType === "quiz" ? `<b class="feed-doc-mark">QUIZ</b>` : ""}
       </div>
       <div class="feed-card-main">
         <div class="feed-card-head">
@@ -303,7 +318,7 @@ function renderFeedCard(post) {
           <span class="feed-time">${escapeHtml(formatFeedTime(post.createdAt))}</span>
         </div>
         <h2>${escapeHtml(post.title)}</h2>
-        <p>${escapeHtml(post.summary || post.body || "")}</p>
+        <p>${escapeHtml(quizSummary || post.summary || post.body || "")}</p>
         <div class="feed-tags">${tags}</div>
         <div class="feed-author-row">
           <strong>${escapeHtml(post.author?.name || "社区用户")}</strong>
@@ -322,6 +337,96 @@ function renderFeedCard(post) {
         </button>
       </div>
     </article>
+  `;
+}
+
+function renderFeedQuizDetail(post) {
+  const exercises = typeof normalizeExerciseList === "function"
+    ? normalizeExerciseList(post.body || "", post.title || "")
+    : [];
+  if (!exercises.length) return `<div class="feed-detail-content markdown-body"></div>`;
+  return `
+    <div class="feed-quiz-detail">
+      <div class="feed-quiz-summary">
+        <strong>${escapeHtml(exercises.length)} 道题</strong>
+        <span>${escapeHtml(post.category || "综合题库")}</span>
+        <span>${escapeHtml(Array.from(new Set(exercises.map((item) => item.difficulty).filter(Boolean))).join(" / ") || "综合难度")}</span>
+      </div>
+      <div class="exercise-grid">
+        ${exercises.map((exercise, index) => {
+          const result = typeof getExercisePracticeResult === "function" ? getExercisePracticeResult(exercise.fingerprint) : null;
+          return `
+            <article class="exercise-card">
+              <div class="exercise-card-head">
+                <div>
+                  <div class="exercise-meta">
+                    <span>${escapeHtml(exercise.type)}</span>
+                    <span>${escapeHtml(exercise.difficulty)}</span>
+                    <span>${escapeHtml(exercise.knowledge || post.title || "综合知识")}</span>
+                  </div>
+                  <h3>${escapeHtml(index + 1)}. ${renderInlineMathText(exercise.question)}</h3>
+                </div>
+                <button class="resource-toggle add-mistake-btn" type="button" data-feed-quiz-mistake="${escapeHtml(post.id)}:${index}">加入错题本</button>
+              </div>
+              <div class="exercise-result-row" aria-label="练习结果记录">
+                <button class="exercise-result-btn ${result === "correct" ? "active" : ""}" type="button" data-feed-quiz-practice="${escapeHtml(post.id)}:${index}:correct">做对了</button>
+                <button class="exercise-result-btn ${result === "incorrect" ? "active" : ""}" type="button" data-feed-quiz-practice="${escapeHtml(post.id)}:${index}:incorrect">做错了</button>
+                <span>${result === "correct" ? "已记录正确" : result === "incorrect" ? "已记录错误" : "记录后会进入学习效果评估"}</span>
+              </div>
+              <div class="exercise-source">来源：${escapeHtml(exercise.source)}</div>
+              <details class="exercise-detail" open>
+                <summary>答案与详解</summary>
+                <div class="exercise-answer"><strong>答案：</strong>${renderInlineMathText(exercise.answer || "见解析")}</div>
+                <div class="exercise-explanation markdown-body">${renderResourceMarkdown(exercise.explanation)}</div>
+              </details>
+            </article>
+          `;
+        }).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function renderFeedQuizPreview(body, title = "题库预览") {
+  const exercises = typeof normalizeExerciseList === "function"
+    ? normalizeExerciseList(body || "", title || "")
+    : [];
+  if (!exercises.length) {
+    return `
+      <div class="feed-quiz-detail">
+        <div class="feed-comment-empty">按模板填写“题目、答案、解析”后，这里会显示题库卡片预览。</div>
+      </div>
+    `;
+  }
+  return `
+    <div class="feed-quiz-detail">
+      <div class="feed-quiz-summary">
+        <strong>${escapeHtml(exercises.length)} 道题</strong>
+        <span>${escapeHtml(Array.from(new Set(exercises.map((item) => item.difficulty).filter(Boolean))).join(" / ") || "综合难度")}</span>
+      </div>
+      <div class="exercise-grid">
+        ${exercises.map((exercise, index) => `
+          <article class="exercise-card">
+            <div class="exercise-card-head">
+              <div>
+                <div class="exercise-meta">
+                  <span>${escapeHtml(exercise.type)}</span>
+                  <span>${escapeHtml(exercise.difficulty)}</span>
+                  <span>${escapeHtml(exercise.knowledge || title || "综合知识")}</span>
+                </div>
+                <h3>${escapeHtml(index + 1)}. ${renderInlineMathText(exercise.question)}</h3>
+              </div>
+            </div>
+            <div class="exercise-source">来源：${escapeHtml(exercise.source)}</div>
+            <details class="exercise-detail" open>
+              <summary>答案与详解</summary>
+              <div class="exercise-answer"><strong>答案：</strong>${renderInlineMathText(exercise.answer || "见解析")}</div>
+              <div class="exercise-explanation markdown-body">${renderResourceMarkdown(exercise.explanation)}</div>
+            </details>
+          </article>
+        `).join("")}
+      </div>
+    </div>
   `;
 }
 
@@ -374,11 +479,12 @@ function applyFeedTemplate(name) {
   const template = FEED_TEMPLATES[name];
   if (!template) return;
   if (el.feedTypeInput) el.feedTypeInput.value = template.contentType;
-  if (el.feedCategoryInput && !el.feedCategoryInput.value.trim()) el.feedCategoryInput.value = template.category;
-  if (el.feedTagsInput && !el.feedTagsInput.value.trim()) el.feedTagsInput.value = template.tags;
+  const shouldReplace = name === "quiz";
+  if (el.feedCategoryInput && (shouldReplace || !el.feedCategoryInput.value.trim())) el.feedCategoryInput.value = template.category;
+  if (el.feedTagsInput && (shouldReplace || !el.feedTagsInput.value.trim())) el.feedTagsInput.value = template.tags;
   if (el.feedBodyInput) {
     const current = el.feedBodyInput.value.trim();
-    el.feedBodyInput.value = current ? `${el.feedBodyInput.value.trim()}\n\n${template.body}` : template.body;
+    el.feedBodyInput.value = current && !shouldReplace ? `${el.feedBodyInput.value.trim()}\n\n${template.body}` : template.body;
     el.feedBodyInput.focus();
   }
   updateFeedComposerPreview();
@@ -460,10 +566,14 @@ function updateFeedComposerPreview() {
     el.feedPublishBtn.disabled = !title.trim() || !body.trim();
   }
   if (el.feedMarkdownPreview) {
-    const previewMarkdown = body.trim()
-      ? body
-      : "## 预览会显示在这里\n\n选择一个模板，或者在左侧开始写 Markdown。";
-    renderMarkdownInto(el.feedMarkdownPreview, previewMarkdown);
+    if (el.feedTypeInput?.value === "quiz") {
+      el.feedMarkdownPreview.innerHTML = renderFeedQuizPreview(body, title);
+    } else {
+      const previewMarkdown = body.trim()
+        ? body
+        : "## 预览会显示在这里\n\n选择一个模板，或者在左侧开始写 Markdown。";
+      renderMarkdownInto(el.feedMarkdownPreview, previewMarkdown);
+    }
   }
 }
 
@@ -478,6 +588,9 @@ function feedPostMarkdown(post) {
   }
   if (post.contentType === "document") {
     lines.push("", "### 文档信息", "- 这条内容当前以文档卡片展示。", "- 正文可继续扩展为完整 Markdown 文档、附件或知识库条目。");
+  }
+  if (post.contentType === "quiz") {
+    lines.push("", "### 题库信息", "- 这条内容会按题目、答案和解析结构展示。", "- 完成后可以记录做对/做错，也可以把题目加入错题本。");
   }
   return lines.join("\n");
 }
@@ -503,7 +616,7 @@ function openFeedPostDetail(post) {
   }
   if (el.pushDetailBody) {
     el.pushDetailBody.innerHTML = `
-      <div class="feed-detail-content markdown-body"></div>
+      ${post.contentType === "quiz" ? renderFeedQuizDetail(post) : `<div class="feed-detail-content markdown-body"></div>`}
       <section class="feed-detail-comments" data-feed-comments-for="${escapeHtml(post.id)}">
         <div class="feed-comments-head">
           <h3>评论</h3>
@@ -516,7 +629,8 @@ function openFeedPostDetail(post) {
         </form>
       </section>
     `;
-    renderMarkdownInto(el.pushDetailBody.querySelector(".feed-detail-content"), feedPostMarkdown(post));
+    const detailContent = el.pushDetailBody.querySelector(".feed-detail-content");
+    if (detailContent) renderMarkdownInto(detailContent, feedPostMarkdown(post));
   }
   el.pushDetailModal.hidden = false;
   void loadFeedComments(post.id);
@@ -637,6 +751,14 @@ async function openFeedAuthorProfile(authorId) {
 function updateFeedPost(id, updater) {
   state.feedPosts = state.feedPosts.map((post) => (String(post.id) === String(id) ? updater({ ...post }) : post));
   renderFeedPage();
+}
+
+function feedQuizExercise(postId, exerciseIndex) {
+  const post = currentFeedPostById(postId);
+  if (!post || post.contentType !== "quiz" || typeof normalizeExerciseList !== "function") return null;
+  const exercise = normalizeExerciseList(post.body || "", post.title || "")[Number(exerciseIndex)];
+  if (!exercise) return null;
+  return { post, exercise };
 }
 
 async function submitFeedPost(e) {
@@ -832,8 +954,65 @@ function initFeedEventHandlers() {
     e.preventDefault();
     openFeedPostRoute(card.getAttribute("data-feed-post-id"));
   });
-  el.pushDetailModal?.addEventListener("click", (e) => {
+  el.pushDetailModal?.addEventListener("click", async (e) => {
     if (!(e.target instanceof HTMLElement)) return;
+    const practiceBtn = e.target.closest("[data-feed-quiz-practice]");
+    if (practiceBtn) {
+      const [postId, exerciseIndex, result] = String(practiceBtn.getAttribute("data-feed-quiz-practice") || "").split(":");
+      const item = feedQuizExercise(postId, exerciseIndex);
+      if (item && (result === "correct" || result === "incorrect")) {
+        recordLearningBehavior("practice_result", {
+          category: item.exercise.knowledge || item.post.category,
+          topic: item.post.title || "",
+          title: item.exercise.question || "",
+          meta: {
+            result,
+            fingerprint: item.exercise.fingerprint,
+            difficulty: item.exercise.difficulty || "",
+            type: item.exercise.type || "",
+            knowledge: item.exercise.knowledge || "",
+            resourceType: "题库推送",
+            postId: item.post.id,
+          },
+        });
+        const row = practiceBtn.closest(".exercise-result-row");
+        row?.querySelectorAll(".exercise-result-btn").forEach((btn) => btn.classList.remove("active"));
+        practiceBtn.classList.add("active");
+        const label = row?.querySelector("span");
+        if (label) label.textContent = result === "correct" ? "已记录正确" : "已记录错误";
+        renderAssessmentPage();
+      }
+      return;
+    }
+    const mistakeBtn = e.target.closest("[data-feed-quiz-mistake]");
+    if (mistakeBtn) {
+      const [postId, exerciseIndex] = String(mistakeBtn.getAttribute("data-feed-quiz-mistake") || "").split(":");
+      const item = feedQuizExercise(postId, exerciseIndex);
+      if (item && typeof addExerciseToMistakeBook === "function") {
+        const added = await addExerciseToMistakeBook(item.exercise, {
+          title: item.post.title,
+          type: "题库推送",
+          category: item.post.category,
+          content: item.post.body,
+        });
+        if (added) {
+          recordLearningBehavior("mistake_added", {
+            category: item.exercise.knowledge || item.post.category,
+            topic: item.post.title || "",
+            title: item.exercise.question || "",
+            meta: { difficulty: item.exercise.difficulty || "", type: item.exercise.type || "", postId: item.post.id },
+          });
+          requestStudentProfileRefreshFromActivity("mistake_added", {
+            category: item.exercise.knowledge || item.post.category,
+            source: "feed_quiz",
+            postTitle: item.post.title,
+          });
+          mistakeBtn.textContent = "已加入";
+          mistakeBtn.disabled = true;
+        }
+      }
+      return;
+    }
     const authorBtn = e.target.closest("[data-feed-author-id]");
     if (authorBtn) {
       void openFeedAuthorProfile(authorBtn.getAttribute("data-feed-author-id"));
