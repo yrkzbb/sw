@@ -238,7 +238,7 @@ function renderTutorOutputs(payload = null) {
       el.tutorTextAnswer.innerHTML = `
         <article class="tutor-answer-section">
           <h3>输入一个具体问题</h3>
-          <p>系统会调用智能辅导体生成针对本题的解释、例子、推导、易错点和检查题。这里不再展示预设套话。</p>
+          <p>系统会调用智能辅导体生成针对本题的解释、例子、推导、易错点和检查题。</p>
         </article>
       `;
     }
