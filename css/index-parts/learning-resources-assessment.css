@@ -2098,6 +2098,39 @@ button.agent-card:hover {
   box-shadow: 0 0 0 5px rgba(113, 207, 192, 0.13);
 }
 
+.assessment-action-summary {
+  padding: 30px 34px;
+}
+
+.assessment-action-summary h3 {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 14px;
+}
+
+.assessment-action-summary h3::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #71cfc0;
+  box-shadow: 0 0 0 5px rgba(113, 207, 192, 0.13);
+}
+
+.assessment-action-summary p {
+  max-width: 1120px;
+  margin: 0;
+  color: #607075;
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 2;
+}
+
+[data-theme="dark"] .assessment-action-summary p {
+  color: rgba(220, 235, 234, 0.72);
+}
+
 .assessment-panel ul {
   display: grid;
   gap: 10px;

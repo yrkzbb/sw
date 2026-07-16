@@ -1354,14 +1354,31 @@ function renderAssessmentList(title, items, className = "") {
   `;
 }
 
+function firstAssessmentText(items, fallback = "") {
+  return normalizeAssessmentList(items).map(studentFriendlyAssessmentText).find(Boolean) || fallback;
+}
+
+function joinAssessmentTexts(items, fallback = "") {
+  const list = normalizeAssessmentList(items).map(studentFriendlyAssessmentText).filter(Boolean);
+  if (!list.length) return fallback;
+  if (list.length === 1) return list[0];
+  return `${list.slice(0, -1).join("；")}；${list.at(-1)}`;
+}
+
 function renderAssessmentActionBoard(assessment) {
+  const strengths = joinAssessmentTexts(assessment.strengths, "你已经开始积累学习线索，后续复盘会越来越准确");
+  const risks = joinAssessmentTexts(assessment.risks, "接下来可以继续补充练习结果和掌握证据");
+  const checkpoints = joinAssessmentTexts(assessment.next_checkpoints, "下次刷新前，尽量完成一个路径待办并记录结果");
+  const resourceStrategy = firstAssessmentText(assessment.resource_strategy, "资源会优先围绕当前薄弱点和路径任务来推送");
+  const planAdjustment = firstAssessmentText(assessment.plan_adjustments, "学习计划会根据完成情况继续调整优先级");
   return `
-    <section class="assessment-action-board" aria-label="学习效果行动建议">
-      ${renderAssessmentList("已经做得不错的地方", assessment.strengths, "assessment-good assessment-action-card")}
-      ${renderAssessmentList("接下来先补一点", assessment.risks, "assessment-risk assessment-action-card")}
-      ${renderAssessmentList("下次刷新前可以检查", assessment.next_checkpoints, "assessment-checkpoints assessment-action-card")}
-      ${renderAssessmentList("资源会怎么推给你", assessment.resource_strategy, "assessment-action-card assessment-action-wide")}
-      ${renderAssessmentList("学习计划怎么调整", assessment.plan_adjustments, "assessment-action-card assessment-action-wide")}
+    <section class="assessment-action-summary assessment-panel" aria-label="学习效果行动建议">
+      <h3>综合复盘建议</h3>
+      <p>
+        这轮学习里，${escapeHtml(strengths)}。接下来可以把重点放在：${escapeHtml(risks)}。
+        在下次刷新复盘前，建议先完成这些可检查动作：${escapeHtml(checkpoints)}。
+        后续资源推送会优先参考这条线索：${escapeHtml(resourceStrategy)}；学习计划也会同步调整为：${escapeHtml(planAdjustment)}。
+      </p>
     </section>
   `;
 }
@@ -1610,12 +1627,5 @@ function renderAssessmentPage() {
     ${renderAssessmentLiveBoard(evidence, assessment)}
     ${renderAssessmentOptimizationFlow(assessment, firstActions)}
     ${renderAssessmentActionBoard(assessment)}
-    ${weakDimensions.length ? `
-      <section class="assessment-panel assessment-next-action">
-        <h3>别急，先做最小一步</h3>
-        <p>${escapeHtml(studentFriendlyAssessmentText(weakDimensions.map((item) => `${studentDimensionName(item.name)}：${item.action}`).join("；")))}</p>
-        <button class="primary-btn" type="button" data-assessment-go-path>查看路径待办</button>
-      </section>
-    ` : ""}
   `;
 }
