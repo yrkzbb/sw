@@ -7,10 +7,270 @@ function tutorEscapeHtml(value) {
     .replace(/'/g, "&#39;");
 }
 
+let tutorLastSpeechText = "";
+let tutorSpeechUtterance = null;
+let tutorHlsPlayer = null;
+let tutorDigitalHumanSession = null;
+
 function tutorCompactText(value, fallback = "暂未形成明确画像") {
   const text = String(value || "").replace(/\s+/g, " ").trim();
   if (!text) return fallback;
   return text.length > 42 ? `${text.slice(0, 42)}...` : text;
+}
+
+function tutorPlainText(value) {
+  return String(value || "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tutorSpeechText(payload) {
+  if (!payload) return "";
+  const parts = [];
+  if (payload.topic) parts.push(`这道题我们先看 ${payload.topic}。`);
+  (payload.sections || []).forEach((section) => {
+    if (section.title) parts.push(section.title);
+    if (section.body) parts.push(section.body);
+    if (Array.isArray(section.bullets) && section.bullets.length) {
+      parts.push(section.bullets.join("；"));
+    }
+    if (section.code) parts.push(`关键过程是：${section.code}`);
+  });
+  if (payload.guide) parts.push(`最后你可以这样检查：${payload.guide}`);
+  return tutorPlainText(parts.join("。")).slice(0, 900);
+}
+
+function setTutorAvatarStatus(text, mode = "") {
+  if (el.tutorAvatarStatus) el.tutorAvatarStatus.textContent = text;
+  el.tutorAvatarStage?.closest(".tutor-avatar-card")?.classList.toggle("speaking", mode === "speaking");
+}
+
+function setTutorAvatarSpeech(text) {
+  if (!el.tutorAvatarSpeech) return;
+  const markdown = text || "等待 AI 老师朗读。";
+  if (typeof renderMarkdownInto === "function") {
+    renderMarkdownInto(el.tutorAvatarSpeech, markdown);
+  } else {
+    el.tutorAvatarSpeech.textContent = markdown;
+  }
+}
+
+function playTutorLoopVideo({ restart = false } = {}) {
+  const video = el.tutorAvatarLoopVideo;
+  if (!video) return;
+  video.muted = true;
+  video.loop = true;
+  video.playsInline = true;
+  if (restart) {
+    try {
+      video.currentTime = 0;
+    } catch {
+      // Some browsers can refuse currentTime changes before metadata is ready.
+    }
+  }
+  video.play().catch(() => {});
+}
+
+function pauseTutorLoopVideo() {
+  const video = el.tutorAvatarLoopVideo;
+  if (!video) return;
+  video.pause();
+}
+
+function resetTutorAvatarMedia() {
+  if (tutorHlsPlayer) {
+    tutorHlsPlayer.destroy();
+    tutorHlsPlayer = null;
+  }
+  if (el.tutorAvatarVideo) {
+    el.tutorAvatarVideo.pause();
+    el.tutorAvatarVideo.removeAttribute("src");
+    el.tutorAvatarVideo.load();
+    el.tutorAvatarVideo.hidden = true;
+  }
+  if (el.tutorAvatarAudio) {
+    el.tutorAvatarAudio.pause();
+    el.tutorAvatarAudio.removeAttribute("src");
+    el.tutorAvatarAudio.load();
+    el.tutorAvatarAudio.hidden = true;
+  }
+}
+
+function releaseTutorDigitalHumanSession() {
+  const session = tutorDigitalHumanSession;
+  tutorDigitalHumanSession = null;
+  if (!session?.session) return;
+  fetch("/api/video/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider: "xunfei_virtual_human",
+      action: "stop",
+      session: session.session,
+      hls_stream_id: session.hls_stream_id || "",
+    }),
+  }).catch(() => {});
+}
+
+function extractTutorValue(data, keys, pattern = /^https?:\/\//i) {
+  const stack = [data];
+  while (stack.length) {
+    const item = stack.shift();
+    if (!item || typeof item !== "object") continue;
+    for (const key of keys) {
+      const value = item[key];
+      if (typeof value === "string" && pattern.test(value)) return value;
+    }
+    Object.values(item).forEach((value) => {
+      if (value && typeof value === "object") stack.push(value);
+    });
+  }
+  return "";
+}
+
+function extractTutorMediaUrl(data, mediaType) {
+  const keys = mediaType === "audio"
+    ? ["audio_url", "audioUrl", "audio", "mp3", "wav"]
+    : ["video_url", "videoUrl", "stream_url", "streamUrl", "embed_url", "embedUrl", "video", "url", "mp4", "play_url", "playUrl"];
+  return extractTutorValue(data, keys);
+}
+
+function extractTutorStreamUrl(data) {
+  return extractTutorValue(data, ["stream_url", "streamUrl", "embed_url", "embedUrl", "video_url", "videoUrl", "url"], /^(https?|rtmp|xrtc):\/\//i);
+}
+
+function extractTutorHlsUrl(data) {
+  return extractTutorValue(data, ["hls_url", "hlsUrl"], /^\/api\/video\/hls\/|^https?:\/\//i);
+}
+
+async function playTutorHlsVideo(hlsUrl) {
+  if (!hlsUrl || !el.tutorAvatarVideo) return false;
+  setTutorAvatarStatus("准备数字人视频", "speaking");
+  const ready = await waitTutorHlsReady(hlsUrl);
+  if (!ready) return false;
+  resetTutorAvatarMedia();
+  const video = el.tutorAvatarVideo;
+  video.hidden = false;
+  video.muted = true;
+  video.controls = true;
+  if (video.canPlayType("application/vnd.apple.mpegurl")) {
+    video.src = hlsUrl;
+  } else if (window.Hls?.isSupported()) {
+    tutorHlsPlayer = new window.Hls({
+      lowLatencyMode: true,
+      liveSyncDurationCount: 2,
+      maxLiveSyncPlaybackRate: 1.25,
+    });
+    tutorHlsPlayer.loadSource(hlsUrl);
+    tutorHlsPlayer.attachMedia(video);
+  } else {
+    video.hidden = true;
+    return false;
+  }
+  setTutorAvatarStatus("数字人视频", "speaking");
+  await video.play().catch(() => {});
+  return true;
+}
+
+async function waitTutorHlsReady(hlsUrl) {
+  for (let i = 0; i < 24; i += 1) {
+    const res = await fetch(hlsUrl, { cache: "no-store" }).catch(() => null);
+    if (res?.ok) {
+      const text = await res.text().catch(() => "");
+      if (/segment_\d+\.ts/.test(text)) return true;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }
+  return false;
+}
+
+function stopTutorSpeech({ pauseVideo = true } = {}) {
+  releaseTutorDigitalHumanSession();
+  if (window.speechSynthesis) window.speechSynthesis.cancel();
+  tutorSpeechUtterance = null;
+  el.tutorAvatarStage?.closest(".tutor-avatar-card")?.classList.remove("speaking");
+  if (el.tutorAvatarVideo && !el.tutorAvatarVideo.paused) el.tutorAvatarVideo.pause();
+  if (el.tutorAvatarAudio && !el.tutorAvatarAudio.paused) el.tutorAvatarAudio.pause();
+  if (pauseVideo) pauseTutorLoopVideo();
+  if (el.tutorAvatarStatus?.textContent === "朗读中") setTutorAvatarStatus("已暂停");
+}
+
+function setTutorAnswerReadControls(enabled) {
+  if (el.tutorAnswerReadBtn) el.tutorAnswerReadBtn.disabled = !enabled;
+  if (el.tutorAnswerStopBtn) el.tutorAnswerStopBtn.disabled = !enabled;
+}
+
+function speakTutorText(text, { playVideo = true } = {}) {
+  const speechText = tutorPlainText(text);
+  if (!speechText) return false;
+  if (playVideo) playTutorLoopVideo({ restart: true });
+  if (!("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") {
+    setTutorAvatarStatus("可阅读");
+    return false;
+  }
+  window.speechSynthesis.cancel();
+  tutorSpeechUtterance = new SpeechSynthesisUtterance(speechText);
+  tutorSpeechUtterance.lang = "zh-CN";
+  tutorSpeechUtterance.rate = 0.96;
+  tutorSpeechUtterance.pitch = 1.02;
+  tutorSpeechUtterance.onstart = () => setTutorAvatarStatus("朗读中", "speaking");
+  tutorSpeechUtterance.onend = () => setTutorAvatarStatus("已朗读");
+  tutorSpeechUtterance.onerror = () => setTutorAvatarStatus("可阅读");
+  window.speechSynthesis.speak(tutorSpeechUtterance);
+  return true;
+}
+
+function speakTutorAnswer() {
+  const text = tutorLastSpeechText || el.tutorTextAnswer?.textContent || "";
+  if (!text.trim()) return;
+  speakTutorText(text, { playVideo: false });
+}
+
+async function requestTutorDigitalHuman({ text, payload, question, subject }) {
+  const res = await fetch("/api/video/generate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      provider: "xunfei_virtual_human",
+      scene: "ai_teacher_tutoring",
+      avatar: "teacher_female",
+      voice: "xiaoyan",
+      text,
+      input_text: text,
+      script: text,
+      title: payload?.topic || "AI老师辅导",
+      question,
+      subject,
+      metadata: {
+        source: "tutor",
+        scenes: payload?.videoScenes || [],
+      },
+    }),
+  });
+  const raw = await res.text().catch(() => "");
+  let data = {};
+  try {
+    data = raw ? JSON.parse(raw) : {};
+  } catch {
+    data = /^https?:\/\//i.test(raw.trim()) ? { url: raw.trim() } : { message: raw };
+  }
+  if (!res.ok) {
+    throw new Error(data?.error || `数字人生成失败：${res.status}`);
+  }
+  return data;
+}
+
+async function playTutorDigitalHuman(payload, question, subject) {
+  const speechText = tutorSpeechText(payload);
+  tutorLastSpeechText = speechText;
+  resetTutorAvatarMedia();
+  setTutorAvatarSpeech(speechText || "这次回答没有可朗读的内容。");
+  if (!speechText) {
+    setTutorAvatarStatus("无内容");
+    return;
+  }
+  speakTutorText(speechText);
 }
 
 function tutorProfileItem(key) {
@@ -233,6 +493,11 @@ function renderTutorSignals() {
 
 function renderTutorOutputs(payload = null) {
   if (!payload) {
+    resetTutorAvatarMedia();
+    setTutorAvatarStatus("待生成");
+    setTutorAvatarSpeech("生成辅导后，AI 的文字回答会自动朗读。");
+    tutorLastSpeechText = "";
+    setTutorAnswerReadControls(false);
     if (el.tutorAnswerBadge) el.tutorAnswerBadge.textContent = "待生成";
     if (el.tutorTextAnswer) {
       el.tutorTextAnswer.innerHTML = `
@@ -252,17 +517,12 @@ function renderTutorOutputs(payload = null) {
         </div>
       `;
     }
-    if (el.tutorVideoScript) {
-      el.tutorVideoScript.innerHTML = `
-        <ol>
-          <li><strong>等待</strong><span>输入问题后生成短视频讲解分镜。</span></li>
-        </ol>
-      `;
-    }
     return;
   }
   const data = payload;
   if (el.tutorAnswerBadge) el.tutorAnswerBadge.textContent = data.badge || "已生成";
+  tutorLastSpeechText = tutorSpeechText(data);
+  setTutorAnswerReadControls(Boolean(tutorLastSpeechText));
   if (el.tutorTextAnswer) {
     const sections = (data.sections || []).map((section) => `
       <article class="tutor-answer-section">
@@ -289,14 +549,6 @@ function renderTutorOutputs(payload = null) {
       <div class="tutor-diagram-grid">${steps}</div>
     `;
   }
-  if (el.tutorVideoScript) {
-    const scenes = data.videoScenes || [];
-    el.tutorVideoScript.innerHTML = `
-      <ol>
-        ${scenes.map((scene) => `<li><strong>${tutorEscapeHtml(scene.time)}</strong><span>${tutorEscapeHtml(scene.text)}</span></li>`).join("")}
-      </ol>
-    `;
-  }
 }
 
 function renderIntelligentTutorPage() {
@@ -311,6 +563,13 @@ function setTutorGenerating(isGenerating) {
     button.textContent = isGenerating ? "生成中..." : "生成辅导";
   }
   if (el.tutorAnswerBadge) el.tutorAnswerBadge.textContent = isGenerating ? "生成中" : el.tutorAnswerBadge.textContent;
+  if (isGenerating) {
+    stopTutorSpeech({ pauseVideo: false });
+    resetTutorAvatarMedia();
+    setTutorAnswerReadControls(false);
+    setTutorAvatarStatus("等待回答");
+    setTutorAvatarSpeech("AI 正在组织解答，完成后会自动朗读。");
+  }
 }
 
 function renderTutorError(message) {
@@ -349,7 +608,22 @@ async function handleTutorSubmit(event) {
   } catch (error) {
     console.error(error);
     renderTutorError(error?.message || "智能辅导生成失败，请稍后重试。");
+    setTutorAvatarStatus("未生成");
+    setTutorAvatarSpeech("这次没有拿到可朗读的 AI 回答。");
   } finally {
     setTutorGenerating(false);
   }
 }
+
+function bindTutorAvatarControls() {
+  el.tutorAnswerReadBtn?.addEventListener("click", speakTutorAnswer);
+  el.tutorAnswerStopBtn?.addEventListener("click", stopTutorSpeech);
+  el.tutorAvatarReplayBtn?.addEventListener("click", () => {
+    if (!tutorLastSpeechText) return;
+    resetTutorAvatarMedia();
+    speakTutorText(tutorLastSpeechText);
+  });
+  el.tutorAvatarStopBtn?.addEventListener("click", stopTutorSpeech);
+}
+
+document.addEventListener("DOMContentLoaded", bindTutorAvatarControls);

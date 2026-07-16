@@ -1,9 +1,54 @@
 @import url("./index-parts/base-navigation-profile.css?v=20260716-feed-compact-follow");
-@import url("./index-parts/learning-resources-assessment.css?v=20260716-assessment-feedback");
+@import url("./index-parts/learning-resources-assessment.css?v=20260716-login-alt-tooltip");
 @import url("./index-parts/storage-mindmap-chat-profile.css?v=20260716-assessment-feedback");
 @import url("./index-parts/chat-modals-setup-responsive.css");
 @import url("./index-parts/visual-refresh.css");
-@import url("./index-parts/auth-account.css");
+@import url("./index-parts/auth-account.css?v=20260716-face-camera-window-fix");
 @import url("./index-parts/community-feed.css?v=20260716-compose-studio");
-@import url("./index-parts/personal-wiki.css?v=20260716-quiz-detail");
-@import url("./index-parts/intelligent-tutor.css?v=20260716-tutor");
+@import url("./index-parts/personal-wiki.css?v=20260717-profile-card-align");
+
+body {
+  --app-content-gap: 9px;
+  --app-content-left: calc(18px + var(--app-side-nav-width, 108px) + var(--app-content-gap));
+}
+
+body:not(.chat-layout-active) .main:not(:has(#chat:not([hidden]))) {
+  padding-left: var(--app-content-left) !important;
+}
+
+:is(
+  #home,
+  #userInfoPage,
+  #resourcePage,
+  #pushPage,
+  #pathPage,
+  #assessmentPage,
+  .home,
+  .wiki-profile-canvas,
+  .resource-page,
+  .resource-wiki-page,
+  .push-page,
+  .path-page,
+  .path-wiki-page,
+  .assessment-page,
+  .assessment-wiki-page,
+  .storage-page
+) {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+#pushPage :is(.feed-tabs, .feed-toolbar, .feed-grid, .feed-masonry, .feed-composer),
+#resourcePage :is(.resource-wiki-builder, .resource-wiki-agents, .resource-wiki-results),
+#pathPage :is(.path-wiki-page, .path-hero, .path-stage),
+#assessmentPage :is(.assessment-wiki-page, .assessment-hero, .assessment-panel),
+#userInfoPage :is(.wiki-profile-canvas) {
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 900px) {
+  body {
+    --app-content-left: calc(10px + var(--app-side-nav-width, 78px) + var(--app-content-gap));
+  }
+}

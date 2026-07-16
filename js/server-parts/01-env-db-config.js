@@ -5,6 +5,7 @@ const { URL } = require("url");
 const { pipeline } = require("stream/promises");
 const { Readable } = require("stream");
 const crypto = require("crypto");
+const { spawn } = require("child_process");
 
 const ROOT_DIR = path.join(__dirname, "..");
 const JSON_UTF8 = "application/json; charset=utf-8";
@@ -13,6 +14,8 @@ loadDotEnv();
 
 const PORT = Number(process.env.PORT || 3000);
 const BODY_LIMIT = 10 * 1024 * 1024;
+const RUNTIME_DIR = path.join(ROOT_DIR, ".runtime");
+const HLS_DIR = path.join(RUNTIME_DIR, "hls");
 const SESSION_COOKIE = "wenjie_session";
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 14);
 const AUTH_REQUIRED_MESSAGE = "请先登录。";
@@ -32,9 +35,44 @@ const OPENAI_PROXY_BASE_URL = (
   "https://api.openai-proxy.org/v1"
 ).replace(/\/+$/, "");
 const OPENAI_PROXY_CHAT_ENDPOINT = `${OPENAI_PROXY_BASE_URL}/chat/completions`;
-const VIDEO_API_URL = (process.env.LINGXI_VIDEO_API_URL || "").trim();
-const VIDEO_API_KEY = (process.env.LINGXI_VIDEO_API_KEY || "").trim();
+const VIDEO_API_URL = (
+  process.env.XUNFEI_DIGITAL_HUMAN_API_URL ||
+  process.env.LINGXI_VIDEO_API_URL ||
+  ""
+).trim();
+const VIDEO_API_KEY = (
+  process.env.XUNFEI_DIGITAL_HUMAN_API_KEY ||
+  process.env.LINGXI_VIDEO_API_KEY ||
+  ""
+).trim();
 const VIDEO_PROVIDER = (process.env.VIDEO_PROVIDER || "dashscope_wan").trim();
+const XUNFEI_VMS_HOST = (process.env.XUNFEI_VMS_HOST || "vms.cn-huadong-1.xf-yun.com").trim();
+const XUNFEI_VMS_BASE_URL = (
+  process.env.XUNFEI_VMS_BASE_URL ||
+  `https://${XUNFEI_VMS_HOST}`
+).replace(/\/+$/, "");
+const XUNFEI_VMS_APP_ID = (process.env.XUNFEI_VMS_APP_ID || process.env.XUNFEI_APP_ID || "").trim();
+const XUNFEI_VMS_API_KEY = (
+  process.env.XUNFEI_VMS_API_KEY ||
+  process.env.XUNFEI_DIGITAL_HUMAN_API_KEY ||
+  ""
+).trim();
+const XUNFEI_VMS_API_SECRET = (
+  process.env.XUNFEI_VMS_API_SECRET ||
+  process.env.XUNFEI_DIGITAL_HUMAN_API_SECRET ||
+  ""
+).trim();
+const XUNFEI_VMS_UID = (process.env.XUNFEI_VMS_UID || "").trim();
+const XUNFEI_VMS_AVATAR_ID = (process.env.XUNFEI_VMS_AVATAR_ID || "118801001").trim();
+const XUNFEI_VMS_VCN = (process.env.XUNFEI_VMS_VCN || "x3_qianxue").trim();
+const XUNFEI_VMS_STREAM_PROTOCOL = (process.env.XUNFEI_VMS_STREAM_PROTOCOL || "rtmp").trim();
+const XUNFEI_VMS_WIDTH = Number(process.env.XUNFEI_VMS_WIDTH || 1280);
+const XUNFEI_VMS_HEIGHT = Number(process.env.XUNFEI_VMS_HEIGHT || 720);
+const XUNFEI_VMS_SPEED = Number(process.env.XUNFEI_VMS_SPEED || 50);
+const XUNFEI_VMS_PITCH = Number(process.env.XUNFEI_VMS_PITCH || 50);
+const XUNFEI_VMS_VOLUME = Number(process.env.XUNFEI_VMS_VOLUME || 50);
+const XUNFEI_VMS_TRANSCODE_HLS = String(process.env.XUNFEI_VMS_TRANSCODE_HLS || "1") !== "0";
+const FFMPEG_BIN = (process.env.FFMPEG_BIN || "ffmpeg").trim();
 const DASHSCOPE_API_KEY = (process.env.DASHSCOPE_API_KEY || "").trim();
 const DASHSCOPE_WORKSPACE_ID = (process.env.DASHSCOPE_WORKSPACE_ID || "").trim();
 const DASHSCOPE_REGION = (process.env.DASHSCOPE_REGION || "cn-beijing").trim();

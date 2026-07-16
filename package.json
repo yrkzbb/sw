@@ -8,6 +8,7 @@
     "dev": "PORT=4174 node js/server.js"
   },
   "dependencies": {
+    "hls.js": "^1.6.16",
     "mysql2": "^3.11.5"
   }
 }

@@ -13,6 +13,8 @@ const MIME_TYPES = {
   ".mp4": "video/mp4",
   ".webm": "video/webm",
   ".mov": "video/quicktime",
+  ".m3u8": "application/vnd.apple.mpegurl",
+  ".ts": "video/mp2t",
   ".ico": "image/x-icon",
 };
 
@@ -54,7 +56,7 @@ function readJsonBody(req, limitBytes) {
 function setCors(res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
 }
 
 function sendJson(res, statusCode, data) {

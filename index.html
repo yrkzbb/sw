@@ -14,29 +14,28 @@
           document.documentElement.classList.add(hasActiveUser ? "auth-boot-user" : "auth-boot-guest");
           document.documentElement.classList.add(`auth-boot-${authMode}`);
           const bootRoute = (window.location.hash || "").replace(/^#/, "").split("/")[0] || "home";
-          const knownRoutes = new Set(["chat", "profile", "user-info", "tutor", "resources", "push", "path", "assessment"]);
+          const knownRoutes = new Set(["chat", "profile", "user-info", "resources", "push", "path", "assessment"]);
           document.documentElement.classList.add(`route-boot-${knownRoutes.has(bootRoute) ? bootRoute : "home"}`);
         } catch {
           document.documentElement.classList.add("auth-boot-guest", "auth-boot-register");
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260716-chat-sidebar-resize" />
+    <link rel="stylesheet" href="./css/index.css?v=20260717-profile-card-align" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/app/config-state.js?v=20260716-chat-sidebar-resize" defer></script>
-    <script src="./js/app/auth-account.js?v=20260716-multi-chat" defer></script>
+    <script src="./js/app/config-state.js?v=20260717-remove-tutor-page" defer></script>
+    <script src="./js/app/auth-account.js?v=20260716-face-window-copy-fix" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260716-path-agent" defer></script>
     <script src="./js/app/resources.js?v=20260716-assessment-feedback" defer></script>
-    <script src="./js/app/learning-path-assessment.js?v=20260716-assessment-feedback" defer></script>
+    <script src="./js/app/learning-path-assessment.js?v=20260716-login-alt-tooltip" defer></script>
     <script src="./js/app/community-feed.js?v=20260716-quiz-detail" defer></script>
-    <script src="./js/app/resource-rendering.js?v=20260716-assessment-feedback" defer></script>
+    <script src="./js/app/resource-rendering.js?v=20260716-resource-video-agent" defer></script>
     <script src="./js/app/profile-page.js?v=20260716-quiz-detail" defer></script>
-    <script src="./js/app/intelligent-tutor.js?v=20260716-tutor" defer></script>
-    <script src="./js/app/chat-navigation-events.js?v=20260716-chat-legacy-restore" defer></script>
+    <script src="./js/app/chat-navigation-events.js?v=20260717-chat-read-controls" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
   <body data-theme="dark">
@@ -97,16 +96,6 @@
           </span>
           对话
         </button>
-        <button id="tutorPageBtn" class="nav-btn" type="button">
-          <span class="nav-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 3 2 8l10 5 10-5-10-5Z" />
-              <path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5" />
-              <path d="M22 8v6" />
-            </svg>
-          </span>
-          辅导
-        </button>
         <button id="resourcePageBtn" class="nav-btn" type="button">
           <span class="nav-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
@@ -151,6 +140,16 @@
           </span>
           推送
         </button>
+        <button id="sideLogoutBtn" class="nav-btn nav-logout-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+              <path d="M16 17l5-5-5-5" />
+              <path d="M21 12H9" />
+            </svg>
+          </span>
+          退出
+        </button>
       </nav>
       <div id="announcementCenter" class="announcement-center" hidden>
         <button id="announcementToggle" class="announcement-toggle" type="button" aria-expanded="false" aria-label="查看公告">
@@ -179,7 +178,7 @@
           <div class="subtitle">把问题、资源、路径和复盘都收进一个会陪你进阶的学习工作台。</div>
           <div class="home-metrics" aria-label="能力概览">
             <div><strong>8</strong><span>维学习画像</span></div>
-            <div><strong>6</strong><span>类资源协作</span></div>
+            <div><strong>5</strong><span>类资源协作</span></div>
             <div><strong>1</strong><span>条动态路径</span></div>
           </div>
         </section>
@@ -316,90 +315,6 @@
               <div id="profileContentPanel" class="profile-content-panel wiki-content-panel" aria-live="polite"></div>
             </section>
             <div id="profileTrendChart" class="profile-trend-chart wiki-hidden-trend" aria-hidden="true"></div>
-          </div>
-        </section>
-
-        <section id="tutorPage" class="tutor-page personal-profile-page" hidden>
-          <div class="tutor-wiki-canvas">
-            <section class="tutor-hero-card wiki-glass">
-              <span>INTELLIGENT TUTORING</span>
-              <h1>智能辅导</h1>
-              <p>遇到问题时，系统会结合学习画像、学习行为和知识库能力，给出文字解答、图解拆解与短视频讲解脚本。</p>
-              <div class="tutor-hero-metrics" aria-label="辅导能力">
-                <b>即时答疑</b>
-                <b>多模态生成</b>
-                <b>针对性引导</b>
-              </div>
-            </section>
-
-            <section class="tutor-question-card wiki-glass">
-              <form id="tutorForm" class="tutor-form">
-                <label>
-                  <span>学习问题</span>
-                  <textarea id="tutorQuestionInput" rows="6" placeholder="例如：为什么二叉树的中序遍历可以得到有序序列？我总是分不清递归过程。"></textarea>
-                </label>
-                <div class="tutor-form-row">
-                  <label>
-                    <span>学科</span>
-                    <select id="tutorSubjectInput">
-                      <option value="计算机基础">计算机基础</option>
-                      <option value="数学">数学</option>
-                      <option value="英语">英语</option>
-                      <option value="专业课程">专业课程</option>
-                      <option value="项目实践">项目实践</option>
-                    </select>
-                  </label>
-                  <label>
-                    <span>讲解深度</span>
-                    <select id="tutorDepthInput">
-                      <option value="从基础概念讲起">从基础讲起</option>
-                      <option value="按考试解题讲">考试解题</option>
-                      <option value="按项目应用讲">项目应用</option>
-                    </select>
-                  </label>
-                </div>
-                <button class="wiki-write-btn tutor-submit-btn" type="submit">生成辅导</button>
-              </form>
-            </section>
-
-            <section class="tutor-analysis-card wiki-glass">
-              <span>DATA SIGNAL</span>
-              <strong>学习画像联动</strong>
-              <div id="tutorSignalList" class="tutor-signal-list"></div>
-            </section>
-
-            <section class="tutor-answer-card wiki-glass">
-              <div class="tutor-card-head">
-                <div>
-                  <span>TEXT ANSWER</span>
-                  <h2>文字解答</h2>
-                </div>
-                <b id="tutorAnswerBadge">待生成</b>
-              </div>
-              <div id="tutorTextAnswer" class="tutor-text-answer"></div>
-            </section>
-
-            <section class="tutor-diagram-card wiki-glass">
-              <div class="tutor-card-head">
-                <div>
-                  <span>VISUAL GUIDE</span>
-                  <h2>图解说明</h2>
-                </div>
-                <b>流程图</b>
-              </div>
-              <div id="tutorDiagram" class="tutor-diagram"></div>
-            </section>
-
-            <section class="tutor-video-card wiki-glass">
-              <div class="tutor-card-head">
-                <div>
-                  <span>SHORT VIDEO</span>
-                  <h2>短视频讲解</h2>
-                </div>
-                <b>分镜</b>
-              </div>
-              <div id="tutorVideoScript" class="tutor-video-script"></div>
-            </section>
           </div>
         </section>
 
@@ -692,7 +607,61 @@
             <input id="authLoginPassword" class="auth-demo-input" type="password" autocomplete="current-password" placeholder="Password" />
             <div id="authLoginMessage" class="auth-message" aria-live="polite"></div>
             <button id="authLoginSubmitBtn" class="auth-demo-btn" type="submit">Sign In</button>
+            <div class="auth-alt-login" aria-label="其他方式登录">
+              <span>其他方式登录</span>
+              <div class="auth-alt-actions">
+                <button class="auth-alt-btn auth-alt-face" type="button" data-auth-alt-login="face" aria-label="人脸登录">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
+                    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
+                    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
+                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
+                    <path d="M8 14s1.2 1.4 4 1.4S16 14 16 14" />
+                    <path d="M9 10h.01M15 10h.01" />
+                  </svg>
+                </button>
+                <button class="auth-alt-btn auth-alt-qq" type="button" data-auth-alt-login="qq" aria-label="QQ 登录">Q</button>
+                <button class="auth-alt-btn auth-alt-wechat" type="button" data-auth-alt-login="wechat" aria-label="微信登录">
+                  <svg viewBox="0 0 24 24" aria-hidden="true">
+                    <path d="M9.5 7.2C5.9 7.2 3 9.4 3 12.1c0 1.6 1 3 2.6 3.9l-.5 1.8 2.1-1c.7.2 1.5.3 2.3.3 3.6 0 6.5-2.2 6.5-5s-2.9-4.9-6.5-4.9Z" />
+                    <path d="M14.8 10.2c3.2.3 5.7 2.3 5.7 4.8 0 1.4-.8 2.7-2.2 3.6l.4 1.5-1.8-.8c-.6.2-1.3.3-2 .3-2.6 0-4.9-1.4-5.6-3.4" />
+                    <path d="M7.4 11h.01M11.7 11h.01" />
+                  </svg>
+                </button>
+              </div>
+            </div>
           </form>
+        </div>
+
+        <div id="faceLoginModal" class="face-login-modal" hidden>
+          <section class="face-login-panel" role="dialog" aria-modal="true" aria-labelledby="faceLoginTitle">
+            <button id="faceLoginClose" class="face-login-close" type="button" aria-label="关闭人脸登录">×</button>
+            <div class="face-login-copy">
+              <span>FACE ID</span>
+              <h2 id="faceLoginTitle">人脸登录</h2>
+              <p id="faceLoginStatus">正在准备电脑摄像头...</p>
+              <b id="faceCameraBadge" class="face-camera-badge">摄像头未打开</b>
+            </div>
+            <div class="face-camera-stage">
+              <video id="faceLoginVideo" autoplay muted playsinline></video>
+              <div class="face-scan-frame" aria-hidden="true">
+                <i></i><i></i><i></i><i></i>
+              </div>
+              <div id="faceLoginFallback" class="face-login-fallback" hidden>
+                <svg viewBox="0 0 120 120" aria-hidden="true">
+                  <rect x="24" y="24" width="72" height="72" rx="24" />
+                  <path d="M41 56h.01M79 56h.01" />
+                  <path d="M44 72c5 5 27 5 32 0" />
+                  <path d="M36 18H22a8 8 0 0 0-8 8v14M84 18h14a8 8 0 0 1 8 8v14M36 102H22a8 8 0 0 1-8-8V80M84 102h14a8 8 0 0 0 8-8V80" />
+                </svg>
+                <strong>摄像头预览</strong>
+              </div>
+            </div>
+            <div class="face-login-actions">
+              <button id="faceLoginRetryBtn" class="auth-demo-btn face-login-secondary" type="button">重新打开摄像头</button>
+              <button id="faceLoginBackBtn" class="auth-demo-btn face-login-back" type="button">返回账号登录</button>
+            </div>
+          </section>
         </div>
 
         <div class="auth-demo-overlay-wrap" aria-hidden="true">

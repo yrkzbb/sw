@@ -84,15 +84,20 @@ async function proxyVideo(req, res) {
   });
   if (!body) return;
 
-  if (VIDEO_PROVIDER === "dashscope_wan") {
+  const requestProvider = String(body.provider || VIDEO_PROVIDER || "").trim();
+  if (requestProvider === "dashscope_wan") {
     await proxyDashScopeWan(body, res);
+    return;
+  }
+  if (requestProvider === "xunfei_virtual_human" || requestProvider === "xunfei_vms") {
+    await proxyXunfeiVms(body, res);
     return;
   }
 
   if (!VIDEO_API_URL) {
     sendJson(res, 501, {
       error:
-        "Missing LINGXI_VIDEO_API_URL. Set it to your video generation or digital human API endpoint.",
+        "Missing XUNFEI_DIGITAL_HUMAN_API_URL or LINGXI_VIDEO_API_URL. Set it to your digital human or video generation API endpoint.",
     });
     return;
   }
@@ -113,6 +118,321 @@ async function proxyVideo(req, res) {
   } catch (e) {
     sendJson(res, 502, { error: `Video API request failed: ${String(e?.message || e)}` });
   }
+}
+
+function xunfeiVmsUrl(pathname) {
+  const date = new Date().toUTCString();
+  const requestLine = `POST ${pathname} HTTP/1.1`;
+  const signatureOrigin = `host: ${XUNFEI_VMS_HOST}\ndate: ${date}\n${requestLine}`;
+  const signature = crypto
+    .createHmac("sha256", XUNFEI_VMS_API_SECRET)
+    .update(signatureOrigin)
+    .digest("base64");
+  const authorizationOrigin =
+    `api_key="${XUNFEI_VMS_API_KEY}",algorithm="hmac-sha256",headers="host date request-line",signature="${signature}"`;
+  const url = new URL(`${XUNFEI_VMS_BASE_URL}${pathname}`);
+  url.searchParams.set("host", XUNFEI_VMS_HOST);
+  url.searchParams.set("date", date);
+  url.searchParams.set("authorization", Buffer.from(authorizationOrigin).toString("base64"));
+  return url;
+}
+
+async function xunfeiVmsRequest(pathname, body) {
+  const upstream = await fetch(xunfeiVmsUrl(pathname), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  const text = await upstream.text();
+  let json;
+  try {
+    json = text ? JSON.parse(text) : {};
+  } catch {
+    json = { error: text || upstream.statusText };
+  }
+  if (!upstream.ok || Number(json?.header?.code || 0) !== 0) {
+    const message = json?.header?.message || json?.message || json?.error || upstream.statusText;
+    const err = new Error(`Xunfei VMS request failed: ${message}`);
+    err.status = upstream.status;
+    err.vmsCode = Number(json?.header?.code || 0);
+    err.response = json;
+    throw err;
+  }
+  return json;
+}
+
+function xunfeiBase64Text(value) {
+  return Buffer.from(String(value || ""), "utf8").toString("base64");
+}
+
+function decodeXunfeiPayloadText(item) {
+  if (!item || typeof item !== "object") return "";
+  const value = String(item.text || "").trim();
+  if (!value) return "";
+  if (String(item.encoding || "").toLowerCase() !== "utf8") return value;
+  try {
+    return Buffer.from(value, "base64").toString("utf8");
+  } catch {
+    return value;
+  }
+}
+
+const xunfeiHlsProcesses = new Map();
+let xunfeiActiveSession = null;
+
+function ensureHlsDir(streamId) {
+  fs.mkdirSync(HLS_DIR, { recursive: true });
+  const dir = safeJoin(HLS_DIR, streamId);
+  if (!dir) throw new Error("Invalid HLS stream id");
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function makeHlsUrl(streamId) {
+  return `/api/video/hls/${encodeURIComponent(streamId)}/index.m3u8`;
+}
+
+function stopHlsTranscoder(streamId) {
+  const item = xunfeiHlsProcesses.get(streamId);
+  if (!item) return;
+  xunfeiHlsProcesses.delete(streamId);
+  item.process.kill("SIGTERM");
+}
+
+async function stopXunfeiActiveSession(commonHeader, skipSession = "") {
+  const active = xunfeiActiveSession;
+  if (!active?.session || active.session === skipSession) return;
+  xunfeiActiveSession = null;
+  if (active.hls_stream_id) stopHlsTranscoder(active.hls_stream_id);
+  await xunfeiVmsRequest("/v1/private/vms2d_stop", {
+    header: { ...commonHeader, session: active.session },
+  }).catch(() => {});
+}
+
+function startHlsTranscoder(rtmpUrl, session) {
+  if (!XUNFEI_VMS_TRANSCODE_HLS || !/^rtmp:\/\//i.test(String(rtmpUrl || ""))) return null;
+  const streamId = crypto.createHash("sha1").update(`${session}:${rtmpUrl}:${Date.now()}`).digest("hex").slice(0, 16);
+  const dir = ensureHlsDir(streamId);
+  const playlistPath = path.join(dir, "index.m3u8");
+  const args = [
+    "-hide_banner",
+    "-loglevel",
+    "warning",
+    "-i",
+    rtmpUrl,
+    "-c:v",
+    "libx264",
+    "-preset",
+    "veryfast",
+    "-tune",
+    "zerolatency",
+    "-c:a",
+    "aac",
+    "-f",
+    "hls",
+    "-hls_time",
+    "1",
+    "-hls_list_size",
+    "6",
+    "-hls_flags",
+    "delete_segments+append_list+independent_segments",
+    "-hls_segment_filename",
+    path.join(dir, "segment_%03d.ts"),
+    playlistPath,
+  ];
+  const child = spawn(FFMPEG_BIN, args, { stdio: ["ignore", "ignore", "pipe"] });
+  let lastError = "";
+  child.stderr.on("data", (chunk) => {
+    lastError = String(chunk).trim().slice(-1000);
+  });
+  child.on("exit", () => {
+    xunfeiHlsProcesses.delete(streamId);
+  });
+  xunfeiHlsProcesses.set(streamId, {
+    process: child,
+    session,
+    playlistPath,
+    startedAt: Date.now(),
+    get lastError() {
+      return lastError;
+    },
+  });
+  setTimeout(() => stopHlsTranscoder(streamId), 4 * 60 * 1000).unref?.();
+  return {
+    hls_stream_id: streamId,
+    hls_url: makeHlsUrl(streamId),
+  };
+}
+
+function normalizeXunfeiVms(startJson, ctrlJson) {
+  const streamUrl =
+    startJson?.header?.stream_url ||
+    decodeXunfeiPayloadText(startJson?.payload?.stream_url) ||
+    "";
+  const session = startJson?.header?.session || ctrlJson?.header?.session || "";
+  const hls = startHlsTranscoder(streamUrl, session) || {};
+  xunfeiActiveSession = {
+    session,
+    hls_stream_id: hls.hls_stream_id || "",
+    startedAt: Date.now(),
+  };
+  return {
+    provider: "xunfei_virtual_human",
+    session,
+    sid: ctrlJson?.header?.sid || startJson?.header?.sid || "",
+    stream_url: streamUrl,
+    embed_url: streamUrl,
+    ...hls,
+    raw: {
+      start: startJson,
+      ctrl: ctrlJson,
+    },
+  };
+}
+
+function resolveXunfeiAvatarId(body) {
+  const candidate = String(body.avatar_id || body.avatarId || body.avatar || "").trim();
+  if (/^\d+$/.test(candidate)) return candidate;
+  return XUNFEI_VMS_AVATAR_ID;
+}
+
+function resolveXunfeiVcn(body) {
+  const candidate = String(body.vcn || body.voice || "").trim();
+  if (/^x[34]_/i.test(candidate)) return candidate;
+  return XUNFEI_VMS_VCN;
+}
+
+async function proxyXunfeiVms(body, res) {
+  if (!XUNFEI_VMS_APP_ID || !XUNFEI_VMS_API_KEY || !XUNFEI_VMS_API_SECRET) {
+    sendJson(res, 500, {
+      error:
+        "Missing XUNFEI_VMS_APP_ID, XUNFEI_VMS_API_KEY, or XUNFEI_VMS_API_SECRET in .env",
+    });
+    return;
+  }
+
+  const action = String(body.action || "generate").trim();
+  const session = String(body.session || body.session_id || "").trim();
+  const commonHeader = {
+    app_id: XUNFEI_VMS_APP_ID,
+    uid: String(body.uid || XUNFEI_VMS_UID || ""),
+  };
+
+  try {
+    if (action === "ping" || action === "stop") {
+      if (!session) {
+        sendJson(res, 400, { error: "Missing session" });
+        return;
+      }
+      const pathname = action === "ping" ? "/v1/private/vms2d_ping" : "/v1/private/vms2d_stop";
+      const json = await xunfeiVmsRequest(pathname, {
+        header: { ...commonHeader, session },
+      });
+      if (action === "stop" && body.hls_stream_id) stopHlsTranscoder(String(body.hls_stream_id));
+      if (action === "stop" && xunfeiActiveSession?.session === session) xunfeiActiveSession = null;
+      sendJson(res, 200, { provider: "xunfei_virtual_human", action, raw: json });
+      return;
+    }
+
+    const text = String(body.text || body.input_text || body.script || "").trim();
+    if (!text) {
+      sendJson(res, 400, { error: "Missing text for Xunfei virtual human" });
+      return;
+    }
+
+    await stopXunfeiActiveSession(commonHeader);
+
+    const startJson = await xunfeiVmsRequest("/v1/private/vms2d_start", {
+      header: commonHeader,
+      parameter: {
+        vmr: {
+          stream: { protocol: String(body.protocol || XUNFEI_VMS_STREAM_PROTOCOL || "rtmp") },
+          avatar_id: resolveXunfeiAvatarId(body),
+          width: Number(body.width || XUNFEI_VMS_WIDTH || 1280),
+          height: Number(body.height || XUNFEI_VMS_HEIGHT || 720),
+        },
+      },
+    });
+
+    const nextSession = startJson?.header?.session;
+    if (!nextSession) {
+      sendJson(res, 502, { error: "Xunfei VMS did not return a session", raw: startJson });
+      return;
+    }
+
+    let ctrlJson;
+    try {
+      ctrlJson = await xunfeiVmsRequest("/v1/private/vms2d_ctrl", {
+        header: { ...commonHeader, session: nextSession },
+        parameter: {
+          tts: {
+            vcn: resolveXunfeiVcn(body),
+            speed: Number(body.speed || XUNFEI_VMS_SPEED || 50),
+            pitch: Number(body.pitch || XUNFEI_VMS_PITCH || 50),
+            volume: Number(body.volume || XUNFEI_VMS_VOLUME || 50),
+          },
+        },
+        payload: {
+          text: {
+            encoding: "utf8",
+            status: 3,
+            text: xunfeiBase64Text(text),
+          },
+        },
+      });
+    } catch (e) {
+      await xunfeiVmsRequest("/v1/private/vms2d_stop", {
+        header: { ...commonHeader, session: nextSession },
+      }).catch(() => {});
+      throw e;
+    }
+
+    sendJson(res, 200, normalizeXunfeiVms(startJson, ctrlJson));
+  } catch (e) {
+    sendJson(res, e.status || 502, {
+      error: e.vmsCode === 11203
+        ? "讯飞在线虚拟人当前 1 路通道被占用，请点停止后等待约 60 秒再试。"
+        : String(e?.message || e),
+      code: e.vmsCode || undefined,
+      raw: e.response,
+    });
+  }
+}
+
+function serveHls(req, res, url) {
+  setCors(res);
+  const match = url.pathname.match(/^\/api\/video\/hls\/([a-f0-9]{16})\/([^/]+)$/);
+  if (!match || req.method !== "GET") {
+    sendJson(res, 404, { error: "HLS file not found" });
+    return;
+  }
+  const streamId = match[1];
+  const filename = match[2];
+  if (!/^(index\.m3u8|segment_\d+\.ts)$/.test(filename)) {
+    sendJson(res, 403, { error: "Forbidden" });
+    return;
+  }
+  const filePath = safeJoin(HLS_DIR, `${streamId}/${filename}`);
+  if (!filePath) {
+    sendJson(res, 403, { error: "Forbidden" });
+    return;
+  }
+  fs.stat(filePath, (err, stat) => {
+    if (err || !stat.isFile()) {
+      const item = xunfeiHlsProcesses.get(streamId);
+      sendJson(res, 404, {
+        error: "HLS segment not ready",
+        transcoding: Boolean(item),
+        detail: item?.lastError || "",
+      });
+      return;
+    }
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Cache-Control", filename.endsWith(".m3u8") ? "no-store" : "no-cache");
+    res.setHeader("Content-Type", getMimeType(filePath));
+    fs.createReadStream(filePath).pipe(res);
+  });
 }
 
 function dashScopeBaseUrl() {
@@ -394,8 +714,15 @@ const server = http.createServer((req, res) => {
       void proxyChat(req, res);
       return;
     }
-    if (url.pathname === "/api/video" && (req.method === "POST" || req.method === "OPTIONS")) {
+    if (
+      (url.pathname === "/api/video" || url.pathname === "/api/video/generate") &&
+      (req.method === "POST" || req.method === "OPTIONS")
+    ) {
       void proxyVideo(req, res);
+      return;
+    }
+    if (url.pathname.startsWith("/api/video/hls/") && req.method === "GET") {
+      serveHls(req, res, url);
       return;
     }
     if (url.pathname === "/admin") {

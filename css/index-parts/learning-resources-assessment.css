@@ -1423,7 +1423,7 @@ button.agent-card:hover {
 }
 
 .assessment-wiki-page {
-  width: min(1680px, calc(100vw - 96px));
+  width: min(100%, 1680px);
   max-width: none;
   min-height: calc(100vh - 110px);
   border-radius: 34px;
@@ -1945,6 +1945,281 @@ button.agent-card:hover {
   font-weight: 950;
 }
 
+.assessment-viz-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  gap: 16px;
+}
+
+.assessment-viz-card {
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.74);
+  border-radius: 24px;
+  padding: 18px;
+  background: rgba(255, 255, 255, 0.56);
+  box-shadow: 0 24px 70px rgba(88, 139, 128, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+
+[data-theme="dark"] .assessment-viz-card {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(24, 34, 35, 0.72);
+  box-shadow: 0 24px 74px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.assessment-viz-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.assessment-viz-head span {
+  display: block;
+  margin-bottom: 5px;
+  color: #67c7b7;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.assessment-viz-head h3 {
+  margin: 0;
+  color: #34484b;
+  font-size: 18px;
+  line-height: 1.25;
+  font-weight: 950;
+}
+
+[data-theme="dark"] .assessment-viz-head h3 {
+  color: #e8f2f0;
+}
+
+.assessment-viz-head em {
+  flex: 0 0 auto;
+  border: 1px solid rgba(103, 199, 183, 0.24);
+  border-radius: 999px;
+  padding: 6px 10px;
+  color: #2f8f81;
+  background: rgba(103, 199, 183, 0.1);
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 950;
+}
+
+.assessment-knowledge-chart svg {
+  display: block;
+  width: 100%;
+  min-height: 250px;
+}
+
+.assessment-chart-grid line {
+  stroke: rgba(84, 107, 114, 0.14);
+  stroke-width: 1;
+}
+
+.assessment-chart-grid text {
+  fill: rgba(84, 107, 114, 0.58);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.assessment-chart-area {
+  fill: rgba(103, 199, 183, 0.12);
+}
+
+.assessment-chart-line {
+  fill: none;
+  stroke: #398ec4;
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.assessment-chart-point line {
+  stroke: rgba(103, 199, 183, 0.18);
+  stroke-width: 2;
+}
+
+.assessment-chart-point circle {
+  fill: #67c7b7;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 3;
+}
+
+.assessment-chart-point text {
+  fill: #34484b;
+  font-weight: 950;
+}
+
+[data-theme="dark"] .assessment-chart-point text,
+[data-theme="dark"] .assessment-chart-grid text {
+  fill: rgba(232, 242, 240, 0.76);
+}
+
+.assessment-chart-point .score {
+  font-size: 13px;
+  text-anchor: middle;
+}
+
+.assessment-chart-point .label {
+  font-size: 12px;
+  text-anchor: middle;
+}
+
+.assessment-radar-layout {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.82fr) minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.assessment-resource-usage-card {
+  display: grid;
+  align-content: start;
+}
+
+.assessment-usage-rose {
+  display: grid;
+  place-items: center;
+  min-height: 330px;
+}
+
+.assessment-resource-radar svg {
+  display: block;
+  width: 100%;
+  max-width: 360px;
+  margin: 0 auto;
+  overflow: visible;
+}
+
+.assessment-radar-grid polygon,
+.assessment-radar-grid line {
+  fill: none;
+  stroke: rgba(230, 184, 91, 0.18);
+  stroke-width: 2;
+}
+
+.assessment-radar-shape {
+  fill: rgba(246, 196, 82, 0.25);
+  stroke: #e4a72a;
+  stroke-width: 5;
+  stroke-linejoin: round;
+}
+
+.assessment-usage-shape {
+  filter: url(#assessmentResourceShadow);
+}
+
+.assessment-radar-dot {
+  fill: #ffffff;
+  stroke: #e4a72a;
+  stroke-width: 5;
+}
+
+.assessment-radar-node {
+  cursor: default;
+  outline: none;
+}
+
+.assessment-radar-tip {
+  opacity: 0;
+  pointer-events: none;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 7px;
+  stroke-linejoin: round;
+  fill: #a56c0b;
+  font-size: 12px;
+  font-weight: 950;
+  transition: opacity 140ms ease;
+}
+
+.assessment-radar-node:hover .assessment-radar-tip,
+.assessment-radar-node:focus-visible .assessment-radar-tip {
+  opacity: 1;
+}
+
+.assessment-usage-rose::after {
+  content: "";
+  width: min(260px, 72%);
+  height: 42px;
+  margin-top: -42px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center, rgba(230, 167, 42, 0.24), rgba(245, 210, 123, 0.08) 54%, transparent 74%);
+  filter: blur(8px);
+  pointer-events: none;
+}
+
+.assessment-resource-usage-card .assessment-radar-dot {
+  paint-order: stroke;
+}
+
+.assessment-resource-usage-card .assessment-viz-head em {
+  color: #b87912;
+  border-color: rgba(228, 167, 42, 0.28);
+  background: rgba(246, 196, 82, 0.13);
+}
+
+.assessment-resource-usage-card .assessment-viz-head span {
+  color: #d89b24;
+}
+
+.assessment-resource-radar text {
+  fill: rgba(52, 72, 75, 0.72);
+  font-size: 14px;
+  font-weight: 950;
+}
+
+[data-theme="dark"] .assessment-resource-radar text {
+  fill: rgba(232, 242, 240, 0.76);
+}
+
+.assessment-radar-legend {
+  display: grid;
+  gap: 9px;
+}
+
+.assessment-radar-legend div {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr);
+  gap: 4px 10px;
+  align-items: center;
+}
+
+.assessment-radar-legend strong {
+  grid-row: span 2;
+  color: #34484b;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+[data-theme="dark"] .assessment-radar-legend strong {
+  color: #e8f2f0;
+}
+
+.assessment-radar-legend span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.assessment-radar-legend i {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: rgba(84, 107, 114, 0.14);
+}
+
+.assessment-radar-legend b {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #398ec4, #67c7b7);
+}
+
 .assessment-panel {
   padding: 18px;
 }
@@ -2387,4 +2662,44 @@ button.agent-card:hover {
 .push-complete-btn:hover {
   border-color: rgba(77, 124, 255, 0.44);
   background: rgba(77, 124, 255, 0.13);
+}
+
+@media (max-width: 1500px) {
+  .assessment-viz-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1120px) {
+  .assessment-viz-grid,
+  .assessment-radar-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .assessment-resource-radar svg {
+    max-width: 280px;
+  }
+}
+
+@media (max-width: 760px) {
+  .assessment-viz-card {
+    padding: 14px;
+    border-radius: 20px;
+  }
+
+  .assessment-viz-head {
+    display: grid;
+  }
+
+  .assessment-viz-head em {
+    justify-self: start;
+  }
+
+  .assessment-knowledge-chart svg {
+    min-height: 220px;
+  }
+
+  .assessment-radar-legend div {
+    grid-template-columns: 42px minmax(0, 1fr);
+  }
 }

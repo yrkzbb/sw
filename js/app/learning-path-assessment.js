@@ -1550,6 +1550,151 @@ function renderAssessmentOptimizationFlow(assessment, firstActions) {
   `;
 }
 
+function assessmentDimensionScore(dimensions, name, fallback = 0) {
+  const item = dimensions.find((dimension) => String(dimension.name || "").includes(name));
+  return clampScore(item?.score ?? fallback);
+}
+
+function renderKnowledgeMasteryChart(evidence, dimensions) {
+  const items = [
+    { label: "知识掌握", score: assessmentDimensionScore(dimensions, "知识掌握", 42) },
+    { label: "练习正确率", score: evidence.practice_performance.total ? evidence.practice_performance.accuracy : 0 },
+    { label: "路径完成", score: evidence.path_progress.percent || 0 },
+    { label: "错题复盘", score: clampScore(evidence.mistake_performance.total ? 42 + Math.min(42, evidence.mistake_performance.total * 7) : 18) },
+    { label: "资源利用", score: assessmentDimensionScore(dimensions, "资源利用", 35) },
+    { label: "动态调整", score: assessmentDimensionScore(dimensions, "动态优化", 35) },
+  ].map((item) => ({ ...item, score: clampScore(item.score) }));
+  const width = 720;
+  const height = 260;
+  const chartLeft = 58;
+  const chartTop = 28;
+  const chartWidth = 610;
+  const chartHeight = 150;
+  const step = chartWidth / Math.max(1, items.length - 1);
+  const points = items.map((item, index) => {
+    const x = chartLeft + index * step;
+    const y = chartTop + chartHeight - (item.score / 100) * chartHeight;
+    return { ...item, x, y };
+  });
+  const areaPath = `${points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ")} L ${chartLeft + chartWidth} ${chartTop + chartHeight} L ${chartLeft} ${chartTop + chartHeight} Z`;
+  const linePath = points.map((point, index) => `${index ? "L" : "M"} ${point.x} ${point.y}`).join(" ");
+  return `
+    <section class="assessment-viz-card assessment-knowledge-chart" aria-label="知识掌握程度图">
+      <div class="assessment-viz-head">
+        <div>
+          <span>MASTER MAP</span>
+          <h3>知识掌握程度图</h3>
+        </div>
+        <em>${evidence.practice_performance.total ? `${evidence.practice_performance.total} 道练习记录` : "待补练习记录"}</em>
+      </div>
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="知识掌握、练习正确率、路径完成、错题复盘、资源利用、动态调整趋势">
+        <g class="assessment-chart-grid">
+          ${[0, 25, 50, 75, 100].map((tick) => {
+            const y = chartTop + chartHeight - (tick / 100) * chartHeight;
+            return `<line x1="${chartLeft}" y1="${y}" x2="${chartLeft + chartWidth}" y2="${y}"></line><text x="18" y="${y + 4}">${tick}</text>`;
+          }).join("")}
+        </g>
+        <path class="assessment-chart-area" d="${areaPath}"></path>
+        <path class="assessment-chart-line" d="${linePath}"></path>
+        ${points.map((point) => `
+          <g class="assessment-chart-point">
+            <line x1="${point.x}" y1="${chartTop + chartHeight}" x2="${point.x}" y2="${point.y}"></line>
+            <circle cx="${point.x}" cy="${point.y}" r="5"></circle>
+            <text class="score" x="${point.x}" y="${point.y - 12}">${point.score}</text>
+            <text class="label" x="${point.x}" y="${chartTop + chartHeight + 28}">${escapeHtml(point.label)}</text>
+          </g>
+        `).join("")}
+      </svg>
+    </section>
+  `;
+}
+
+function resourceDimensionStats(evidence) {
+  const generatedTypes = evidence.resources.generated_types || [];
+  const usageCounts = evidence.resource_usage.type_counts || {};
+  const dimensions = [
+    { label: "ppt生成", match: /ppt|PPT|幻灯|课件|演示/ },
+    { label: "试题生成", match: /题|练习|测验|quiz/i },
+    { label: "视频生成", match: /视频|动画/ },
+    { label: "图片生成", match: /图片|图像|图解|导图|思维/ },
+    { label: "word生成", match: /word|Word|文档|讲解|PDF|资料/ },
+  ];
+  return dimensions.map((item) => {
+    const generated = generatedTypes.filter((type) => item.match.test(type)).length;
+    const used = Object.entries(usageCounts).reduce((sum, [type, count]) => sum + (item.match.test(type) ? Number(count || 0) : 0), 0);
+    const score = clampScore(18 + generated * 34 + used * 12 + (generated && evidence.resource_usage.completed_count ? 8 : 0));
+    return { ...item, generated, used, score };
+  });
+}
+
+function renderResourceDimensionChart(evidence) {
+  const stats = resourceDimensionStats(evidence);
+  const size = 360;
+  const center = size / 2;
+  const radius = 118;
+  const pointFor = (index, score = 100) => {
+    const angle = (-90 + index * (360 / stats.length)) * Math.PI / 180;
+    const r = radius * (score / 100);
+    return {
+      x: center + Math.cos(angle) * r,
+      y: center + Math.sin(angle) * r,
+    };
+  };
+  const polygon = stats.map((item, index) => {
+    const point = pointFor(index, item.score);
+    return `${point.x},${point.y}`;
+  }).join(" ");
+  return `
+    <section class="assessment-viz-card assessment-resource-radar assessment-resource-usage-card" aria-label="资源使用情况图">
+      <div class="assessment-viz-head">
+        <div>
+          <span>RESOURCE USAGE</span>
+          <h3>资源使用情况</h3>
+        </div>
+        <em>${evidence.resources.generated_count} 类资源 · ${evidence.resource_usage.total} 次使用</em>
+      </div>
+      <div class="assessment-usage-rose">
+        <svg viewBox="0 0 ${size} ${size}" role="img" aria-label="资源使用情况五维面积图">
+          <defs>
+            <filter id="assessmentResourceShadow" x="-35%" y="-35%" width="170%" height="185%">
+              <feDropShadow dx="0" dy="18" stdDeviation="14" flood-color="#e7a727" flood-opacity="0.3"></feDropShadow>
+              <feDropShadow dx="0" dy="42" stdDeviation="24" flood-color="#f5d27b" flood-opacity="0.2"></feDropShadow>
+            </filter>
+          </defs>
+          <g class="assessment-radar-grid">
+            ${stats.map((_, index) => {
+              const point = pointFor(index, 100);
+              return `<line x1="${center}" y1="${center}" x2="${point.x}" y2="${point.y}"></line>`;
+            }).join("")}
+          </g>
+          <polygon class="assessment-radar-shape assessment-usage-shape" points="${polygon}"></polygon>
+          ${stats.map((item, index) => {
+            const point = pointFor(index, item.score);
+            const label = pointFor(index, 126);
+            return `
+              <g class="assessment-radar-node" tabindex="0" aria-label="${escapeHtml(item.label)}，${item.generated} 个生成，${item.used} 次使用，维度值 ${item.score}">
+                <circle class="assessment-radar-dot" cx="${point.x}" cy="${point.y}" r="5"></circle>
+                <text class="assessment-radar-tip" x="${point.x}" y="${point.y - 16}" text-anchor="middle">${escapeHtml(`${item.generated} 生成 · ${item.used} 使用 · ${item.score}`)}</text>
+                <title>${escapeHtml(`${item.label}：${item.generated} 个生成，${item.used} 次使用，维度值 ${item.score}`)}</title>
+              </g>
+              <text x="${label.x}" y="${label.y}" text-anchor="middle">${escapeHtml(item.label)}</text>
+            `;
+          }).join("")}
+        </svg>
+      </div>
+    </section>
+  `;
+}
+
+function renderAssessmentVisualizationBoard(evidence, dimensions) {
+  return `
+    <section class="assessment-viz-grid">
+      ${renderKnowledgeMasteryChart(evidence, dimensions)}
+      ${renderResourceDimensionChart(evidence)}
+    </section>
+  `;
+}
+
 function studentDimensionName(name) {
   return String(name || "")
     .replace("学习投入", "提问与投入")
@@ -1624,6 +1769,7 @@ function renderAssessmentPage() {
       </div>
       <button class="primary-btn" type="button" data-assessment-go-path>去看学习路径</button>
     </section>
+    ${renderAssessmentVisualizationBoard(evidence, dimensions)}
     ${renderAssessmentLiveBoard(evidence, assessment)}
     ${renderAssessmentOptimizationFlow(assessment, firstActions)}
     ${renderAssessmentActionBoard(assessment)}
