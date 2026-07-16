@@ -1,0 +1,467 @@
+.tutor-page {
+  overflow: auto;
+}
+
+.tutor-wiki-canvas {
+  width: min(1420px, 100%);
+  margin: 0 auto;
+  color: #33484b;
+  display: grid;
+  grid-template-columns: minmax(280px, 0.82fr) minmax(360px, 1.15fr) minmax(300px, 0.9fr);
+  grid-template-areas:
+    "nav nav nav"
+    "hero question analysis"
+    "answer answer diagram"
+    "answer answer video";
+  gap: 24px 30px;
+  align-items: start;
+}
+
+[data-theme="dark"] .tutor-wiki-canvas {
+  color: #dcebea;
+}
+
+.tutor-float-nav {
+  grid-area: nav;
+}
+
+.tutor-orb {
+  background:
+    radial-gradient(circle at 32% 26%, rgba(255, 255, 255, 0.86) 0 10%, transparent 11%),
+    linear-gradient(135deg, #4d7cff, #58c7b4 58%, #f5dc63);
+}
+
+.tutor-hero-card {
+  grid-area: hero;
+  min-height: 410px;
+  border-radius: 36px;
+  padding: 32px;
+}
+
+.tutor-hero-card span,
+.tutor-analysis-card > span,
+.tutor-card-head span {
+  display: block;
+  color: #58c7b4;
+  font-size: 12px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.tutor-hero-card h1 {
+  margin: 14px 0 18px;
+  color: #34484b;
+  font-size: 54px;
+  line-height: 1;
+}
+
+.tutor-hero-card p {
+  margin: 0;
+  color: #53696d;
+  font-size: 17px;
+  font-weight: 850;
+  line-height: 1.85;
+}
+
+.tutor-hero-metrics {
+  display: grid;
+  gap: 12px;
+  margin-top: 30px;
+}
+
+.tutor-hero-metrics b {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  border-radius: 20px;
+  padding: 0 18px;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.62);
+}
+
+.tutor-question-card {
+  grid-area: question;
+  border-radius: 36px;
+  padding: 28px;
+}
+
+.tutor-form {
+  display: grid;
+  gap: 18px;
+}
+
+.tutor-form label {
+  display: grid;
+  gap: 9px;
+  color: #627479;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.tutor-form textarea,
+.tutor-form select {
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  padding: 14px 16px;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.64);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.6;
+  outline: none;
+}
+
+.tutor-form textarea {
+  resize: vertical;
+  min-height: 168px;
+}
+
+.tutor-form textarea:focus,
+.tutor-form select:focus {
+  border-color: rgba(88, 199, 180, 0.72);
+  box-shadow: 0 0 0 4px rgba(88, 199, 180, 0.16);
+}
+
+.tutor-form-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tutor-submit-btn {
+  width: fit-content;
+  margin: 0;
+  border-radius: 16px;
+}
+
+.tutor-analysis-card {
+  grid-area: analysis;
+  border-radius: 36px;
+  padding: 28px;
+}
+
+.tutor-analysis-card strong {
+  display: block;
+  margin: 10px 0 18px;
+  color: #34484b;
+  font-size: 24px;
+}
+
+.tutor-signal-list {
+  display: grid;
+  gap: 12px;
+}
+
+.tutor-signal-item {
+  display: grid;
+  grid-template-columns: minmax(70px, auto) minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  border-radius: 18px;
+  padding: 13px 14px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.tutor-signal-item span,
+.tutor-signal-item em {
+  color: #7c8d91;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 950;
+  white-space: nowrap;
+}
+
+.tutor-signal-item strong {
+  min-width: 0;
+  margin: 0;
+  color: #34484b;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tutor-answer-card {
+  grid-area: answer;
+  min-height: 520px;
+  border-radius: 36px;
+  padding: 30px;
+}
+
+.tutor-diagram-card {
+  grid-area: diagram;
+  border-radius: 36px;
+  padding: 28px;
+}
+
+.tutor-video-card {
+  grid-area: video;
+  border-radius: 36px;
+  padding: 28px;
+}
+
+.tutor-card-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+.tutor-card-head h2 {
+  margin: 8px 0 0;
+  color: #34484b;
+  font-size: 26px;
+}
+
+.tutor-card-head b {
+  border-radius: 999px;
+  padding: 8px 12px;
+  color: #fff;
+  background: #58c7b4;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.tutor-text-answer {
+  display: grid;
+  gap: 16px;
+}
+
+.tutor-answer-section,
+.tutor-next-step {
+  margin: 0;
+  border-radius: 22px;
+  padding: 18px 20px;
+  color: #3c5357;
+  background: rgba(255, 255, 255, 0.5);
+  font-size: 16px;
+  font-weight: 850;
+  line-height: 1.85;
+}
+
+.tutor-answer-section h3 {
+  margin: 0 0 10px;
+  color: #34484b;
+  font-size: 18px;
+  line-height: 1.35;
+}
+
+.tutor-answer-section p {
+  margin: 0;
+}
+
+.tutor-answer-section ul {
+  display: grid;
+  gap: 8px;
+  margin: 12px 0 0;
+  padding-left: 20px;
+}
+
+.tutor-answer-section li {
+  padding-left: 2px;
+}
+
+.tutor-answer-section pre {
+  overflow: auto;
+  margin: 14px 0 0;
+  border-radius: 18px;
+  padding: 16px;
+  color: #24474b;
+  background: rgba(88, 199, 180, 0.13);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
+.tutor-next-step {
+  color: #fff;
+  background: linear-gradient(135deg, rgba(88, 199, 180, 0.92), rgba(91, 141, 243, 0.9));
+}
+
+.tutor-diagram {
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+.tutor-diagram-node {
+  min-width: 180px;
+  border-radius: 22px;
+  padding: 16px 20px;
+  color: #fff;
+  background: linear-gradient(135deg, #5b8df3, #58c7b4);
+  font-size: 18px;
+  font-weight: 950;
+  text-align: center;
+}
+
+.tutor-diagram-line {
+  width: 2px;
+  height: 28px;
+  background: rgba(88, 199, 180, 0.48);
+}
+
+.tutor-diagram-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.tutor-diagram-grid div {
+  min-height: 118px;
+  border-radius: 22px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.tutor-diagram-grid b {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: #fff;
+  background: #58c7b4;
+}
+
+.tutor-diagram-grid span,
+.tutor-diagram-grid small {
+  display: block;
+  margin-top: 9px;
+  color: #34484b;
+  font-weight: 950;
+}
+
+.tutor-diagram-grid small {
+  color: #758488;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.tutor-video-script ol {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.tutor-video-script li {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  border-radius: 18px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.5);
+}
+
+.tutor-video-script strong {
+  color: #58c7b4;
+  font-size: 13px;
+  font-weight: 950;
+}
+
+.tutor-video-script span {
+  color: #40575b;
+  font-size: 14px;
+  font-weight: 850;
+  line-height: 1.55;
+}
+
+[data-theme="dark"] .tutor-hero-card h1,
+[data-theme="dark"] .tutor-analysis-card strong,
+[data-theme="dark"] .tutor-card-head h2,
+[data-theme="dark"] .tutor-hero-metrics b,
+[data-theme="dark"] .tutor-signal-item strong,
+[data-theme="dark"] .tutor-answer-section,
+[data-theme="dark"] .tutor-answer-section h3,
+[data-theme="dark"] .tutor-diagram-grid span,
+[data-theme="dark"] .tutor-video-script span {
+  color: #dcebea;
+}
+
+[data-theme="dark"] .tutor-hero-card p,
+[data-theme="dark"] .tutor-form label,
+[data-theme="dark"] .tutor-signal-item span,
+[data-theme="dark"] .tutor-signal-item em,
+[data-theme="dark"] .tutor-diagram-grid small {
+  color: rgba(220, 235, 234, 0.68);
+}
+
+[data-theme="dark"] .tutor-hero-metrics b,
+[data-theme="dark"] .tutor-form textarea,
+[data-theme="dark"] .tutor-form select,
+[data-theme="dark"] .tutor-signal-item,
+[data-theme="dark"] .tutor-answer-section,
+[data-theme="dark"] .tutor-diagram-grid div,
+[data-theme="dark"] .tutor-video-script li {
+  border-color: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="dark"] .tutor-answer-section pre {
+  color: #dcebea;
+  background: rgba(88, 199, 180, 0.12);
+}
+
+[data-theme="dark"] .tutor-form textarea,
+[data-theme="dark"] .tutor-form select {
+  color: #dcebea;
+}
+
+@media (max-width: 1120px) {
+  .tutor-wiki-canvas {
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 0.9fr);
+    grid-template-areas:
+      "nav nav"
+      "hero analysis"
+      "question question"
+      "answer answer"
+      "diagram video";
+  }
+}
+
+@media (max-width: 760px) {
+  .tutor-wiki-canvas {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "nav"
+      "hero"
+      "question"
+      "analysis"
+      "answer"
+      "diagram"
+      "video";
+    gap: 18px;
+  }
+
+  .tutor-hero-card,
+  .tutor-question-card,
+  .tutor-analysis-card,
+  .tutor-answer-card,
+  .tutor-diagram-card,
+  .tutor-video-card {
+    border-radius: 28px;
+    padding: 22px;
+  }
+
+  .tutor-hero-card {
+    min-height: 0;
+  }
+
+  .tutor-hero-card h1 {
+    font-size: 40px;
+  }
+
+  .tutor-form-row,
+  .tutor-diagram-grid {
+    grid-template-columns: 1fr;
+  }
+}

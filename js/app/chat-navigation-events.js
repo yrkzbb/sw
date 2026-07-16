@@ -691,6 +691,7 @@ function ensureChatVisible() {
   setComposerVisible(true);
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -703,6 +704,7 @@ function ensureChatVisible() {
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -769,6 +771,7 @@ function showHome() {
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -779,6 +782,7 @@ function showHome() {
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -795,6 +799,7 @@ function showProfilePage() {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -805,6 +810,7 @@ function showProfilePage() {
   el.profilePageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -824,6 +830,7 @@ function showUserInfoPage(options = {}) {
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -834,6 +841,7 @@ function showUserInfoPage(options = {}) {
   el.userInfoPageBtn?.classList.add("active");
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -880,6 +888,7 @@ function showResourcePage() {
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
   if (el.assessmentPage) el.assessmentPage.hidden = true;
@@ -890,6 +899,7 @@ function showResourcePage() {
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
   el.assessmentPageBtn?.classList.remove("active");
@@ -897,6 +907,35 @@ function showResourcePage() {
   el.mistakePageBtn?.classList.remove("active");
   setPageHash("#resources");
   renderLearningResources();
+}
+
+function showTutorPage() {
+  if (!el.tutorPage) return;
+  setChatLayoutActive(false);
+  setComposerVisible(false);
+  if (el.home) el.home.hidden = true;
+  if (el.chat) el.chat.hidden = true;
+  if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
+  if (el.pushPage) el.pushPage.hidden = true;
+  if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
+  if (el.mistakePage) el.mistakePage.hidden = true;
+  el.tutorPage.hidden = false;
+  el.tutorPageBtn?.classList.add("active");
+  el.chatPageBtn?.classList.remove("active");
+  el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
+  el.pushPageBtn?.classList.remove("active");
+  el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
+  el.mistakePageBtn?.classList.remove("active");
+  setPageHash("#tutor");
+  if (typeof renderIntelligentTutorPage === "function") renderIntelligentTutorPage();
 }
 
 function showPushPage() {
@@ -907,6 +946,7 @@ function showPushPage() {
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
   if (el.assessmentPage) el.assessmentPage.hidden = true;
@@ -917,6 +957,7 @@ function showPushPage() {
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
   el.assessmentPageBtn?.classList.remove("active");
@@ -934,6 +975,7 @@ function showPushComposePage() {
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
   if (el.assessmentPage) el.assessmentPage.hidden = true;
@@ -944,6 +986,7 @@ function showPushComposePage() {
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
   el.assessmentPageBtn?.classList.remove("active");
@@ -990,6 +1033,7 @@ function showPathPage() {
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.assessmentPage) el.assessmentPage.hidden = true;
@@ -1000,6 +1044,7 @@ function showPathPage() {
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.assessmentPageBtn?.classList.remove("active");
@@ -1017,6 +1062,7 @@ function showAssessmentPage() {
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.tutorPage) el.tutorPage.hidden = true;
   if (el.resourcePage) el.resourcePage.hidden = true;
   if (el.pushPage) el.pushPage.hidden = true;
   if (el.pathPage) el.pathPage.hidden = true;
@@ -1027,6 +1073,7 @@ function showAssessmentPage() {
   el.chatPageBtn?.classList.remove("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
+  el.tutorPageBtn?.classList.remove("active");
   el.resourcePageBtn?.classList.remove("active");
   el.pushPageBtn?.classList.remove("active");
   el.pathPageBtn?.classList.remove("active");
@@ -1070,6 +1117,8 @@ function restoreViewFromHash() {
     } else {
       showUserInfoPage({ updateHash: false });
     }
+  } else if (window.location.hash === "#tutor") {
+    showTutorPage();
   } else if (window.location.hash === "#resources") {
     showResourcePage();
   } else if (window.location.hash === "#push/compose") {
@@ -1884,6 +1933,8 @@ function initEventHandlers() {
   el.chatSidebarResizeHandle?.addEventListener("dblclick", () => {
     applyChatSidebarWidth(230);
   });
+  el.tutorPageBtn?.addEventListener("click", showTutorPage);
+  el.tutorForm?.addEventListener("submit", handleTutorSubmit);
   el.resourcePageBtn?.addEventListener("click", showResourcePage);
   el.pushPageBtn?.addEventListener("click", showPushPage);
   el.pathPageBtn?.addEventListener("click", showPathPage);

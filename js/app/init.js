@@ -30,6 +30,7 @@ async function init() {
     "route-boot-chat",
     "route-boot-profile",
     "route-boot-user-info",
+    "route-boot-tutor",
     "route-boot-resources",
     "route-boot-push",
     "route-boot-path",

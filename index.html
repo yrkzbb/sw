@@ -14,7 +14,7 @@
           document.documentElement.classList.add(hasActiveUser ? "auth-boot-user" : "auth-boot-guest");
           document.documentElement.classList.add(`auth-boot-${authMode}`);
           const bootRoute = (window.location.hash || "").replace(/^#/, "").split("/")[0] || "home";
-          const knownRoutes = new Set(["chat", "profile", "user-info", "resources", "push", "path", "assessment"]);
+          const knownRoutes = new Set(["chat", "profile", "user-info", "tutor", "resources", "push", "path", "assessment"]);
           document.documentElement.classList.add(`route-boot-${knownRoutes.has(bootRoute) ? bootRoute : "home"}`);
         } catch {
           document.documentElement.classList.add("auth-boot-guest", "auth-boot-register");
@@ -35,6 +35,7 @@
     <script src="./js/app/community-feed.js?v=20260716-assessment-feedback" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260716-assessment-feedback" defer></script>
     <script src="./js/app/profile-page.js?v=20260716-favorite-cancel" defer></script>
+    <script src="./js/app/intelligent-tutor.js?v=20260716-tutor" defer></script>
     <script src="./js/app/chat-navigation-events.js?v=20260716-chat-legacy-restore" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
@@ -106,6 +107,16 @@
             </svg>
           </span>
           资源
+        </button>
+        <button id="tutorPageBtn" class="nav-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 3 2 8l10 5 10-5-10-5Z" />
+              <path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5" />
+              <path d="M22 8v6" />
+            </svg>
+          </span>
+          辅导
         </button>
         <button id="pushPageBtn" class="nav-btn" type="button">
           <span class="nav-icon" aria-hidden="true">
@@ -305,6 +316,97 @@
               <div id="profileContentPanel" class="profile-content-panel wiki-content-panel" aria-live="polite"></div>
             </section>
             <div id="profileTrendChart" class="profile-trend-chart wiki-hidden-trend" aria-hidden="true"></div>
+          </div>
+        </section>
+
+        <section id="tutorPage" class="tutor-page personal-profile-page" hidden>
+          <div class="tutor-wiki-canvas">
+            <nav class="wiki-float-nav tutor-float-nav" aria-label="智能辅导导航">
+              <button class="wiki-avatar-mini tutor-orb" type="button" aria-label="智能辅导">AI</button>
+              <button class="active" type="button" title="即时答疑">?</button>
+              <button type="button" title="图解说明">◇</button>
+              <button type="button" title="短视频讲解">▶</button>
+            </nav>
+
+            <section class="tutor-hero-card wiki-glass">
+              <span>INTELLIGENT TUTORING</span>
+              <h1>智能辅导</h1>
+              <p>遇到问题时，系统会结合学习画像、学习行为和知识库能力，给出文字解答、图解拆解与短视频讲解脚本。</p>
+              <div class="tutor-hero-metrics" aria-label="辅导能力">
+                <b>即时答疑</b>
+                <b>多模态生成</b>
+                <b>针对性引导</b>
+              </div>
+            </section>
+
+            <section class="tutor-question-card wiki-glass">
+              <form id="tutorForm" class="tutor-form">
+                <label>
+                  <span>学习问题</span>
+                  <textarea id="tutorQuestionInput" rows="6" placeholder="例如：为什么二叉树的中序遍历可以得到有序序列？我总是分不清递归过程。"></textarea>
+                </label>
+                <div class="tutor-form-row">
+                  <label>
+                    <span>学科</span>
+                    <select id="tutorSubjectInput">
+                      <option value="计算机基础">计算机基础</option>
+                      <option value="数学">数学</option>
+                      <option value="英语">英语</option>
+                      <option value="专业课程">专业课程</option>
+                      <option value="项目实践">项目实践</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>讲解深度</span>
+                    <select id="tutorDepthInput">
+                      <option value="从基础概念讲起">从基础讲起</option>
+                      <option value="按考试解题讲">考试解题</option>
+                      <option value="按项目应用讲">项目应用</option>
+                    </select>
+                  </label>
+                </div>
+                <button class="wiki-write-btn tutor-submit-btn" type="submit">生成辅导</button>
+              </form>
+            </section>
+
+            <section class="tutor-analysis-card wiki-glass">
+              <span>DATA SIGNAL</span>
+              <strong>学习画像联动</strong>
+              <div id="tutorSignalList" class="tutor-signal-list"></div>
+            </section>
+
+            <section class="tutor-answer-card wiki-glass">
+              <div class="tutor-card-head">
+                <div>
+                  <span>TEXT ANSWER</span>
+                  <h2>文字解答</h2>
+                </div>
+                <b id="tutorAnswerBadge">待生成</b>
+              </div>
+              <div id="tutorTextAnswer" class="tutor-text-answer"></div>
+            </section>
+
+            <section class="tutor-diagram-card wiki-glass">
+              <div class="tutor-card-head">
+                <div>
+                  <span>VISUAL GUIDE</span>
+                  <h2>图解说明</h2>
+                </div>
+                <b>流程图</b>
+              </div>
+              <div id="tutorDiagram" class="tutor-diagram"></div>
+            </section>
+
+            <section class="tutor-video-card wiki-glass">
+              <div class="tutor-card-head">
+                <div>
+                  <span>SHORT VIDEO</span>
+                  <h2>短视频讲解</h2>
+                </div>
+                <b>分镜</b>
+              </div>
+              <div id="tutorVideoScript" class="tutor-video-script"></div>
+            </section>
           </div>
         </section>
 
