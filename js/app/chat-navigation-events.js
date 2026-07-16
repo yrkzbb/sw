@@ -1849,6 +1849,26 @@ function initEventHandlers() {
   el.userInfoPage?.addEventListener("submit", (event) => {
     const form = event.target instanceof HTMLElement ? event.target.closest("[data-profile-post-editor]") : null;
     const bioForm = event.target instanceof HTMLElement ? event.target.closest(".wiki-bio-editor") : null;
+    const commentForm = event.target instanceof HTMLElement ? event.target.closest("[data-profile-comment-form]") : null;
+    if (commentForm) {
+      event.preventDefault();
+      const postId = commentForm.getAttribute("data-profile-comment-form");
+      const textarea = commentForm.querySelector("textarea");
+      const body = textarea?.value.trim();
+      if (!postId || !body) return;
+      void apiJson(`/api/feed/posts/${encodeURIComponent(postId)}/comments`, {
+        method: "POST",
+        body: JSON.stringify({ body }),
+      }).then((payload) => {
+        if (textarea) textarea.value = "";
+        if (state.personalProfileSelectedPost && String(state.personalProfileSelectedPost.id) === String(postId)) {
+          state.personalProfileSelectedPost.comments = Number(state.personalProfileSelectedPost.comments || 0) + 1;
+        }
+        if (typeof loadProfilePostComments === "function") return loadProfilePostComments(postId);
+        return payload;
+      }).catch((e) => window.alert(String(e?.message || "评论发布失败。")));
+      return;
+    }
     if (form) {
       event.preventDefault();
       void saveProfilePostEdit(form);

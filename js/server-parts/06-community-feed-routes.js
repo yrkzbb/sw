@@ -134,11 +134,19 @@ function normalizeFeedTags(value) {
     .slice(0, 8);
 }
 
+function looksLikeFeedQuizBody(value = "") {
+  const text = String(value || "");
+  return /(?:^|\n)\s*(?:##\s*)?题目\s*\d*[:：]/.test(text)
+    && /(?:^|\n)\s*答案[:：]/.test(text)
+    && /(?:^|\n)\s*解析[:：]/.test(text);
+}
+
 function normalizeFeedPostInput(body) {
   const title = String(body.title || "").trim().replace(/\s+/g, " ").slice(0, 180);
   const text = String(body.body || body.content || "").trim().slice(0, 20000);
   const summary = String(body.summary || text.replace(/\s+/g, " ").slice(0, 180)).trim().slice(0, 320);
-  const contentType = FEED_TYPES.has(String(body.contentType || body.content_type)) ? String(body.contentType || body.content_type) : "thought";
+  const requestedType = String(body.contentType || body.content_type);
+  const contentType = looksLikeFeedQuizBody(text) ? "quiz" : FEED_TYPES.has(requestedType) ? requestedType : "thought";
   return {
     contentType,
     title,
@@ -187,6 +195,46 @@ async function updateFeedPostHeat(pool, postId) {
   return heat;
 }
 
+async function ensureFeedDemoComments(pool, postId, post, authors = []) {
+  const target = Math.min(12, Math.max(0, Number(post.comment_count || 0)));
+  if (!target) return;
+  const [existing] = await pool.query(
+    `SELECT COUNT(*) AS count FROM ${tableName("feed_comments")} WHERE post_id = ?`,
+    [postId]
+  );
+  const current = Number(existing?.[0]?.count || 0);
+  if (current >= target) return;
+  const authorIds = authors.map((row) => row.id).filter(Boolean);
+  if (!authorIds.length) return;
+  const samples = [
+    "这个点很有共鸣，尤其是记录失败原因这一步。",
+    "我也遇到过类似问题，后面发现复盘比保存结果更重要。",
+    "这个方法可以直接放到学习路径里当检查项。",
+    "如果能补一个具体例子就更好理解了。",
+    "赞同，约束条件记录下来之后，下次和 AI 协作会稳定很多。",
+    "我会把这条收藏起来，后面做项目日志时参考。",
+    "这里提到的边界条件很关键，很多问题就是漏在这里。",
+    "感觉适合做成模板，每次迭代后填一次。",
+    "这个思路对课程作业和项目实践都挺实用。",
+    "我之前只记最终答案，确实很难复用。",
+    "评论区有没有人试过把它接到错题本里？",
+    "这个结论很清楚，建议再补一个反例。",
+  ];
+  for (let i = current; i < target; i += 1) {
+    await pool.query(
+      `INSERT INTO ${tableName("feed_comments")} (post_id, author_id, body, created_at)
+       VALUES (?, ?, ?, DATE_SUB(NOW(), INTERVAL ? MINUTE))`,
+      [postId, authorIds[i % authorIds.length], samples[i % samples.length], (target - i) * 13]
+    );
+  }
+  await pool.query(
+    `UPDATE ${tableName("feed_posts")} p
+        SET comment_count = (SELECT COUNT(*) FROM ${tableName("feed_comments")} c WHERE c.post_id = p.id)
+      WHERE p.id = ?`,
+    [postId]
+  );
+}
+
 async function bootstrapFeedDemo(pool) {
   const passwordData = hashPassword(crypto.randomBytes(16).toString("hex"));
   for (const author of FEED_DEMO_AUTHORS) {
@@ -209,27 +257,31 @@ async function bootstrapFeedDemo(pool) {
       `SELECT id FROM ${tableName("feed_posts")} WHERE title = ? LIMIT 1`,
       [post.title]
     );
-    if (existing.length) continue;
-    const [result] = await pool.query(
-      `INSERT INTO ${tableName("feed_posts")}
-       (author_id, content_type, title, summary, body, category, tags, like_count, comment_count, favorite_count, view_count, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? HOUR))`,
-      [
-        authorId,
-        post.content_type,
-        post.title,
-        post.summary,
-        post.body,
-        post.category,
-        JSON.stringify(post.tags),
-        post.like_count,
-        post.comment_count,
-        post.favorite_count,
-        post.view_count,
-        3 + Math.floor(Math.random() * 72),
-      ]
-    );
-    await updateFeedPostHeat(pool, result.insertId);
+    let postId = existing[0]?.id;
+    if (!postId) {
+      const [result] = await pool.query(
+        `INSERT INTO ${tableName("feed_posts")}
+         (author_id, content_type, title, summary, body, category, tags, like_count, comment_count, favorite_count, view_count, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, CAST(? AS JSON), ?, ?, ?, ?, DATE_SUB(NOW(), INTERVAL ? HOUR))`,
+        [
+          authorId,
+          post.content_type,
+          post.title,
+          post.summary,
+          post.body,
+          post.category,
+          JSON.stringify(post.tags),
+          post.like_count,
+          post.comment_count,
+          post.favorite_count,
+          post.view_count,
+          3 + Math.floor(Math.random() * 72),
+        ]
+      );
+      postId = result.insertId;
+    }
+    await ensureFeedDemoComments(pool, postId, post, authors);
+    await updateFeedPostHeat(pool, postId);
   }
 }
 
@@ -645,6 +697,7 @@ async function getFeedPost(req, res, postId) {
   if (!user) return;
   try {
     const pool = await getMysql();
+    await bootstrapFeedDemo(pool);
     const signals = await loadFeedUserSignals(pool, user.id);
     const rows = await fetchFeedRows(pool, user.id, "AND p.id = ?", [postId], "p.created_at DESC", 1, "detail");
     if (!rows.length) {
@@ -844,6 +897,7 @@ async function getFeedComments(req, res, postId) {
   if (!user) return;
   try {
     const pool = await getMysql();
+    await bootstrapFeedDemo(pool);
     const [rows] = await pool.query(
       `SELECT c.*, u.username AS author_name
          FROM ${tableName("feed_comments")} c

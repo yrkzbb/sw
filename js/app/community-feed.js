@@ -91,6 +91,13 @@ function feedTagsFromText(value) {
     .slice(0, 8);
 }
 
+function looksLikeFeedQuiz(body = "") {
+  const text = String(body || "");
+  return /(?:^|\n)\s*(?:##\s*)?题目\s*\d*[:：]/.test(text)
+    && /(?:^|\n)\s*答案[:：]/.test(text)
+    && /(?:^|\n)\s*解析[:：]/.test(text);
+}
+
 function formatFeedTime(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
@@ -763,12 +770,14 @@ function feedQuizExercise(postId, exerciseIndex) {
 
 async function submitFeedPost(e) {
   e.preventDefault();
+  const body = (el.feedBodyInput?.value || "").trim();
+  const selectedType = el.feedTypeInput?.value || "thought";
   const payload = {
-    contentType: el.feedTypeInput?.value || "thought",
+    contentType: selectedType === "quiz" || looksLikeFeedQuiz(body) ? "quiz" : selectedType,
     title: (el.feedTitleInput?.value || "").trim(),
     category: (el.feedCategoryInput?.value || "").trim(),
     tags: feedTagsFromText(el.feedTagsInput?.value || ""),
-    body: (el.feedBodyInput?.value || "").trim(),
+    body,
   };
   setFeedMessage("");
   updateFeedComposerPreview();

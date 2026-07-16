@@ -1595,6 +1595,15 @@ function renderProfileArchiveGroup(group) {
 }
 
 function profilePostHeadings(post) {
+  const isQuizPost = post?.contentType === "quiz" || (typeof looksLikeFeedQuiz === "function" && looksLikeFeedQuiz(post?.body || ""));
+  if (isQuizPost && typeof normalizeExerciseList === "function") {
+    const exercises = normalizeExerciseList(post.body || "", post.title || "");
+    if (exercises.length) {
+      return exercises
+        .map((exercise, index) => `${index + 1}. ${exercise.type || exercise.question || "题目"}`)
+        .slice(0, 8);
+    }
+  }
   const body = String(post?.body || "");
   return body.split(/\n+/)
     .map((line) => line.match(/^\s{0,3}#{1,3}\s+(.+)$/)?.[1]?.trim())
@@ -1614,7 +1623,17 @@ function profileRenderMarkdownText(markdownText) {
     .join("");
 }
 
+function renderProfilePostBody(post) {
+  const isQuizPost = post?.contentType === "quiz" || (typeof looksLikeFeedQuiz === "function" && looksLikeFeedQuiz(post?.body || ""));
+  if (isQuizPost && typeof renderFeedQuizDetail === "function") {
+    const quizHtml = renderFeedQuizDetail(post);
+    if (quizHtml && !quizHtml.includes("feed-detail-content")) return quizHtml;
+  }
+  return profileRenderMarkdownText(post?.body || post?.summary || "");
+}
+
 function renderProfilePostDetail(post, editable = false) {
+  const isQuizPost = post?.contentType === "quiz" || (typeof looksLikeFeedQuiz === "function" && looksLikeFeedQuiz(post?.body || ""));
   const headings = profilePostHeadings(post);
   const tags = profileArchiveTags(post).filter((tag) => tag !== "未打标签");
   const fullDate = formatWikiFullDate(post.createdAt || post.updatedAt) || "";
@@ -1650,7 +1669,18 @@ function renderProfilePostDetail(post, editable = false) {
             ${(tags.length ? tags : [post.category || "未分类"]).filter(Boolean).map((tag) => `<span>#${escapeHtml(String(tag).replace(/^#/, ""))}</span>`).join("")}
           </div>
         </header>
-        <div class="wiki-post-body markdown-body">${profileRenderMarkdownText(post.body || post.summary || "")}</div>
+        <div class="wiki-post-body ${isQuizPost ? "wiki-post-quiz-body" : "markdown-body"}">${renderProfilePostBody(post)}</div>
+        <section class="feed-detail-comments wiki-post-comments" data-profile-comments-for="${escapeHtml(post.id)}">
+          <div class="feed-comments-head">
+            <h3>评论</h3>
+            <span>${Number(post.comments || 0)} 条讨论</span>
+          </div>
+          <div class="feed-comment-list">正在加载评论...</div>
+          <form class="feed-comment-form" data-profile-comment-form="${escapeHtml(post.id)}">
+            <textarea name="comment" rows="3" placeholder="写下你的评论"></textarea>
+            <button type="submit">发布评论</button>
+          </form>
+        </section>
       </div>
       <aside class="wiki-post-side">
         <section class="wiki-post-side-card wiki-glass">
@@ -1677,6 +1707,41 @@ function renderProfilePostDetail(post, editable = false) {
       </aside>
     </article>
   `;
+}
+
+function renderProfilePostComments(postId, comments = []) {
+  const escapedPostId = typeof CSS !== "undefined" && typeof CSS.escape === "function"
+    ? CSS.escape(String(postId))
+    : String(postId).replace(/"/g, '\\"');
+  const wrap = el.profileContentPanel?.querySelector(`[data-profile-comments-for="${escapedPostId}"]`);
+  if (!wrap) return;
+  const list = wrap.querySelector(".feed-comment-list");
+  if (!list) return;
+  const count = comments.length;
+  const countLabel = wrap.querySelector(".feed-comments-head span");
+  if (countLabel) countLabel.textContent = `${count} 条讨论`;
+  if (state.personalProfileSelectedPost && String(state.personalProfileSelectedPost.id) === String(postId)) {
+    state.personalProfileSelectedPost.comments = count;
+  }
+  list.innerHTML = comments.length
+    ? comments.map((comment) => `
+        <article class="feed-comment-item">
+          <button type="button" data-profile-author-id="${escapeHtml(comment.author?.id || "")}">${escapeHtml(comment.author?.name || "社区用户")}</button>
+          <p>${escapeHtml(comment.body || "")}</p>
+          <span>${escapeHtml(formatFeedTime(comment.createdAt))}</span>
+        </article>
+      `).join("")
+    : `<div class="feed-comment-empty">还没有评论。</div>`;
+}
+
+async function loadProfilePostComments(postId) {
+  if (!postId) return;
+  try {
+    const payload = await apiJson(`/api/feed/posts/${encodeURIComponent(postId)}/comments`, { method: "GET" });
+    renderProfilePostComments(postId, payload.comments || []);
+  } catch {
+    renderProfilePostComments(postId, []);
+  }
 }
 
 function renderProfilePostEditor(post) {
@@ -1735,6 +1800,7 @@ function renderProfilePostView() {
     return;
   }
   el.profileContentPanel.innerHTML = renderProfilePostDetail(post, state.personalProfilePostEditable);
+  void loadProfilePostComments(post.id);
 }
 
 async function openProfilePost(postId) {

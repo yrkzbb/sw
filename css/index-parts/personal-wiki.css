@@ -2174,6 +2174,17 @@
   line-height: 1.95;
 }
 
+.wiki-post-quiz-body {
+  display: grid;
+  gap: 18px;
+  font-size: 16px;
+  line-height: 1.55;
+}
+
+.wiki-post-quiz-body .feed-quiz-detail {
+  margin-top: 4px;
+}
+
 .wiki-post-body h1,
 .wiki-post-body h2,
 .wiki-post-body h3 {
