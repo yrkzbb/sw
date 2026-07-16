@@ -17,6 +17,7 @@ function buildLearningProgressSummary(resources = []) {
   const completedTurns = state.messages.filter((item) => item.role === "assistant").length;
   const userQuestions = state.messages.filter((item) => item.role === "user").length;
   const mistakeCount = Array.isArray(state.mistakeBookItems) ? state.mistakeBookItems.length : 0;
+  const sourceStats = collectPathEvidenceSources({ resources });
   const resourceTypes = resources.map((item) => item.type).filter(Boolean);
   const generatedText = resourceTypes.length
     ? `已生成 ${resourceTypes.length} 类资源：${resourceTypes.join("、")}`
@@ -25,6 +26,8 @@ function buildLearningProgressSummary(resources = []) {
     userQuestions ? `已有 ${userQuestions} 轮学习提问` : "对话轮次较少",
     completedTurns ? `完成 ${completedTurns} 次 AI 辅导反馈` : "暂未形成连续辅导记录",
     mistakeCount ? `错题本沉淀 ${mistakeCount} 条复盘项` : "错题本暂未记录复盘项",
+    sourceStats.push ? `已打开 ${sourceStats.push} 次推送资源` : "推送资源尚未形成使用记录",
+    sourceStats.favoritePosts ? `收藏帖子 ${sourceStats.favoritePosts} 篇可作为路径参考` : "收藏帖子暂未沉淀为路径参考",
     generatedText,
   ].join("；");
 }
@@ -249,6 +252,32 @@ function getPathTodoStats(path, topic) {
   };
 }
 
+function getPathStageStats(stage, topic, stageIndex) {
+  const todos = (stage?.todos || []).map((todo, todoIndex) => {
+    const key = pathTodoKey(topic, stageIndex, todoIndex, todo.label);
+    return { key, todo, done: Boolean(state.learningPathTodoDone[key]) };
+  });
+  const done = todos.filter((item) => item.done).length;
+  const total = todos.length;
+  return {
+    total,
+    done,
+    percent: total ? Math.round((done / total) * 100) : 0,
+    status: !total || done === 0 ? "待开始" : done === total ? "已完成" : "进行中",
+  };
+}
+
+function setActivePathStageIndex(index) {
+  const activeData = getActivePathData();
+  const path = normalizeLearningPath(activeData?.learning_path, activeData?.topic, activeData?.resources || []);
+  if (!path.length) {
+    state.activePathStageIndex = 0;
+    return;
+  }
+  state.activePathStageIndex = Math.max(0, Math.min(path.length - 1, Number(index) || 0));
+  renderLearningPathPanel();
+}
+
 function clampScore(value) {
   const n = Number(value);
   if (!Number.isFinite(n)) return 0;
@@ -284,11 +313,36 @@ function summarizeLearningPathProgress() {
   };
 }
 
+function resourceBehaviorKey(resource = {}) {
+  return `${String(resource.type || "").trim()}::${String(resource.title || "").trim()}`;
+}
+
+function behaviorMatchesResource(event, resource = {}) {
+  if (!event || !resource) return false;
+  const type = String(resource.type || "");
+  const title = String(resource.title || "");
+  return (!type || event.meta?.resourceType === type) && (!title || event.title === title);
+}
+
+function isResourceCompleted(resource = {}) {
+  return (state.learningBehaviorEvents || []).some((event) =>
+    event.type === "resource_complete" && behaviorMatchesResource(event, resource)
+  );
+}
+
+function getExercisePracticeResult(fingerprint = "") {
+  if (!fingerprint) return null;
+  return (state.learningBehaviorEvents || []).find((event) =>
+    event.type === "practice_result" && event.meta?.fingerprint === fingerprint
+  )?.meta?.result || null;
+}
+
 function summarizeResourceUsage() {
   const events = state.learningBehaviorEvents || [];
   const usageEvents = events.filter((item) =>
-    ["resource_open", "resource_download", "push_open", "video_render", "storage_open", "storage_download"].includes(item.type)
+    ["resource_open", "resource_download", "resource_complete", "push_open", "video_render", "storage_open", "storage_download"].includes(item.type)
   );
+  const completedEvents = events.filter((item) => item.type === "resource_complete");
   const typeCounts = usageEvents.reduce((acc, item) => {
     const key = item.meta?.resourceType || item.type || "学习资源";
     acc[key] = (acc[key] || 0) + 1;
@@ -302,8 +356,38 @@ function summarizeResourceUsage() {
   }));
   return {
     total: usageEvents.length,
+    completed_count: completedEvents.length,
     type_counts: typeCounts,
     recent,
+  };
+}
+
+function summarizePracticePerformance() {
+  const events = (state.learningBehaviorEvents || []).filter((item) => item.type === "practice_result");
+  const correct = events.filter((item) => item.meta?.result === "correct").length;
+  const incorrect = events.filter((item) => item.meta?.result === "incorrect").length;
+  const byCategory = events.reduce((acc, item) => {
+    const key = item.category || item.meta?.knowledge || "其他";
+    const stat = acc[key] || { total: 0, correct: 0, incorrect: 0 };
+    stat.total += 1;
+    if (item.meta?.result === "correct") stat.correct += 1;
+    if (item.meta?.result === "incorrect") stat.incorrect += 1;
+    acc[key] = stat;
+    return acc;
+  }, {});
+  return {
+    total: events.length,
+    correct,
+    incorrect,
+    accuracy: percent(correct, events.length),
+    by_category: byCategory,
+    recent: events.slice(0, 8).map((item) => ({
+      title: item.title,
+      category: item.category,
+      result: item.meta?.result || "",
+      difficulty: item.meta?.difficulty || "",
+      created_at: item.createdAt,
+    })),
   };
 }
 
@@ -338,6 +422,7 @@ function summarizeMistakePerformance() {
 function buildLearningEvidence() {
   const pathProgress = summarizeLearningPathProgress();
   const resourceUsage = summarizeResourceUsage();
+  const practicePerformance = summarizePracticePerformance();
   const mistakePerformance = summarizeMistakePerformance();
   const messageCount = state.messages.length;
   const userQuestionCount = state.messages.filter((item) => item.role === "user").length;
@@ -364,6 +449,7 @@ function buildLearningEvidence() {
     demands: demandTrace,
     path_progress: pathProgress,
     resource_usage: resourceUsage,
+    practice_performance: practicePerformance,
     mistake_performance: mistakePerformance,
     resources: {
       current_topic: state.learningResources?.topic || "",
@@ -416,8 +502,10 @@ function normalizeLearningAssessment(input) {
 function buildFallbackAssessment(evidence) {
   const chatScore = clampScore(35 + Math.min(30, evidence.chat.user_question_count * 6) + Math.min(20, Object.keys(evidence.demands.category_counts || {}).length * 5));
   const pathScore = clampScore(evidence.path_progress.percent || (evidence.path_progress.total ? 30 : 18));
-  const resourceScore = clampScore(30 + Math.min(45, evidence.resource_usage.total * 9) + Math.min(15, evidence.resources.generated_count * 3));
-  const practiceScore = clampScore(50 + Math.min(20, evidence.mistake_performance.total * 4) - Math.min(25, evidence.mistake_performance.total * 2) + Math.min(20, evidence.path_progress.done * 3));
+  const practiceAccuracyBonus = evidence.practice_performance.total ? Math.round((evidence.practice_performance.accuracy - 50) * 0.45) : 0;
+  const resourceScore = clampScore(30 + Math.min(36, evidence.resource_usage.total * 7) + Math.min(20, evidence.resource_usage.completed_count * 10) + Math.min(14, evidence.resources.generated_count * 3));
+  const practiceScore = clampScore(34 + Math.min(26, evidence.practice_performance.total * 5) + practiceAccuracyBonus + Math.min(16, evidence.mistake_performance.total * 3) + Math.min(18, evidence.path_progress.done * 2));
+  const masteryScore = clampScore(30 + Math.min(22, evidence.path_progress.done * 4) + Math.min(18, evidence.resources.generated_count * 3) + Math.min(16, evidence.practice_performance.correct * 4) - Math.min(14, evidence.practice_performance.incorrect * 3));
   const adaptationScore = clampScore(35 + Math.min(30, evidence.resources.path_categories.length * 10) + Math.min(25, evidence.recent_behavior.length * 2));
   const dimensions = [
     {
@@ -433,16 +521,22 @@ function buildFallbackAssessment(evidence) {
       action: pathScore >= 70 ? "继续按阶段推进，并在完成后生成下一轮资源。" : "优先完成当前路径的前 2 个待办，补足评估证据。",
     },
     {
+      name: "知识掌握",
+      score: masteryScore,
+      evidence: `综合路径完成、资源生成和练习结果判断；当前练习 ${evidence.practice_performance.total} 题，正确率 ${evidence.practice_performance.accuracy}%，已完成待办 ${evidence.path_progress.done} 项。`,
+      action: masteryScore >= 70 ? "进入迁移题或实操任务，验证知识能否离开例题独立使用。" : "先用一组基础题建立掌握度基线，再按错误题目回看讲解资料。",
+    },
+    {
       name: "资源利用",
       score: resourceScore,
-      evidence: `已生成 ${evidence.resources.generated_count} 类资源，记录到 ${evidence.resource_usage.total} 次资源使用行为。`,
-      action: resourceScore >= 70 ? "把高频资源与错题复盘绑定，形成闭环。" : "先打开题库、讲解文档或导图，并把关键资料保存到存储页。",
+      evidence: `已生成 ${evidence.resources.generated_count} 类资源，记录到 ${evidence.resource_usage.total} 次资源使用行为，其中 ${evidence.resource_usage.completed_count} 个资源已标记完成。`,
+      action: resourceScore >= 70 ? "把高频资源与错题复盘绑定，形成闭环。" : "先打开题库、讲解文档或导图，完成后标记资源状态。",
     },
     {
       name: "练习反馈",
       score: practiceScore,
-      evidence: `错题本当前有 ${evidence.mistake_performance.total} 条复盘项。`,
-      action: evidence.mistake_performance.total ? "按错题大类安排二次练习，关注相同错误是否复现。" : "完成诊断题并把不确定题加入错题本，避免只看不练。",
+      evidence: `已记录 ${evidence.practice_performance.total} 道练习结果，正确 ${evidence.practice_performance.correct} 道，错题本有 ${evidence.mistake_performance.total} 条复盘项。`,
+      action: evidence.practice_performance.total ? "按错误题目和低正确率大类安排二次练习，关注相同错误是否复现。" : "完成诊断题并标记正确/错误，避免只看不练。",
     },
     {
       name: "动态优化",
@@ -473,11 +567,13 @@ function buildFallbackAssessment(evidence) {
     ],
     resource_strategy: [
       weakCategories.length ? `优先推送 ${weakCategories[0]} 的题库、讲解文档和错题复盘任务。` : "先推送诊断题和核心讲解文档，建立掌握度基线。",
-      evidence.resource_usage.total ? "保留已打开资源，下一轮增加与错题主题匹配的练习。" : "将文档/导图放在前置推送，再衔接题库与实操。",
+      evidence.practice_performance.total && evidence.practice_performance.accuracy < 70 ? "练习正确率偏低时，把题库和对应讲解文档排到推送前面。" : "练习表现稳定后，增加实操案例和迁移应用资源。",
+      evidence.resource_usage.completed_count ? "已完成资源会降低推送优先级，后续优先补未完成或低掌握度资源。" : "将文档/导图放在前置推送，再衔接题库与实操。",
     ],
     plan_adjustments: [
       nextPath ? `下一步先完成：${nextPath}` : "先生成或更新一个学习路径，再按待办推进。",
-      "每完成一组练习后立即更新错题本，并重新生成评估。",
+      "每完成一组练习后标记正确/错误，系统会用正确率调整下一轮计划。",
+      resourceScore < 60 ? "把未完成的关键资料排到计划前面，并在完成后再进入下一阶段。" : "保留当前学习节奏，并把高频使用资源沉淀到对应阶段。",
     ],
     next_checkpoints: [
       "本轮结束后能否复述核心概念和常见错误。",
@@ -490,7 +586,7 @@ function buildFallbackAssessment(evidence) {
 function updateAssessmentRefreshUi() {
   if (el.generateAssessmentBtn) {
     el.generateAssessmentBtn.disabled = Boolean(state.assessmentGenerating);
-    el.generateAssessmentBtn.textContent = state.assessmentGenerating ? "刷新中..." : "刷新复盘";
+    el.generateAssessmentBtn.textContent = state.assessmentGenerating ? "评估中..." : "重新评估";
   }
 }
 
@@ -519,7 +615,7 @@ async function generateLearningAssessment() {
     return;
   }
   const system = `你是学习效果评估与个性化学习优化 Agent。只输出合法 JSON，不要 Markdown 代码块。
-你要基于学习行为、练习测试、资源使用反馈、错题记录、路径完成度和学生画像，做多维度精准评估，并给出动态资源推送策略和学习计划调整。
+你要基于学习行为、练习测试正确率、资源使用与完成反馈、错题记录、路径完成度和学生画像，做多维度精准评估，并给出动态资源推送策略和学习计划调整。
 
 输出 JSON 格式：
 {
@@ -536,11 +632,11 @@ async function generateLearningAssessment() {
 }
 
 规则：
-- dimensions 必须覆盖学习投入、知识掌握、练习反馈、资源利用、路径执行、动态优化中的至少 5 个。
+- dimensions 必须覆盖学习投入、知识掌握、练习测试、资源利用、路径执行、动态优化中的至少 5 个。
 - 每个 score 为 0-100，evidence 必须引用输入证据，不要编造不存在的测试成绩。
-- resource_strategy 要说明资源推送如何根据评估结果变化，例如先推题库、视频、导图、文档、实操或错题复盘。
+- resource_strategy 要说明资源推送如何根据评估结果变化，例如低正确率时优先推题库和讲解文档，已完成资源降权，掌握稳定后再推视频、导图、实操或拓展阅读。
 - plan_adjustments 要能直接改学习路径和下一步行动。
-- 如果证据不足，要明确说明缺口，并安排诊断题、错题记录或阶段待办来补证据。`;
+- 如果证据不足，要明确说明缺口，并安排诊断题、正确/错误标记、资源完成反馈或阶段待办来补证据。`;
   try {
     const res = await fetch(CHAT_ENDPOINT, {
       method: "POST",
@@ -592,6 +688,159 @@ function getActivePathData() {
   return state.activePathCategory ? state.learningPathLibrary?.[state.activePathCategory] || null : null;
 }
 
+function pathSignalStatus(text, fallback = "待校准") {
+  const value = String(text || "").trim();
+  if (!value || /暂未|尚未|较少|不明确|未发现|需要通过/.test(value)) return fallback;
+  return "已纳入";
+}
+
+function postMatchesPath(post, category, topic = "") {
+  if (!post) return false;
+  const text = [
+    post.title,
+    post.summary,
+    post.body,
+    post.category,
+    ...(Array.isArray(post.tags) ? post.tags : []),
+  ].filter(Boolean).join(" ");
+  if (topic && text.includes(topic)) return true;
+  if (post.category && normalizePathCategory(post.category) === normalizePathCategory(category)) return true;
+  return sameKnowledgeCategory(text, category, topic);
+}
+
+function collectFavoritePathPosts(category, topic = "") {
+  const byId = new Map();
+  (state.favoritePosts || []).forEach((post) => {
+    if (post?.id) byId.set(String(post.id), post);
+  });
+  (state.feedPosts || []).forEach((post) => {
+    if (post?.favorited && post?.id) byId.set(String(post.id), post);
+  });
+  return [...byId.values()].filter((post) => postMatchesPath(post, category, topic));
+}
+
+function collectPathEvidenceSources(data = {}) {
+  const category = normalizePathCategory(data?.category || inferPathCategory(data) || state.activePathCategory || "");
+  const topic = data?.topic || data?.demand_source?.primary || "";
+  const resources = Array.isArray(data?.resources) ? data.resources : [];
+  const demandEvents = (state.learningDemandEvents || []).filter((item) => {
+    if (item.category && normalizePathCategory(item.category) === category) return true;
+    const text = [item.demand, item.topic, item.source].filter(Boolean).join(" ");
+    return topic ? text.includes(topic) : sameKnowledgeCategory(text, category, topic);
+  });
+  const chatDemandCount = demandEvents.filter((item) => /chat|对话|message|用户/i.test(item.source || "")).length;
+  const messageCount = (state.messages || []).filter((item) => {
+    if (item.role !== "user") return false;
+    const text = item.content || "";
+    return topic ? text.includes(topic) : sameKnowledgeCategory(text, category, topic);
+  }).length;
+  const pushEvents = (state.learningBehaviorEvents || []).filter((item) => {
+    if (item.type !== "push_open") return false;
+    if (item.category && normalizePathCategory(item.category) === category) return true;
+    const text = [item.title, item.topic].filter(Boolean).join(" ");
+    return topic ? text.includes(topic) : sameKnowledgeCategory(text, category, topic);
+  });
+  const favoritePosts = collectFavoritePathPosts(category, topic);
+  const sourceCount = [
+    resources.length > 0,
+    demandEvents.length > 0 || messageCount > 0,
+    pushEvents.length > 0,
+    favoritePosts.length > 0,
+  ].filter(Boolean).length;
+  const labels = [
+    resources.length ? `资源 ${resources.length}` : "",
+    (demandEvents.length || messageCount) ? `对话 ${Math.max(demandEvents.length, messageCount)}` : "",
+    pushEvents.length ? `推送 ${pushEvents.length}` : "",
+    favoritePosts.length ? `收藏帖子 ${favoritePosts.length}` : "",
+  ].filter(Boolean);
+  return {
+    category,
+    topic,
+    resources: resources.length,
+    conversations: Math.max(demandEvents.length, messageCount, chatDemandCount),
+    push: pushEvents.length,
+    favoritePosts: favoritePosts.length,
+    sourceCount,
+    labels,
+    favoriteSamples: favoritePosts.slice(0, 3).map((post) => post.title || post.summary || "收藏帖子"),
+  };
+}
+
+function buildPathPlanningSignals(data, basis, todoStats, path, sourceStats = collectPathEvidenceSources(data)) {
+  const resources = data?.resources || [];
+  const resourceTypes = resources.map((item) => resourceTypeLabel(item.type)).filter(Boolean);
+  const uniqueResourceTypes = Array.from(new Set(resourceTypes));
+  const mistakeCount = (state.mistakeBookItems || []).filter((item) =>
+    !data?.category || (item.category || "其他") === data.category
+  ).length;
+  const demandCount = (state.learningDemandEvents || []).filter((item) =>
+    !data?.category || item.category === data.category
+  ).length;
+  return [
+    {
+      label: "专业背景",
+      value: pathSignalStatus(basis.major_analysis),
+      detail: basis.major_analysis,
+    },
+    {
+      label: "学习进度",
+      value: todoStats.total ? `${todoStats.percent}%` : "待启动",
+      detail: `${basis.progress_analysis}${demandCount ? `；同类需求累计 ${demandCount} 条。` : ""}${sourceStats.push ? `；推送打开 ${sourceStats.push} 次。` : ""}${sourceStats.favoritePosts ? `；收藏帖子 ${sourceStats.favoritePosts} 篇。` : ""}`,
+    },
+    {
+      label: "掌握情况",
+      value: mistakeCount ? `${mistakeCount} 条错题证据` : pathSignalStatus(basis.mastery_analysis),
+      detail: basis.mastery_analysis,
+    },
+    {
+      label: "学习偏好",
+      value: pathSignalStatus(basis.preference_analysis),
+      detail: basis.preference_analysis,
+    },
+    {
+      label: "路径来源",
+      value: sourceStats.sourceCount ? `${sourceStats.sourceCount} 类来源` : "待沉淀",
+      detail: sourceStats.labels.length
+        ? `已综合 ${sourceStats.labels.join("、")}，并映射到 ${path.length} 个学习阶段。`
+        : basis.resource_strategy,
+    },
+  ];
+}
+
+function buildPathAgentFlow(data, sourceStats = collectPathEvidenceSources(data)) {
+  const resources = data?.resources || [];
+  const hasQuiz = resources.some((item) => /练习|题目/.test(item.type || ""));
+  const hasDoc = resources.some((item) => /文档|导图/.test(item.type || ""));
+  const hasPractice = resources.some((item) => /实操|代码|视频|阅读/.test(item.type || ""));
+  return [
+    {
+      role: "需求分析智能体",
+      status: data?.demand_source?.primary || data?.topic ? "已识别" : "持续收集",
+      detail: `解析当前主题、同类历史需求和知识大类，合并 ${sourceStats.conversations || 0} 条对话/需求信号。`,
+    },
+    {
+      role: "画像诊断智能体",
+      status: state.studentProfile ? "已读取画像" : "待补充画像",
+      detail: "综合专业背景、学习习惯、认知风格和互动偏好，调节路径节奏。",
+    },
+    {
+      role: "资源编排智能体",
+      status: resources.length ? `${resources.length} 个资源` : "待生成资源",
+      detail: hasDoc ? "将讲解文档、导图、题库、推送内容和收藏帖子分配到对应阶段。" : "生成资源后会把材料与外部学习证据映射到阶段任务。",
+    },
+    {
+      role: "练习复盘智能体",
+      status: hasQuiz || (state.mistakeBookItems || []).length ? "可跟踪" : "待产生证据",
+      detail: "根据练习、错题和待办完成情况调整后续任务难度。",
+    },
+    {
+      role: "动态优化智能体",
+      status: hasPractice || sourceStats.favoritePosts ? "可迁移应用" : "持续优化",
+      detail: `同类主题增量更新路径，参考推送 ${sourceStats.push || 0} 次、收藏帖子 ${sourceStats.favoritePosts || 0} 篇，不覆盖其他知识大类。`,
+    },
+  ];
+}
+
 function renderPathCategoryTabs(activeCategory) {
   const categories = getPathCategories();
   if (!categories.length) return "";
@@ -608,15 +857,26 @@ function renderPathCategoryTabs(activeCategory) {
         `;
       }).join("")}
     </div>
-    <div class="path-category-note">这里只显示已生成学习路径的大类；新的学习主题生成资源后，会自动加入这里。</div>
   `;
+}
+
+async function refreshActiveLearningPath() {
+  const activeData = getActivePathData();
+  const demand = activeData?.demand_source?.primary || activeData?.topic || state.activePathCategory || "";
+  if (!demand.trim()) {
+    showResourcePage();
+    return;
+  }
+  if (el.resourcePromptInput) el.resourcePromptInput.value = demand.trim();
+  await generateLearningResources();
+  showPathPage();
 }
 
 function renderLearningPathPanel() {
   if (!el.learningPathPanel) return;
   const activeData = getActivePathData();
   const data = activeData || state.learningResources;
-  const activeCategory = normalizePathCategory(data?.category || state.activePathCategory || "");
+  let activeCategory = normalizePathCategory(data?.category || state.activePathCategory || "");
   if (state.resourcesGenerating) {
     el.learningPathPanel.innerHTML = `
       ${renderPathCategoryTabs(activeCategory)}
@@ -634,6 +894,7 @@ function renderLearningPathPanel() {
   const path = normalizeLearningPath(data.learning_path, data.topic, data.resources);
   if (!data.category || data.category === "其他") {
     data.category = inferPathCategory(data);
+    activeCategory = normalizePathCategory(data.category || activeCategory);
   }
   const todoScope = normalizePathCategory(data.category || data.topic);
   const todoStats = getPathTodoStats(path, todoScope);
@@ -641,6 +902,7 @@ function renderLearningPathPanel() {
     category: data.category,
     topic: data.topic,
   });
+  const sourceStats = collectPathEvidenceSources(data);
   const demandTrace = data.demand_trace || summarizeDemandEvents(data.topic || "");
   const sameCategoryDemands = Array.isArray(demandTrace.same_category_recent)
     ? demandTrace.same_category_recent.slice(0, 5)
@@ -661,11 +923,32 @@ function renderLearningPathPanel() {
     ["学习进度", basis.progress_analysis],
     ["掌握情况", basis.mastery_analysis],
     ["学习偏好", basis.preference_analysis],
-    ["资源策略", basis.resource_strategy],
+    ["来源整合", `${basis.resource_strategy}${sourceStats.labels.length ? `；当前路径还参考了${sourceStats.labels.join("、")}。` : ""}`],
   ];
+  const planningSignals = buildPathPlanningSignals(data, basis, todoStats, path, sourceStats);
+  const agentFlow = buildPathAgentFlow(data, sourceStats);
+  const stageStats = path.map((item, index) => getPathStageStats(item, todoScope, index));
+  const activeStageIndex = Math.max(0, Math.min(path.length - 1, Number(state.activePathStageIndex) || 0));
+  state.activePathStageIndex = activeStageIndex;
+  const activeStage = path[activeStageIndex];
+  const activeStageStats = stageStats[activeStageIndex];
   el.learningPathPanel.innerHTML = `
     ${renderPathCategoryTabs(activeCategory)}
     <section class="learning-path-card">
+      <div class="path-planner-hero">
+        <div>
+          <span>PERSONALIZED PATH</span>
+          <h2>${escapeHtml(data.topic || "当前学习主题")}</h2>
+          <p>系统会把资源、对话、推送、收藏帖子、画像证据、路径执行进度和错题反馈放在一起，形成可持续更新的学习路线。</p>
+        </div>
+        <div class="path-planner-side">
+          <div class="path-planner-score">
+            <strong>${todoStats.percent}%</strong>
+            <span>路径推进</span>
+          </div>
+          <button class="path-refresh-btn" type="button" data-path-refresh ${state.resourcesGenerating ? "disabled" : ""}>${state.resourcesGenerating ? "刷新中" : "刷新路径"}</button>
+        </div>
+      </div>
       <div class="learning-path-head">
         <div>
           <div class="resource-type">动态个性化学习路径</div>
@@ -674,58 +957,121 @@ function renderLearningPathPanel() {
         </div>
         <div class="learning-path-badge">大模型综合规划 · ${path.length} 个阶段</div>
       </div>
-      <div class="learning-demand-panel">
-        <div class="learning-demand-head">
-          <strong>当前需求识别</strong>
-          <span>${escapeHtml(data.category || demandTrace.current_category || "其他")}</span>
+      <details class="path-evidence-details">
+        <summary>
+          <div>
+            <span>路径依据</span>
+            <strong>${escapeHtml(sourceStats.labels.length ? sourceStats.labels.join(" · ") : "等待更多学习证据")}</strong>
+          </div>
+          <em>点击查看</em>
+        </summary>
+        <div class="path-evidence-body">
+          <div class="path-signal-grid" aria-label="路径规划依据">
+            ${planningSignals.map((signal) => `
+              <article>
+                <span>${escapeHtml(signal.label)}</span>
+                <strong>${escapeHtml(signal.value)}</strong>
+                <p>${escapeHtml(signal.detail)}</p>
+              </article>
+            `).join("")}
+          </div>
+          <div class="path-agent-flow" aria-label="多智能体协同流程">
+            ${agentFlow.map((agent, index) => `
+              <article>
+                <b>${index + 1}</b>
+                <div>
+                  <span>${escapeHtml(agent.status)}</span>
+                  <strong>${escapeHtml(agent.role)}</strong>
+                  <p>${escapeHtml(agent.detail)}</p>
+                </div>
+              </article>
+            `).join("")}
+          </div>
+          <div class="learning-demand-panel">
+            <div class="learning-demand-head">
+              <strong>当前需求识别</strong>
+              <span>${escapeHtml(data.category || demandTrace.current_category || "其他")}</span>
+            </div>
+            <div class="learning-demand-primary">${escapeHtml(data.demand_source?.primary || data.topic || "当前学习主题")}</div>
+            <div class="learning-demand-chips">
+              ${sameCategoryDemands.length
+                ? sameCategoryDemands.map((item) => `<span title="${escapeHtml(item.source || "")}">${escapeHtml(item.demand)}</span>`).join("")
+                : `<span>暂无同类历史需求，后续对话、推送和收藏会继续沉淀。</span>`}
+            </div>
+            <div class="learning-category-chips">
+              ${categoryCounts.map(([category, count]) => `<span>${escapeHtml(category)} · ${count}</span>`).join("")}
+            </div>
+            ${sourceStats.favoriteSamples.length ? `
+              <div class="learning-favorite-source">
+                ${sourceStats.favoriteSamples.map((title) => `<span>收藏 · ${escapeHtml(title)}</span>`).join("")}
+              </div>
+            ` : ""}
+          </div>
+          <div class="learning-path-basis">
+            ${basisItems.map(([label, text]) => `
+              <article class="learning-basis-item">
+                <div>${escapeHtml(label)}</div>
+                <p>${escapeHtml(text)}</p>
+              </article>
+            `).join("")}
+          </div>
         </div>
-        <div class="learning-demand-primary">${escapeHtml(data.demand_source?.primary || data.topic || "当前学习主题")}</div>
-        <div class="learning-demand-chips">
-          ${sameCategoryDemands.length
-            ? sameCategoryDemands.map((item) => `<span title="${escapeHtml(item.source || "")}">${escapeHtml(item.demand)}</span>`).join("")
-            : `<span>暂无同类历史需求，后续对话和资源生成会继续沉淀。</span>`}
-        </div>
-        <div class="learning-category-chips">
-          ${categoryCounts.map(([category, count]) => `<span>${escapeHtml(category)} · ${count}</span>`).join("")}
-        </div>
-      </div>
-      <div class="learning-path-basis">
-        ${basisItems.map(([label, text]) => `
-          <article class="learning-basis-item">
-            <div>${escapeHtml(label)}</div>
-            <p>${escapeHtml(text)}</p>
-          </article>
-        `).join("")}
-      </div>
+      </details>
       <div class="learning-progress-panel">
         <div class="learning-progress-head">
           <div>
-            <strong>执行进度</strong>
-            <span>${todoStats.done}/${todoStats.total} 个待办已完成</span>
+            <strong>路径进度</strong>
+            <span>${todoStats.done}/${todoStats.total} 个待办已完成 · ${path.length} 个阶段动态推进</span>
           </div>
           <b>${todoStats.percent}%</b>
         </div>
-        <div class="learning-progress-track">
-          <div style="width: ${todoStats.percent}%"></div>
-        </div>
-        <div class="learning-next-step">
-          下一步：${todoStats.next ? `${escapeHtml(todoStats.next.stage.stage)} - ${escapeHtml(todoStats.next.todo.label)}` : "本轮学习路径已完成，可以重新生成资源更新下一轮路径。"}
+        <div class="path-progress-dashboard">
+          <div class="path-progress-orbit" style="--path-progress:${todoStats.percent}">
+            <strong>${todoStats.percent}%</strong>
+            <span>总完成</span>
+          </div>
+          <div class="path-progress-main">
+            <div class="path-progress-rail" aria-label="阶段进度轨道">
+              ${path.map((item, index) => {
+                const stats = stageStats[index];
+                return `
+                  <button class="path-progress-node ${index === activeStageIndex ? "selected" : ""} ${stats.status === "已完成" ? "done" : stats.status === "进行中" ? "active" : ""}" type="button" data-path-stage="${index}" aria-current="${index === activeStageIndex ? "step" : "false"}">
+                    <span>${index + 1}</span>
+                    <strong>${escapeHtml(item.stage)}</strong>
+                    <em>${stats.status} · ${stats.percent}%</em>
+                  </button>
+                `;
+              }).join("")}
+            </div>
+            <div class="learning-progress-track">
+              <div style="width: ${todoStats.percent}%"></div>
+            </div>
+            <div class="learning-next-step">
+              下一步：${todoStats.next ? `${escapeHtml(todoStats.next.stage.stage)} - ${escapeHtml(todoStats.next.todo.label)}` : "本轮学习路径已完成，可以重新生成资源更新下一轮路径。"}
+            </div>
+          </div>
         </div>
       </div>
       <div class="learning-path-steps">
-        ${path.map((item, index) => `
-          <article class="learning-path-step">
-            <div class="learning-step-index">${index + 1}</div>
+        <button class="path-stage-switch path-stage-prev" type="button" data-path-stage-nav="prev" aria-label="上一阶段" ${activeStageIndex <= 0 ? "disabled" : ""}>‹</button>
+        <article class="learning-path-step path-stage-active-card">
+            <div class="learning-step-index">${activeStageIndex + 1}</div>
             <div class="learning-step-body">
               <div class="learning-step-head">
-                <h3>${escapeHtml(item.stage)}</h3>
-                <span>${escapeHtml(item.duration)}</span>
+                <div>
+                  <span class="learning-step-status">${activeStageStats.status}</span>
+                  <h3>${escapeHtml(activeStage.stage)}</h3>
+                </div>
+                <span>${escapeHtml(activeStage.duration)} · ${activeStageStats.done}/${activeStageStats.total}</span>
               </div>
-              <p>${escapeHtml(item.goal)}</p>
-              <div class="learning-order-reason">顺序理由：${escapeHtml(item.order_reason || "承接上一阶段结果，逐步提高难度。")}</div>
+              <div class="learning-stage-meter" aria-label="阶段完成度">
+                <div style="width: ${activeStageStats.percent}%"></div>
+              </div>
+              <p>${escapeHtml(activeStage.goal)}</p>
+              <div class="learning-order-reason">顺序理由：${escapeHtml(activeStage.order_reason || "承接上一阶段结果，逐步提高难度。")}</div>
               <div class="learning-todo-list">
-                ${(item.todos || []).map((todo, todoIndex) => {
-                  const key = pathTodoKey(todoScope, index, todoIndex, todo.label);
+                ${(activeStage.todos || []).map((todo, todoIndex) => {
+                  const key = pathTodoKey(todoScope, activeStageIndex, todoIndex, todo.label);
                   const checked = Boolean(state.learningPathTodoDone[key]);
                   return `
                     <label class="learning-todo-item ${checked ? "done" : ""}">
@@ -738,15 +1084,9 @@ function renderLearningPathPanel() {
                   `;
                 }).join("")}
               </div>
-              <div class="learning-mastery">掌握证据：${escapeHtml(item.mastery)}</div>
-              <div class="learning-push-list">
-                ${normalizeResourcePushList(item.resources, data.resources).map((resource) => `
-                  <span class="learning-push-chip" title="${escapeHtml(resource.reason)}">${escapeHtml(resource.type)} · ${escapeHtml(resource.title)}</span>
-                `).join("")}
-              </div>
             </div>
           </article>
-        `).join("")}
+        <button class="path-stage-switch path-stage-next" type="button" data-path-stage-nav="next" aria-label="下一阶段" ${activeStageIndex >= path.length - 1 ? "disabled" : ""}>›</button>
       </div>
     </section>
   `;
@@ -777,6 +1117,13 @@ function collectPushedResources(pathData) {
       reasonMap.set(key, list);
     });
   });
+  const assessment = state.learningAssessment || null;
+  const practice = summarizePracticePerformance();
+  const mistakes = summarizeMistakePerformance();
+  const strategyText = normalizeAssessmentList(assessment?.resource_strategy).join(" ");
+  const weakCategories = Object.entries(mistakes.by_category || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([category]) => category);
   return pathData.resources.map((resource, index) => {
     const directKey = `${resource.type || ""}::${resource.title || ""}`;
     const byType = [...reasonMap.entries()]
@@ -784,17 +1131,54 @@ function collectPushedResources(pathData) {
       .flatMap(([, value]) => value);
     const reasons = reasonMap.get(directKey) || byType;
     const text = resourcePlainText(resource.content || "");
+    const completed = isResourceCompleted(resource);
+    const searchable = `${resource.type || ""} ${resource.title || ""} ${text}`.toLowerCase();
+    let priorityScore = 50;
+    const priorityReasons = [];
+    if (/不同类型练习题目|题库|练习/.test(resource.type || "")) {
+      priorityScore += practice.total && practice.accuracy < 70 ? 34 : practice.total ? 12 : 24;
+      priorityReasons.push(practice.total ? `练习正确率 ${practice.accuracy}%` : "需要建立练习基线");
+    }
+    if (/专业课程讲解文档|讲解|文档/.test(resource.type || "")) {
+      priorityScore += practice.total && practice.accuracy < 70 ? 22 : 10;
+      priorityReasons.push("用于补齐题目前置概念");
+    }
+    if (/代码类实操案例|实操/.test(resource.type || "") && practice.total && practice.accuracy >= 75) {
+      priorityScore += 18;
+      priorityReasons.push("正确率稳定，适合进入迁移实操");
+    }
+    if (/阅读|拓展/.test(resource.type || "") && practice.total && practice.accuracy < 70) {
+      priorityScore -= 8;
+      priorityReasons.push("先补基础练习，再阅读拓展");
+    }
+    weakCategories.forEach((category, idx) => {
+      if (category && searchable.includes(String(category).toLowerCase())) {
+        priorityScore += Math.max(8, 20 - idx * 4);
+        priorityReasons.push(`匹配错题集中大类：${category}`);
+      }
+    });
+    if (strategyText && strategyText.includes(resource.type || "")) {
+      priorityScore += 12;
+      priorityReasons.push("匹配最新评估推送策略");
+    }
+    if (completed) {
+      priorityScore -= 38;
+      priorityReasons.push("已完成，自动降低优先级");
+    }
     return {
       ...resource,
       index,
       label: resourceTypeLabel(resource.type),
+      priorityScore,
+      priorityReasons,
+      completed,
       reasons: reasons.length ? reasons : [{
         stage: "综合推荐",
         reason: "与当前知识大类、画像偏好和已生成学习资源匹配",
       }],
       preview: text.replace(/\s+/g, " ").trim().slice(0, 150),
     };
-  });
+  }).sort((a, b) => b.priorityScore - a.priorityScore || a.index - b.index);
 }
 
 function renderPushResourceBody(resource) {
@@ -820,6 +1204,7 @@ function openPushResourceDetail(resourceIndex) {
   el.pushDetailTitle.textContent = resource.title || "资源详情";
   el.pushDetailMeta.innerHTML = `
     ${meta.map((item) => `<span>${escapeHtml(item)}</span>`).join("")}
+    <button class="push-complete-btn ${isResourceCompleted(resource) ? "is-complete" : ""}" type="button" data-push-complete-index="${resource.index}">${isResourceCompleted(resource) ? "已完成" : "标记完成"}</button>
     ${resource.reasons?.length ? `<div class="push-detail-reasons">${resource.reasons.slice(0, 3).map((reason) => `
       <p><strong>${escapeHtml(reason.stage)}</strong>${escapeHtml(reason.reason)}</p>
     `).join("")}</div>` : ""}
@@ -855,6 +1240,9 @@ function renderPushPage() {
   }, {});
   const groupOrder = ["文档", "视频", "题库", "实操", "导图", "阅读"];
   const groupEntries = Object.entries(grouped).sort(([a], [b]) => {
+    const maxA = Math.max(...(grouped[a] || []).map((item) => item.priorityScore || 0));
+    const maxB = Math.max(...(grouped[b] || []).map((item) => item.priorityScore || 0));
+    if (maxA !== maxB) return maxB - maxA;
     const ia = groupOrder.indexOf(a);
     const ib = groupOrder.indexOf(b);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
@@ -866,7 +1254,7 @@ function renderPushPage() {
         <div class="resource-type">当前推送大类</div>
         <h2>${escapeHtml(activeData.category || "当前大类")} · ${escapeHtml(activeData.topic || "学习资源")}</h2>
       </div>
-      <div class="push-summary-stat">${pushed.length} 个资源 · ${groupEntries.length} 类内容</div>
+      <div class="push-summary-stat">已按评估自动排序 · ${pushed.length} 个资源</div>
     </section>
     ${groupEntries.map(([label, items]) => `
       <section class="push-group">
@@ -879,16 +1267,20 @@ function renderPushPage() {
             <article class="push-card" data-push-resource-index="${item.index}" tabindex="0" role="button" aria-label="打开 ${escapeHtml(item.title || "学习资源")}">
               <div class="push-card-head">
                 <span>${escapeHtml(item.type || item.label)}</span>
-                <b>${escapeHtml(item.agent || "智能体推荐")}</b>
+                <b>${item.completed ? "已完成" : `优先级 ${clampScore(item.priorityScore)}`}</b>
               </div>
               <h4>${escapeHtml(item.title || "个性化资源")}</h4>
               <p>${escapeHtml(item.preview || "该资源已根据当前画像和路径阶段生成。")}</p>
+              ${item.priorityReasons.length ? `<div class="push-priority-note">${escapeHtml(item.priorityReasons.slice(0, 2).join("；"))}</div>` : ""}
               <div class="push-reason-list">
                 ${item.reasons.slice(0, 3).map((reason) => `
                   <div><strong>${escapeHtml(reason.stage)}</strong>${escapeHtml(reason.reason)}</div>
                 `).join("")}
               </div>
-              <button class="push-open-btn" type="button" data-push-open-index="${item.index}">打开资源</button>
+              <div class="push-card-actions">
+                <button class="push-open-btn" type="button" data-push-open-index="${item.index}">打开资源</button>
+                <button class="push-complete-btn ${item.completed ? "is-complete" : ""}" type="button" data-push-card-complete-index="${item.index}">${item.completed ? "已完成" : "标记完成"}</button>
+              </div>
             </article>
           `).join("")}
         </div>
@@ -962,6 +1354,18 @@ function renderAssessmentList(title, items, className = "") {
   `;
 }
 
+function renderAssessmentActionBoard(assessment) {
+  return `
+    <section class="assessment-action-board" aria-label="学习效果行动建议">
+      ${renderAssessmentList("已经做得不错的地方", assessment.strengths, "assessment-good assessment-action-card")}
+      ${renderAssessmentList("接下来先补一点", assessment.risks, "assessment-risk assessment-action-card")}
+      ${renderAssessmentList("下次刷新前可以检查", assessment.next_checkpoints, "assessment-checkpoints assessment-action-card")}
+      ${renderAssessmentList("资源会怎么推给你", assessment.resource_strategy, "assessment-action-card assessment-action-wide")}
+      ${renderAssessmentList("学习计划怎么调整", assessment.plan_adjustments, "assessment-action-card assessment-action-wide")}
+    </section>
+  `;
+}
+
 function studentFriendlyAssessmentText(text) {
   return String(text || "")
     .replace(/急需/g, "建议")
@@ -998,7 +1402,6 @@ function assessmentTone(score) {
     return {
       label: "节奏很好",
       title: "这轮学习已经比较稳了",
-      summary: "你已经积累了不少有效线索，可以继续做迁移练习，把知识用到更真实的任务里。",
       mood: "steady",
     };
   }
@@ -1006,7 +1409,6 @@ function assessmentTone(score) {
     return {
       label: "正在变稳",
       title: "你已经进入学习状态了",
-      summary: "现在最有价值的是把已学内容通过练习和复盘固定下来，再根据错题调整下一轮资源。",
       mood: "growing",
     };
   }
@@ -1014,14 +1416,12 @@ function assessmentTone(score) {
     return {
       label: "线索还不够",
       title: "先把下一步做小一点",
-      summary: "当前不是学得不好，而是复盘还缺少足够的练习、路径完成和资料使用线索。先完成一两个小任务，复盘会更准。",
       mood: "warming",
     };
   }
   return {
     label: "刚刚开始",
     title: "我们先建立学习起点",
-    summary: "现在适合先做诊断题、打开一份核心资料，并把不确定的题放进错题本，系统会据此继续调整计划。",
     mood: "start",
   };
 }
@@ -1041,36 +1441,96 @@ function renderStudentActionItems(items, fallback) {
   `).join("");
 }
 
-function renderStudentEvidenceItems(evidence) {
+function renderAssessmentLiveBoard(evidence, assessment) {
+  const latestBehavior = Array.isArray(evidence.recent_behavior) ? evidence.recent_behavior[0] : null;
+  const weakCategory = Object.entries(evidence.mistake_performance.by_category || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([category]) => category)[0] || "";
+  const nextPath = evidence.path_progress.by_category.find((item) => item.next)?.next || "";
   const items = [
     {
-      label: "路径进度",
-      value: `${evidence.path_progress.done}/${evidence.path_progress.total || 0}`,
-      note: evidence.path_progress.total ? `已完成 ${evidence.path_progress.percent}%` : "生成资源后会出现待办",
+      label: "学习行为",
+      value: evidence.chat.user_question_count ? `${evidence.chat.user_question_count} 轮提问` : "待积累",
+      detail: latestBehavior?.title || latestBehavior?.type || "对话、刷新、资源打开都会进入实时信号。",
     },
     {
-      label: "资料使用",
-      value: `${evidence.resource_usage.total}`,
-      note: `${evidence.resources.generated_count} 类资料可用`,
+      label: "练习测试",
+      value: evidence.practice_performance.total ? `${evidence.practice_performance.accuracy}% 正确率` : "待检测",
+      detail: evidence.practice_performance.total
+        ? `已记录 ${evidence.practice_performance.total} 题，错误 ${evidence.practice_performance.incorrect} 题。`
+        : weakCategory ? `当前优先复盘：${weakCategory}` : "先做诊断题，把正确/错误标出来。",
     },
     {
-      label: "错题复盘",
-      value: `${evidence.mistake_performance.total}`,
-      note: "越具体，建议越准",
+      label: "资源反馈",
+      value: evidence.resource_usage.completed_count ? `${evidence.resource_usage.completed_count} 个完成` : evidence.resource_usage.total ? `${evidence.resource_usage.total} 次使用` : "待打开",
+      detail: evidence.resources.generated_types.length ? `资源池：${evidence.resources.generated_types.slice(0, 4).join("、")}` : "生成资源后会按路径阶段推送。",
     },
     {
-      label: "学习提问",
-      value: `${evidence.chat.user_question_count}`,
-      note: "记录你的真实需求",
+      label: "计划执行",
+      value: `${evidence.path_progress.percent || 0}%`,
+      detail: nextPath ? `下一项：${nextPath}` : "生成学习路径后会持续跟踪待办。",
     },
   ];
-  return items.map((item) => `
-    <article>
-      <span>${escapeHtml(item.label)}</span>
-      <strong>${escapeHtml(item.value)}</strong>
-      <em>${escapeHtml(item.note)}</em>
-    </article>
-  `).join("");
+  return `
+    <details class="assessment-live-board">
+      <summary class="assessment-live-head">
+        <div>
+          <span>实时学习信号</span>
+          <h3>系统正在用这些线索校准评估</h3>
+        </div>
+        <em>${escapeHtml(formatAssessmentTime(assessment.generated_at))}</em>
+      </summary>
+      <div class="assessment-live-grid">
+        ${items.map((item) => `
+          <article>
+            <span>${escapeHtml(item.label)}</span>
+            <strong>${escapeHtml(item.value)}</strong>
+            <p>${escapeHtml(studentFriendlyAssessmentText(item.detail))}</p>
+          </article>
+        `).join("")}
+      </div>
+    </details>
+  `;
+}
+
+function renderAssessmentOptimizationFlow(assessment, firstActions) {
+  const strategy = normalizeAssessmentList(assessment.resource_strategy).slice(0, 2);
+  const plans = normalizeAssessmentList(assessment.plan_adjustments).slice(0, 2);
+  const checks = normalizeAssessmentList(assessment.next_checkpoints).slice(0, 2);
+  const stages = [
+    {
+      label: "评估结果",
+      title: assessment.overall_level || "学习情况已更新",
+      detail: assessment.summary || "系统已整理当前学习线索。",
+    },
+    {
+      label: "资源推送",
+      title: strategy[0] || "按当前薄弱点调整资源顺序",
+      detail: strategy[1] || "把讲解、导图、题库、实操放到合适阶段。",
+    },
+    {
+      label: "学习计划",
+      title: plans[0] || firstActions[0] || "先完成一个可验证待办",
+      detail: plans[1] || "完成后再次刷新评估，继续优化下一步。",
+    },
+    {
+      label: "下次校验",
+      title: checks[0] || "检查是否能独立完成题目",
+      detail: checks[1] || "用错题和阶段产出确认学习效果。",
+    },
+  ];
+  return `
+    <section class="assessment-optimization-flow">
+      ${stages.map((stage, index) => `
+        <article>
+          <span>${escapeHtml(stage.label)}</span>
+          <h3>${escapeHtml(studentFriendlyAssessmentText(stage.title))}</h3>
+          <p>${escapeHtml(studentFriendlyAssessmentText(stage.detail))}</p>
+          ${index < stages.length - 1 ? `<i aria-hidden="true"></i>` : ""}
+        </article>
+      `).join("")}
+    </section>
+  `;
 }
 
 function studentDimensionName(name) {
@@ -1129,7 +1589,6 @@ function renderAssessmentPage() {
       <div>
         <div class="resource-type">这轮复盘</div>
         <h2>${escapeHtml(tone.title)}</h2>
-        <p>${escapeHtml(tone.summary)}</p>
         <div class="assessment-meta">
           <span>更新时间：${escapeHtml(formatAssessmentTime(assessment.generated_at))}</span>
           <span>当前大类：${escapeHtml(activeData?.category || state.activePathCategory || "待生成路径")}</span>
@@ -1145,31 +1604,12 @@ function renderAssessmentPage() {
       <div>
         <span>建议先做</span>
         <h3>${escapeHtml(studentFriendlyAssessmentText(firstActions[0] || "先完成当前路径里的一个小待办，再回来刷新复盘。"))}</h3>
-        <p>${escapeHtml(tone.summary)}</p>
       </div>
       <button class="primary-btn" type="button" data-assessment-go-path>去看学习路径</button>
     </section>
-    <section class="assessment-signal-grid">
-      ${renderStudentEvidenceItems(evidence)}
-    </section>
-    <section class="assessment-panel assessment-dimensions">
-      <div class="assessment-panel-head">
-        <h3>为什么会这样建议</h3>
-        <span>${dimensions.length} 个线索</span>
-      </div>
-      <div class="assessment-dimension-list">
-        ${renderStudentDimensionCards(dimensions)}
-      </div>
-    </section>
-    <div class="assessment-two-col">
-      ${renderAssessmentList("已经做得不错的地方", assessment.strengths, "assessment-good")}
-      ${renderAssessmentList("接下来先补一点", assessment.risks, "assessment-risk")}
-    </div>
-    <div class="assessment-two-col">
-      ${renderAssessmentList("资源会怎么推给你", assessment.resource_strategy)}
-      ${renderAssessmentList("学习计划怎么调整", assessment.plan_adjustments)}
-    </div>
-    ${renderAssessmentList("下次刷新前可以检查", assessment.next_checkpoints, "assessment-checkpoints")}
+    ${renderAssessmentLiveBoard(evidence, assessment)}
+    ${renderAssessmentOptimizationFlow(assessment, firstActions)}
+    ${renderAssessmentActionBoard(assessment)}
     ${weakDimensions.length ? `
       <section class="assessment-panel assessment-next-action">
         <h3>别急，先做最小一步</h3>

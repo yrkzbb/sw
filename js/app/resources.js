@@ -1158,7 +1158,9 @@ function renderExerciseResource(content, title, resourceIndex) {
   if (!exercises.length) return renderResourceMarkdown(content);
   return `
     <div class="exercise-grid">
-      ${exercises.map((exercise, index) => `
+      ${exercises.map((exercise, index) => {
+        const result = typeof getExercisePracticeResult === "function" ? getExercisePracticeResult(exercise.fingerprint) : null;
+        return `
         <article class="exercise-card">
           <div class="exercise-card-head">
             <div>
@@ -1171,6 +1173,11 @@ function renderExerciseResource(content, title, resourceIndex) {
             </div>
             <button class="resource-toggle add-mistake-btn" type="button" data-add-mistake="${resourceIndex}:${index}">加入错题本</button>
           </div>
+          <div class="exercise-result-row" aria-label="练习结果记录">
+            <button class="exercise-result-btn ${result === "correct" ? "active" : ""}" type="button" data-practice-result="${resourceIndex}:${index}:correct">做对了</button>
+            <button class="exercise-result-btn ${result === "incorrect" ? "active" : ""}" type="button" data-practice-result="${resourceIndex}:${index}:incorrect">做错了</button>
+            <span>${result === "correct" ? "已记录正确" : result === "incorrect" ? "已记录错误" : "记录后会进入学习效果评估"}</span>
+          </div>
           <div class="exercise-source">来源：${escapeHtml(exercise.source)}</div>
           <details class="exercise-detail" open>
             <summary>答案与详解</summary>
@@ -1178,7 +1185,8 @@ function renderExerciseResource(content, title, resourceIndex) {
             <div class="exercise-explanation markdown-body">${renderResourceMarkdown(exercise.explanation)}</div>
           </details>
         </article>
-      `).join("")}
+      `;
+      }).join("")}
     </div>
   `;
 }

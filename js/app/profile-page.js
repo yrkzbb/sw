@@ -539,6 +539,38 @@ function removeFavoriteFromAllCollections(postId) {
   if (state.personalProfileTab === "collections") renderFavoriteCollectionsPanel();
 }
 
+async function cancelFavoritePost(postId, { syncRemote = true } = {}) {
+  if (!postId) return;
+  const post = favoritePostById(postId);
+  if (syncRemote) {
+    try {
+      const shouldToggleRemote = post?.favorited !== false
+        || state.favoritePosts.some((item) => String(item.id) === String(postId));
+      if (shouldToggleRemote) {
+        await apiJson(`/api/feed/posts/${encodeURIComponent(postId)}/favorite`, { method: "POST" });
+      }
+    } catch (e) {
+      window.alert(String(e?.message || e));
+      return;
+    }
+  }
+  removeFavoriteFromAllCollections(postId);
+  updateFeedPost(postId, (item) => {
+    const wasFavorited = item.favorited !== false;
+    item.favorited = false;
+    if (wasFavorited) item.favorites = Math.max(0, Number(item.favorites || 0) - 1);
+    return item;
+  });
+  recordLearningBehavior("unfavorite_post", {
+    category: post?.category || "",
+    topic: post?.title || "",
+    title: post?.title || "取消收藏帖子",
+    meta: { postId },
+  });
+  if (state.personalProfileTab === "collections") renderFavoriteCollectionsPanel();
+  if (!el.pushPage?.hidden && typeof renderFeed === "function") renderFeed();
+}
+
 function createFavoriteCollection() {
   loadFavoriteCollections();
   const name = window.prompt("收藏夹名称", "新的收藏夹");
@@ -593,18 +625,9 @@ async function removePostFromFavoriteCollection(folderId, postId) {
   folder.updatedAt = new Date().toISOString();
   const stillCollected = state.favoriteCollections.some((item) => item.postIds.includes(String(postId)));
   if (!stillCollected) {
-    try {
-      const post = favoritePostById(postId);
-      if (post?.favorited !== false) await apiJson(`/api/feed/posts/${encodeURIComponent(postId)}/favorite`, { method: "POST" });
-      state.favoritePosts = state.favoritePosts.filter((item) => String(item.id) !== String(postId));
-      updateFeedPost(postId, (item) => {
-        item.favorited = false;
-        item.favorites = Math.max(0, Number(item.favorites || 0) - 1);
-        return item;
-      });
-    } catch (e) {
-      window.alert(String(e?.message || e));
-    }
+    saveFavoriteCollections();
+    await cancelFavoritePost(postId);
+    return;
   }
   saveFavoriteCollections();
   renderFavoriteCollectionsPanel();
@@ -662,6 +685,19 @@ function openFavoriteCollectionPicker({ title = "选择收藏夹", detail = "", 
 async function chooseAndAddFavoritePost(post) {
   if (!post?.id) return;
   if (!state.favoritePosts.find((item) => String(item.id) === String(post.id))) state.favoritePosts.unshift(post);
+  const text = [post.title, post.summary, post.body, ...(Array.isArray(post.tags) ? post.tags : [])].filter(Boolean).join(" ");
+  const category = post.category || categorizeKnowledge(post.title || "", text);
+  recordLearningDemand("收藏帖子", post.title || post.summary || text, {
+    category,
+    topic: post.title || post.summary || "",
+    content: text,
+  });
+  recordLearningBehavior("favorite_post", {
+    category,
+    topic: post.title || "",
+    title: post.title || post.summary || "收藏帖子",
+    meta: { postId: post.id, contentType: post.contentType || "" },
+  });
   const folderId = await openFavoriteCollectionPicker({
     title: "收藏到哪个收藏夹？",
     detail: post.title || "不选择时会放到默认收藏夹。",
@@ -681,6 +717,7 @@ function renderFavoritePostCard(post, folderId) {
       <p>${escapeHtml(post.summary || post.body || "")}</p>
       <div>${tags.map((tag) => `<em>#${escapeHtml(tag)}</em>`).join("")}</div>
       <small>${escapeHtml(post.author?.name || "社区用户")} · 赞 ${post.likes || 0} · 评 ${post.comments || 0}</small>
+      <button class="wiki-favorite-cancel" type="button" data-favorite-cancel-post="${escapeHtml(post.id)}">取消收藏</button>
     </article>
   `;
 }

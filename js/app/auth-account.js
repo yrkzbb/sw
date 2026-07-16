@@ -567,6 +567,8 @@ async function logoutCurrentUser() {
   setActiveUser(null);
   renderAnnouncements([]);
   state.messages = [];
+  state.chatSessions = [];
+  state.activeChatId = "";
   state.attachedFiles = [];
   state.attachedImages = [];
   state.studentProfile = null;

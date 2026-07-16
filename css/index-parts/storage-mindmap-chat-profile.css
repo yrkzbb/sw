@@ -370,6 +370,39 @@
   margin-top: 0;
 }
 
+.exercise-result-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.exercise-result-btn {
+  min-height: 32px;
+  border: 1px solid rgba(77, 124, 255, 0.22);
+  border-radius: 12px;
+  padding: 0 11px;
+  color: var(--accent1);
+  background: rgba(77, 124, 255, 0.08);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 950;
+  cursor: pointer;
+}
+
+.exercise-result-btn.active {
+  border-color: rgba(33, 212, 165, 0.34);
+  color: #17b890;
+  background: rgba(33, 212, 165, 0.12);
+}
+
+.exercise-result-row span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+}
+
 .mistake-book-grid {
   display: grid;
   gap: 16px;
@@ -1362,4 +1395,3 @@
   border-color: rgba(219, 39, 119, 0.32);
   color: rgba(157, 23, 77, 0.92);
 }
-

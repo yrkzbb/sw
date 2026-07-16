@@ -182,6 +182,41 @@ function updateFeedTabs() {
   });
 }
 
+function feedAssessmentPriority(post = {}) {
+  if (state.feedSort !== "recommended") return 0;
+  const practice = typeof summarizePracticePerformance === "function" ? summarizePracticePerformance() : { total: 0, accuracy: 0 };
+  const mistakes = typeof summarizeMistakePerformance === "function" ? summarizeMistakePerformance() : { by_category: {} };
+  const text = [
+    post.title,
+    post.summary,
+    post.body,
+    post.category,
+    post.contentType,
+    ...(Array.isArray(post.tags) ? post.tags : []),
+  ].filter(Boolean).join(" ").toLowerCase();
+  let score = 0;
+  if (practice.total && practice.accuracy < 70 && /question|answer|document|题|练习|文档|讲解/.test(text)) score += 36;
+  if (practice.total && practice.accuracy >= 75 && /project|article|实操|项目|经验|应用/.test(text)) score += 18;
+  Object.entries(mistakes.by_category || {}).forEach(([category, count]) => {
+    if (category && text.includes(String(category).toLowerCase())) score += Math.min(28, 10 + Number(count || 0) * 4);
+  });
+  if (state.learningAssessment?.resource_strategy?.some?.((item) => text.includes(String(item).slice(0, 8).toLowerCase()))) score += 12;
+  return score;
+}
+
+function orderedFeedPosts() {
+  const posts = Array.isArray(state.feedPosts) ? state.feedPosts.slice() : [];
+  if (state.feedSort !== "recommended") return posts;
+  return posts.sort((a, b) => {
+    const pa = feedAssessmentPriority(a);
+    const pb = feedAssessmentPriority(b);
+    if (pa !== pb) return pb - pa;
+    const hotA = Number(a.likeCount || 0) + Number(a.commentCount || 0);
+    const hotB = Number(b.likeCount || 0) + Number(b.commentCount || 0);
+    return hotB - hotA;
+  });
+}
+
 function renderFeedPage() {
   if (!el.pushGrid) return;
   updateFeedTabs();
@@ -199,7 +234,7 @@ function renderFeedPage() {
   el.pushGrid.innerHTML = `
     ${notificationHtml}
     <section class="feed-masonry" aria-label="社区动态列表">
-      ${state.feedPosts.map(renderFeedCard).join("")}
+      ${orderedFeedPosts().map(renderFeedCard).join("")}
     </section>
     <div class="feed-load-more-row">
       <button class="feed-load-more" type="button" data-feed-load-more ${state.feedHasMore ? "" : "disabled"}>
@@ -674,6 +709,8 @@ async function handleFeedAction(action, post) {
           await chooseAndAddFavoritePost(post);
         } else if (payload.active && typeof addFavoriteToDefaultCollection === "function") {
           addFavoriteToDefaultCollection(post);
+        } else if (!payload.active && typeof cancelFavoritePost === "function") {
+          await cancelFavoritePost(post.id, { syncRemote: false });
         } else if (!payload.active && typeof removeFavoriteFromAllCollections === "function") {
           removeFavoriteFromAllCollections(post.id);
         }

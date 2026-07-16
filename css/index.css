@@ -1,8 +1,8 @@
 @import url("./index-parts/base-navigation-profile.css?v=20260716-feed-compact-follow");
-@import url("./index-parts/learning-resources-assessment.css");
-@import url("./index-parts/storage-mindmap-chat-profile.css");
+@import url("./index-parts/learning-resources-assessment.css?v=20260716-assessment-feedback");
+@import url("./index-parts/storage-mindmap-chat-profile.css?v=20260716-assessment-feedback");
 @import url("./index-parts/chat-modals-setup-responsive.css");
 @import url("./index-parts/visual-refresh.css");
 @import url("./index-parts/auth-account.css");
 @import url("./index-parts/community-feed.css?v=20260716-compose-studio");
-@import url("./index-parts/personal-wiki.css?v=20260716-post-author-link");
+@import url("./index-parts/personal-wiki.css?v=20260716-chat-sidebar-resize");

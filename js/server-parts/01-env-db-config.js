@@ -19,6 +19,7 @@ const AUTH_REQUIRED_MESSAGE = "请先登录。";
 const ADMIN_REQUIRED_MESSAGE = "需要管理员权限。";
 const USER_DATA_KEYS = {
   messages: "LINGXI_MESSAGES",
+  chatSessions: "LINGXI_CHAT_SESSIONS",
   profile: "LINGXI_STUDENT_PROFILE",
   resources: "LINGXI_LEARNING_RESOURCES",
   mistakes: "LINGXI_MISTAKE_BOOK",

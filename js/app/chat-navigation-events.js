@@ -43,33 +43,330 @@ function buildLearningSystemMessage() {
   };
 }
 
+function createChatSessionId() {
+  return `chat_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function clampChatSidebarWidth(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return 230;
+  return Math.max(180, Math.min(380, Math.round(n)));
+}
+
+function loadChatSidebarWidth() {
+  try {
+    return clampChatSidebarWidth(localStorage.getItem(CHAT_SIDEBAR_WIDTH_STORAGE) || 230);
+  } catch {
+    return 230;
+  }
+}
+
+function applyChatSidebarWidth(width, options = {}) {
+  state.chatSidebarWidth = clampChatSidebarWidth(width);
+  if (el.chat) el.chat.style.setProperty("--chat-sidebar-width", `${state.chatSidebarWidth}px`);
+  if (options.persist !== false) {
+    try {
+      localStorage.setItem(CHAT_SIDEBAR_WIDTH_STORAGE, String(state.chatSidebarWidth));
+    } catch {
+    }
+  }
+}
+
+function isValidChatMessage(m) {
+  if (!m || (m.role !== "user" && m.role !== "assistant")) return false;
+  if (typeof m.content !== "string") return false;
+  if (m.imageUrls != null) {
+    if (!Array.isArray(m.imageUrls) || m.imageUrls.some((u) => typeof u !== "string")) return false;
+  }
+  return true;
+}
+
+function sanitizeChatMessages(messages) {
+  return Array.isArray(messages) ? messages.filter(isValidChatMessage) : [];
+}
+
+function deriveChatTitle(messages, fallback = "新对话") {
+  const firstUser = sanitizeChatMessages(messages).find((item) => item.role === "user" && item.content.trim());
+  const raw = firstUser?.content || fallback;
+  const compact = String(raw).replace(/\s+/g, " ").trim();
+  return compact.length > 18 ? `${compact.slice(0, 18)}...` : compact || fallback;
+}
+
+function normalizeChatSession(session) {
+  if (!session || typeof session !== "object") return null;
+  const messages = sanitizeChatMessages(session.messages);
+  const id = typeof session.id === "string" && session.id ? session.id : createChatSessionId();
+  const createdAt = Number(session.createdAt) || Date.now();
+  const updatedAt = Number(session.updatedAt) || createdAt;
+  return {
+    id,
+    title: typeof session.title === "string" && session.title.trim() ? session.title.trim() : deriveChatTitle(messages),
+    customTitle: Boolean(session.customTitle),
+    createdAt,
+    updatedAt,
+    messages,
+  };
+}
+
+function loadLegacyMessagesPersist() {
+  try {
+    const raw = localStorage.getItem(MESSAGES_STORAGE);
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return sanitizeChatMessages(data);
+  } catch {
+    return [];
+  }
+}
+
+function chatMessagesFingerprint(messages) {
+  const list = sanitizeChatMessages(messages);
+  if (!list.length) return "";
+  const first = list[0];
+  const last = list[list.length - 1];
+  return [
+    list.length,
+    first?.role || "",
+    String(first?.content || "").slice(0, 80),
+    last?.role || "",
+    String(last?.content || "").slice(0, 80),
+  ].join("|");
+}
+
+function importLegacyMessagesIfNeeded() {
+  const legacy = loadLegacyMessagesPersist();
+  if (!legacy.length) return false;
+
+  const legacyFingerprint = chatMessagesFingerprint(legacy);
+  const alreadyImported = state.chatSessions.some((session) => {
+    return chatMessagesFingerprint(session.messages) === legacyFingerprint;
+  });
+  if (alreadyImported) return false;
+
+  const now = Date.now();
+  const legacySession = {
+    id: createChatSessionId(),
+    title: deriveChatTitle(legacy, "恢复的旧对话"),
+    customTitle: false,
+    createdAt: now,
+    updatedAt: now,
+    messages: legacy,
+  };
+  const hasUsefulActiveSession = state.chatSessions.some((session) => {
+    return session.id === state.activeChatId && sanitizeChatMessages(session.messages).length > 0;
+  });
+  state.chatSessions = [
+    legacySession,
+    ...state.chatSessions.filter((session) => sanitizeChatMessages(session.messages).length > 0),
+  ];
+  if (!hasUsefulActiveSession) state.activeChatId = legacySession.id;
+  saveChatSessionsPersist();
+  return true;
+}
+
+function saveChatSessionsPersist() {
+  try {
+    localStorage.setItem(CHAT_SESSIONS_STORAGE, JSON.stringify({
+      activeChatId: state.activeChatId,
+      sessions: state.chatSessions,
+    }));
+  } catch (e) {
+    console.warn("保存对话列表失败", e);
+  }
+}
+
+function loadChatSessionsPersist() {
+  try {
+    const raw = localStorage.getItem(CHAT_SESSIONS_STORAGE);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    const sessionsRaw = Array.isArray(parsed) ? parsed : parsed?.sessions;
+    const sessions = Array.isArray(sessionsRaw) ? sessionsRaw.map(normalizeChatSession).filter(Boolean) : [];
+    state.activeChatId = typeof parsed?.activeChatId === "string" ? parsed.activeChatId : "";
+    return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+  } catch {
+    return [];
+  }
+}
+
+function ensureChatSessionsLoaded() {
+  if (Array.isArray(state.chatSessions) && state.chatSessions.length) {
+    importLegacyMessagesIfNeeded();
+    return;
+  }
+  state.chatSessions = loadChatSessionsPersist();
+  importLegacyMessagesIfNeeded();
+  if (!state.chatSessions.some((session) => session.id === state.activeChatId)) {
+    state.activeChatId = state.chatSessions[0]?.id || "";
+  }
+}
+
+function getActiveChatSession() {
+  ensureChatSessionsLoaded();
+  return state.chatSessions.find((session) => session.id === state.activeChatId) || null;
+}
+
+function createChatSession(messages = [], options = {}) {
+  const now = Date.now();
+  const session = {
+    id: createChatSessionId(),
+    title: options.title || deriveChatTitle(messages, "新对话"),
+    customTitle: Boolean(options.customTitle),
+    createdAt: now,
+    updatedAt: now,
+    messages: sanitizeChatMessages(messages),
+  };
+  state.chatSessions = [session, ...state.chatSessions.filter((item) => item.messages.length || item.id !== state.activeChatId)];
+  state.activeChatId = session.id;
+  state.messages = session.messages.slice();
+  saveChatSessionsPersist();
+  renderChatSessionList();
+  return session;
+}
+
+function ensureActiveChatSession() {
+  ensureChatSessionsLoaded();
+  let session = getActiveChatSession();
+  if (!session) session = createChatSession();
+  return session;
+}
+
+function syncActiveChatSessionFromState() {
+  const session = ensureActiveChatSession();
+  session.messages = sanitizeChatMessages(state.messages);
+  if (!session.customTitle) session.title = deriveChatTitle(session.messages, session.title || "新对话");
+  session.updatedAt = Date.now();
+  state.chatSessions = [
+    session,
+    ...state.chatSessions.filter((item) => item.id !== session.id),
+  ];
+  state.activeChatId = session.id;
+  saveChatSessionsPersist();
+  renderChatSessionList();
+}
+
+function renderChatSessionList() {
+  if (!el.chatSessionList) return;
+  ensureChatSessionsLoaded();
+  el.chatSessionList.innerHTML = "";
+
+  if (!state.chatSessions.length) {
+    const empty = document.createElement("div");
+    empty.className = "chat-session-empty";
+    empty.textContent = "暂无对话";
+    el.chatSessionList.appendChild(empty);
+    return;
+  }
+
+  for (const session of state.chatSessions) {
+    const btn = document.createElement("button");
+    btn.className = `chat-session-item${session.id === state.activeChatId ? " active" : ""}`;
+    btn.type = "button";
+    btn.setAttribute("data-chat-session-id", session.id);
+    btn.setAttribute("role", "listitem");
+
+    const title = document.createElement("strong");
+    title.setAttribute("data-chat-session-rename", session.id);
+    title.title = "双击重命名";
+    title.textContent = session.title || "新对话";
+    const meta = document.createElement("span");
+    const turns = session.messages.filter((item) => item.role === "user").length;
+    meta.textContent = turns ? `${turns} 轮提问` : "待开始";
+    const rename = document.createElement("span");
+    rename.className = "chat-session-rename";
+    rename.setAttribute("data-chat-session-rename", session.id);
+    rename.setAttribute("aria-label", "重命名对话");
+    rename.textContent = "✎";
+
+    btn.appendChild(title);
+    btn.appendChild(meta);
+    btn.appendChild(rename);
+    el.chatSessionList.appendChild(btn);
+  }
+}
+
+function renameChatSession(sessionId) {
+  ensureChatSessionsLoaded();
+  const session = state.chatSessions.find((item) => item.id === sessionId);
+  if (!session) return;
+  const next = prompt("重命名对话", session.title || "新对话");
+  if (next == null) return;
+  const title = next.replace(/\s+/g, " ").trim();
+  if (!title) return;
+  session.title = title.length > 32 ? `${title.slice(0, 32)}...` : title;
+  session.customTitle = true;
+  session.updatedAt = Date.now();
+  saveChatSessionsPersist();
+  renderChatSessionList();
+}
+
+function renderMessagesFromState() {
+  if (!el.messages) return;
+  el.messages.innerHTML = "";
+  for (const m of state.messages) {
+    if (m.role === "user") {
+      const previews = (m.imageUrls || []).map((url) => ({ previewUrl: url }));
+      appendUserMessage(m.content, previews);
+    } else {
+      appendAssistantMessage({ restored: true, markdownText: m.content });
+    }
+  }
+  updateComposerPlaceholder();
+  updateSendButton();
+  scrollMessagesToBottom();
+}
+
+function switchChatSession(sessionId) {
+  if (state.isGenerating) {
+    alert("当前回复还在生成中，请稍后再切换对话。");
+    return;
+  }
+  ensureChatSessionsLoaded();
+  const session = state.chatSessions.find((item) => item.id === sessionId);
+  if (!session) return;
+  state.activeChatId = session.id;
+  state.messages = sanitizeChatMessages(session.messages).slice();
+  saveChatSessionsPersist();
+  renderChatSessionList();
+  renderMessagesFromState();
+  ensureChatVisible();
+}
+
+function startNewChatSession() {
+  if (state.isGenerating) {
+    alert("当前回复还在生成中，请稍后再新建对话。");
+    return;
+  }
+  createChatSession([], { title: "新对话" });
+  renderMessagesFromState();
+  ensureChatVisible();
+}
+
+function clearActiveChatSession() {
+  const session = ensureActiveChatSession();
+  session.messages = [];
+  session.title = "新对话";
+  session.customTitle = false;
+  session.updatedAt = Date.now();
+  state.messages = [];
+  saveMessagesPersist();
+  renderMessagesFromState();
+  ensureChatVisible();
+}
+
 function saveMessagesPersist() {
   try {
     localStorage.setItem(MESSAGES_STORAGE, JSON.stringify(state.messages));
+    syncActiveChatSessionFromState();
   } catch (e) {
     console.warn("保存对话历史失败", e);
   }
 }
 
 function loadMessagesPersist() {
-  try {
-    const raw = localStorage.getItem(MESSAGES_STORAGE);
-    if (!raw) return [];
-    const data = JSON.parse(raw);
-    if (!Array.isArray(data)) return [];
-    return data.filter((m) => {
-      if (!m || (m.role !== "user" && m.role !== "assistant")) return false;
-      if (typeof m.content !== "string") return false;
-      if (m.imageUrls != null) {
-        if (!Array.isArray(m.imageUrls) || m.imageUrls.some((u) => typeof u !== "string")) {
-          return false;
-        }
-      }
-      return true;
-    });
-  } catch {
-    return [];
-  }
+  ensureChatSessionsLoaded();
+  const active = getActiveChatSession();
+  return active ? sanitizeChatMessages(active.messages) : loadLegacyMessagesPersist();
 }
 
 function renderMarkdownInto(container, markdownText) {
@@ -382,8 +679,15 @@ function setComposerVisible(visible) {
   if (el.composer) el.composer.hidden = !visible;
 }
 
+function setChatLayoutActive(active) {
+  document.body?.classList.toggle("chat-layout-active", Boolean(active));
+  if (active) applyChatSidebarWidth(state.chatSidebarWidth || loadChatSidebarWidth(), { persist: false });
+}
+
 function ensureChatVisible() {
   if (!el.chat || !el.home) return;
+  ensureActiveChatSession();
+  setChatLayoutActive(true);
   setComposerVisible(true);
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
@@ -395,6 +699,7 @@ function ensureChatVisible() {
   if (el.mistakePage) el.mistakePage.hidden = true;
   el.home.hidden = true;
   el.chat.hidden = false;
+  renderChatSessionList();
   el.chatPageBtn?.classList.add("active");
   el.profilePageBtn?.classList.remove("active");
   el.userInfoPageBtn?.classList.remove("active");
@@ -459,13 +764,8 @@ function parseUserInfoHash(hash) {
 }
 
 function showHome() {
+  setChatLayoutActive(false);
   setComposerVisible(true);
-  state.messages = [];
-  try {
-    localStorage.removeItem(MESSAGES_STORAGE);
-  } catch {
-  }
-  el.messages.innerHTML = "";
   if (el.chat) el.chat.hidden = true;
   if (el.profilePage) el.profilePage.hidden = true;
   if (el.userInfoPage) el.userInfoPage.hidden = true;
@@ -490,6 +790,7 @@ function showHome() {
 
 function showProfilePage() {
   if (!el.profilePage) return;
+  setChatLayoutActive(false);
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -516,6 +817,7 @@ function showProfilePage() {
 
 function showUserInfoPage(options = {}) {
   if (!el.userInfoPage) return;
+  setChatLayoutActive(false);
   const mode = options.mode || "home";
   if (!options.keepPublicProfile) state.publicProfile = null;
   setComposerVisible(false);
@@ -572,6 +874,7 @@ function showUserInfoPage(options = {}) {
 
 function showResourcePage() {
   if (!el.resourcePage) return;
+  setChatLayoutActive(false);
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -598,6 +901,7 @@ function showResourcePage() {
 
 function showPushPage() {
   if (!el.pushPage) return;
+  setChatLayoutActive(false);
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -624,6 +928,7 @@ function showPushPage() {
 
 function showPushComposePage() {
   if (!el.pushPage) return;
+  setChatLayoutActive(false);
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -679,6 +984,7 @@ function returnToFeedFromPost() {
 
 function showPathPage() {
   if (!el.pathPage) return;
+  setChatLayoutActive(false);
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -705,6 +1011,7 @@ function showPathPage() {
 
 function showAssessmentPage() {
   if (!el.assessmentPage) return;
+  setChatLayoutActive(false);
   setComposerVisible(false);
   if (el.home) el.home.hidden = true;
   if (el.chat) el.chat.hidden = true;
@@ -739,11 +1046,10 @@ function showMistakePage() {
 
 function showChatPage() {
   setPageHash("#chat");
-  if (state.messages.length > 0) {
-    ensureChatVisible();
-  } else {
-    showHome();
-  }
+  ensureActiveChatSession();
+  state.messages = loadMessagesPersist();
+  renderMessagesFromState();
+  ensureChatVisible();
 }
 
 function restoreViewFromHash() {
@@ -778,7 +1084,10 @@ function restoreViewFromHash() {
     showStoragePage();
   } else if (window.location.hash === "#mistakes") {
     showMistakePage();
-  } else if (window.location.hash === "#chat" && state.messages.length > 0) {
+  } else if (window.location.hash === "#chat") {
+    ensureActiveChatSession();
+    state.messages = loadMessagesPersist();
+    renderMessagesFromState();
     ensureChatVisible();
   }
 }
@@ -866,24 +1175,11 @@ function appendAssistantMessage(opts = {}) {
 
 function restorePersistedChat() {
   const list = loadMessagesPersist();
-  if (list.length === 0) return;
 
   state.messages = list;
-  el.messages.innerHTML = "";
-
-  for (const m of list) {
-    if (m.role === "user") {
-      const previews = (m.imageUrls || []).map((url) => ({ previewUrl: url }));
-      appendUserMessage(m.content, previews);
-    } else {
-      appendAssistantMessage({ restored: true, markdownText: m.content });
-    }
-  }
-
-  ensureChatVisible();
-  updateComposerPlaceholder();
-  updateSendButton();
-  scrollMessagesToBottom();
+  renderChatSessionList();
+  renderMessagesFromState();
+  if (window.location.hash === "#chat") ensureChatVisible();
 }
 
 async function fileToDataUrl(file) {
@@ -1051,6 +1347,7 @@ async function generateAssistantFromUserText(
 
   const uiVersion = state.uiVersion;
 
+  ensureActiveChatSession();
   ensureChatVisible();
 
   appendUserMessage(userText, attachedImagesPreview);
@@ -1325,6 +1622,12 @@ function initEventHandlers() {
       );
       return;
     }
+    const cancelFavoritePostButton = target?.closest("[data-favorite-cancel-post]");
+    if (cancelFavoritePostButton) {
+      event.stopPropagation();
+      void cancelFavoritePost(cancelFavoritePostButton.getAttribute("data-favorite-cancel-post") || "");
+      return;
+    }
     const removeFavoriteItem = target?.closest("[data-favorite-remove-item]");
     if (removeFavoriteItem) {
       event.stopPropagation();
@@ -1526,6 +1829,61 @@ function initEventHandlers() {
     });
   });
   el.chatPageBtn?.addEventListener("click", showChatPage);
+  el.newChatBtn?.addEventListener("click", startNewChatSession);
+  el.chatSessionList?.addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const rename = target?.closest("[data-chat-session-rename]");
+    if (rename) {
+      event.stopPropagation();
+      renameChatSession(rename.getAttribute("data-chat-session-rename") || "");
+      return;
+    }
+    const btn = target?.closest("[data-chat-session-id]");
+    if (!btn) return;
+    switchChatSession(btn.getAttribute("data-chat-session-id") || "");
+  });
+  el.chatSessionList?.addEventListener("dblclick", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const rename = target?.closest("[data-chat-session-rename]");
+    if (!rename) return;
+    event.preventDefault();
+    renameChatSession(rename.getAttribute("data-chat-session-rename") || "");
+  });
+  applyChatSidebarWidth(loadChatSidebarWidth(), { persist: false });
+  el.chatSidebarResizeHandle?.addEventListener("pointerdown", (event) => {
+    if (!el.chat) return;
+    event.preventDefault();
+    el.chatSidebarResizeHandle.setPointerCapture?.(event.pointerId);
+    state.chatSidebarResize = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startWidth: state.chatSidebarWidth || loadChatSidebarWidth(),
+    };
+    document.body.classList.add("chat-sidebar-resizing");
+  });
+  el.chatSidebarResizeHandle?.addEventListener("pointermove", (event) => {
+    const resize = state.chatSidebarResize;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    applyChatSidebarWidth(resize.startWidth + event.clientX - resize.startX);
+  });
+  const finishChatSidebarResize = (event) => {
+    const resize = state.chatSidebarResize;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    state.chatSidebarResize = null;
+    document.body.classList.remove("chat-sidebar-resizing");
+  };
+  el.chatSidebarResizeHandle?.addEventListener("pointerup", finishChatSidebarResize);
+  el.chatSidebarResizeHandle?.addEventListener("pointercancel", finishChatSidebarResize);
+  window.addEventListener("pointermove", (event) => {
+    const resize = state.chatSidebarResize;
+    if (!resize || resize.pointerId !== event.pointerId) return;
+    applyChatSidebarWidth(resize.startWidth + event.clientX - resize.startX);
+  });
+  window.addEventListener("pointerup", finishChatSidebarResize);
+  window.addEventListener("pointercancel", finishChatSidebarResize);
+  el.chatSidebarResizeHandle?.addEventListener("dblclick", () => {
+    applyChatSidebarWidth(230);
+  });
   el.resourcePageBtn?.addEventListener("click", showResourcePage);
   el.pushPageBtn?.addEventListener("click", showPushPage);
   el.pathPageBtn?.addEventListener("click", showPathPage);
@@ -1597,7 +1955,23 @@ function initEventHandlers() {
     renderLearningPathPanel();
   });
   el.learningPathPanel?.addEventListener("click", (e) => {
-    const btn = e.target instanceof HTMLElement ? e.target.closest("[data-path-category]") : null;
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    if (target?.closest("[data-path-refresh]")) {
+      void refreshActiveLearningPath();
+      return;
+    }
+    const stageButton = target?.closest("[data-path-stage]");
+    if (stageButton) {
+      setActivePathStageIndex(Number(stageButton.getAttribute("data-path-stage")));
+      return;
+    }
+    const stageNav = target?.closest("[data-path-stage-nav]");
+    if (stageNav) {
+      const direction = stageNav.getAttribute("data-path-stage-nav");
+      setActivePathStageIndex((Number(state.activePathStageIndex) || 0) + (direction === "next" ? 1 : -1));
+      return;
+    }
+    const btn = target?.closest("[data-path-category]");
     if (!btn) return;
     const category = btn.getAttribute("data-path-category");
     if (category) setActivePathCategory(category);
@@ -1607,6 +1981,23 @@ function initEventHandlers() {
     if (btn) {
       const category = btn.getAttribute("data-path-category");
       if (category) setActivePathCategory(category);
+      return;
+    }
+    const completeBtn = e.target instanceof HTMLElement ? e.target.closest("[data-push-card-complete-index]") : null;
+    if (completeBtn) {
+      const index = Number(completeBtn.getAttribute("data-push-card-complete-index"));
+      if (Number.isInteger(index)) {
+        const activeData = getActivePathData();
+        const resource = activeData?.resources?.[index];
+        recordLearningBehavior("resource_complete", {
+          category: activeData?.category,
+          topic: activeData?.topic,
+          title: resource?.title || "",
+          meta: { resourceType: resource?.type || "", source: "push_card" },
+        });
+        renderAssessmentPage();
+        renderPushPage();
+      }
       return;
     }
     const openBtn = e.target instanceof HTMLElement ? e.target.closest("[data-push-open-index], [data-push-resource-index]") : null;
@@ -1658,6 +2049,57 @@ function initEventHandlers() {
         list.hidden = expanded;
         sceneToggle.setAttribute("aria-expanded", String(!expanded));
         sceneToggle.textContent = expanded ? "展开讲解要点" : "收起讲解要点";
+      }
+      return;
+    }
+    const completeBtn = e.target.closest("[data-push-complete-index]");
+    if (completeBtn) {
+      const resourceIndex = Number(completeBtn.getAttribute("data-push-complete-index"));
+      const activeData = getActivePathData();
+      const resource = activeData?.resources?.[resourceIndex];
+      if (resource) {
+        recordLearningBehavior("resource_complete", {
+          category: activeData?.category,
+          topic: activeData?.topic,
+          title: resource.title || "",
+          meta: { resourceType: resource.type || "", source: "push_detail" },
+        });
+        completeBtn.textContent = "已完成";
+        completeBtn.classList.add("is-complete");
+        renderAssessmentPage();
+        renderPushPage();
+      }
+      return;
+    }
+    const practiceBtn = e.target.closest("[data-practice-result]");
+    if (practiceBtn) {
+      const [resourceIndexRaw, exerciseIndexRaw, result] = String(practiceBtn.getAttribute("data-practice-result") || "").split(":");
+      const resourceIndex = Number(resourceIndexRaw);
+      const exerciseIndex = Number(exerciseIndexRaw);
+      const activeData = getActivePathData();
+      const resource = activeData?.resources?.[resourceIndex];
+      const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
+      if (exercise && (result === "correct" || result === "incorrect")) {
+        recordLearningBehavior("practice_result", {
+          category: exercise.knowledge || resource?.category || activeData?.category,
+          topic: resource?.title || "",
+          title: exercise.question || "",
+          meta: {
+            result,
+            fingerprint: exercise.fingerprint,
+            difficulty: exercise.difficulty || "",
+            type: exercise.type || "",
+            knowledge: exercise.knowledge || "",
+            resourceType: resource?.type || "",
+          },
+        });
+        const row = practiceBtn.closest(".exercise-result-row");
+        row?.querySelectorAll(".exercise-result-btn").forEach((btn) => btn.classList.remove("active"));
+        practiceBtn.classList.add("active");
+        const label = row?.querySelector("span");
+        if (label) label.textContent = result === "correct" ? "已记录正确" : "已记录错误";
+        renderAssessmentPage();
+        renderPushPage();
       }
       return;
     }
@@ -1744,6 +2186,55 @@ function initEventHandlers() {
           meta: { resourceType: resource?.type || "" },
         });
         await storeAndDownloadResource(index);
+      }
+      return;
+    }
+    const completeBtn = e.target instanceof HTMLElement ? e.target.closest("[data-resource-complete-index]") : null;
+    if (completeBtn) {
+      const index = Number(completeBtn.getAttribute("data-resource-complete-index"));
+      if (Number.isInteger(index)) {
+        const resource = state.learningResources?.resources?.[index];
+        recordLearningBehavior("resource_complete", {
+          category: state.learningResources?.category,
+          topic: state.learningResources?.topic,
+          title: resource?.title || "",
+          meta: { resourceType: resource?.type || "", source: "resource_card" },
+        });
+        completeBtn.textContent = "已完成";
+        completeBtn.classList.add("is-complete");
+        renderAssessmentPage();
+        renderPushPage();
+      }
+      return;
+    }
+    const practiceBtn = e.target instanceof HTMLElement ? e.target.closest("[data-practice-result]") : null;
+    if (practiceBtn) {
+      const [resourceIndexRaw, exerciseIndexRaw, result] = String(practiceBtn.getAttribute("data-practice-result") || "").split(":");
+      const resourceIndex = Number(resourceIndexRaw);
+      const exerciseIndex = Number(exerciseIndexRaw);
+      const resource = state.learningResources?.resources?.[resourceIndex];
+      const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
+      if (exercise && (result === "correct" || result === "incorrect")) {
+        recordLearningBehavior("practice_result", {
+          category: exercise.knowledge || state.learningResources?.category,
+          topic: resource?.title || "",
+          title: exercise.question || "",
+          meta: {
+            result,
+            fingerprint: exercise.fingerprint,
+            difficulty: exercise.difficulty || "",
+            type: exercise.type || "",
+            knowledge: exercise.knowledge || "",
+            resourceType: resource?.type || "",
+          },
+        });
+        const row = practiceBtn.closest(".exercise-result-row");
+        row?.querySelectorAll(".exercise-result-btn").forEach((btn) => btn.classList.remove("active"));
+        practiceBtn.classList.add("active");
+        const label = row?.querySelector("span");
+        if (label) label.textContent = result === "correct" ? "已记录正确" : "已记录错误";
+        renderAssessmentPage();
+        renderPushPage();
       }
       return;
     }
@@ -2016,7 +2507,7 @@ function initEventHandlers() {
   el.clearBtn.addEventListener("click", () => {
     if (state.isGenerating && state.abortController) state.abortController.abort();
     state.uiVersion += 1;
-    showHome();
+    clearActiveChatSession();
     resetAttachment();
     updateSendButton();
     updateComposerPlaceholder();

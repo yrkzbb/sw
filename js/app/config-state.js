@@ -2,6 +2,8 @@
 const API_KEY_STORAGE = "LINGXI_API_KEY";
 const THEME_STORAGE = "LINGXI_THEME";
 const MESSAGES_STORAGE = "LINGXI_MESSAGES";
+const CHAT_SESSIONS_STORAGE = "LINGXI_CHAT_SESSIONS";
+const CHAT_SIDEBAR_WIDTH_STORAGE = "LINGXI_CHAT_SIDEBAR_WIDTH";
 const STUDENT_PROFILE_STORAGE = "LINGXI_STUDENT_PROFILE";
 const LEARNING_RESOURCES_STORAGE = "LINGXI_LEARNING_RESOURCES";
 const STORED_MARKDOWN_FILES_STORAGE = "LINGXI_STORED_MARKDOWN_FILES";
@@ -21,6 +23,8 @@ const ACTIVE_USER_STORAGE = "LINGXI_ACTIVE_USER";
 const AUTH_MODE_STORAGE = "LINGXI_AUTH_MODE";
 const USER_SCOPED_STORAGE_KEYS = new Set([
   MESSAGES_STORAGE,
+  CHAT_SESSIONS_STORAGE,
+  CHAT_SIDEBAR_WIDTH_STORAGE,
   STUDENT_PROFILE_STORAGE,
   LEARNING_RESOURCES_STORAGE,
   STORED_MARKDOWN_FILES_STORAGE,
@@ -179,6 +183,9 @@ const el = {
   pushDetailBody: document.querySelector("#pushDetailBody"),
   composer: document.querySelector("#composer"),
   messages: document.querySelector("#messages"),
+  chatSessionList: document.querySelector("#chatSessionList"),
+  newChatBtn: document.querySelector("#newChatBtn"),
+  chatSidebarResizeHandle: document.querySelector("#chatSidebarResizeHandle"),
   input: document.querySelector("#input"),
   sendBtn: document.querySelector("#sendBtn"),
   stopBtn: document.querySelector("#stopBtn"),
@@ -287,6 +294,10 @@ const state = {
   showAllAnnouncements: false,
   remoteStorageHydrating: false,
   messages: [], 
+  chatSessions: [],
+  activeChatId: "",
+  chatSidebarWidth: 230,
+  chatSidebarResize: null,
   attachedFiles: [],
   attachedImages: [], 
   uiVersion: 0,
@@ -325,6 +336,7 @@ const state = {
   learningResources: null,
   learningPathLibrary: {},
   activePathCategory: "",
+  activePathStageIndex: 0,
   learningDemandEvents: [],
   storedMarkdownFiles: [],
   mistakeBookItems: [],

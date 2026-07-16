@@ -1016,8 +1016,16 @@ code {
   }
 
   .assessment-signal-grid,
+  .assessment-live-grid,
+  .assessment-optimization-flow,
+  .assessment-action-board,
   .assessment-two-col {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assessment-action-card,
+  .assessment-action-wide {
+    grid-column: span 1;
   }
 
   .assessment-student-hero,
@@ -1142,9 +1150,24 @@ code {
   .push-card-grid,
   .assessment-dimension-list,
   .assessment-signal-grid,
+  .assessment-live-grid,
+  .assessment-optimization-flow,
+  .assessment-action-board,
   .assessment-two-col,
   .storage-file-list {
     grid-template-columns: 1fr;
+  }
+
+  .assessment-wiki-page {
+    width: 100%;
+  }
+
+  .assessment-live-head {
+    flex-direction: column;
+  }
+
+  .assessment-optimization-flow i {
+    display: none;
   }
 
   .assessment-hero {
@@ -1246,4 +1269,3 @@ code {
     max-width: 88%;
   }
 }
-
