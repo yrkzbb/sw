@@ -730,55 +730,11 @@ function showAssessmentPage() {
 }
 
 function showStoragePage() {
-  if (!el.storagePage) return;
-  setComposerVisible(false);
-  if (el.home) el.home.hidden = true;
-  if (el.chat) el.chat.hidden = true;
-  if (el.profilePage) el.profilePage.hidden = true;
-  if (el.userInfoPage) el.userInfoPage.hidden = true;
-  if (el.resourcePage) el.resourcePage.hidden = true;
-  if (el.pushPage) el.pushPage.hidden = true;
-  if (el.pathPage) el.pathPage.hidden = true;
-  if (el.assessmentPage) el.assessmentPage.hidden = true;
-  if (el.mistakePage) el.mistakePage.hidden = true;
-  el.storagePage.hidden = false;
-  el.storagePageBtn?.classList.add("active");
-  el.chatPageBtn?.classList.remove("active");
-  el.profilePageBtn?.classList.remove("active");
-  el.userInfoPageBtn?.classList.remove("active");
-  el.resourcePageBtn?.classList.remove("active");
-  el.pushPageBtn?.classList.remove("active");
-  el.pathPageBtn?.classList.remove("active");
-  el.assessmentPageBtn?.classList.remove("active");
-  el.mistakePageBtn?.classList.remove("active");
-  setPageHash("#storage");
-  renderStoragePage();
+  showUserInfoPage({ mode: "archive", tab: "collections" });
 }
 
 function showMistakePage() {
-  if (!el.mistakePage) return;
-  setComposerVisible(false);
-  if (el.home) el.home.hidden = true;
-  if (el.chat) el.chat.hidden = true;
-  if (el.profilePage) el.profilePage.hidden = true;
-  if (el.userInfoPage) el.userInfoPage.hidden = true;
-  if (el.resourcePage) el.resourcePage.hidden = true;
-  if (el.pushPage) el.pushPage.hidden = true;
-  if (el.pathPage) el.pathPage.hidden = true;
-  if (el.assessmentPage) el.assessmentPage.hidden = true;
-  if (el.storagePage) el.storagePage.hidden = true;
-  el.mistakePage.hidden = false;
-  el.mistakePageBtn?.classList.add("active");
-  el.chatPageBtn?.classList.remove("active");
-  el.profilePageBtn?.classList.remove("active");
-  el.userInfoPageBtn?.classList.remove("active");
-  el.resourcePageBtn?.classList.remove("active");
-  el.pushPageBtn?.classList.remove("active");
-  el.pathPageBtn?.classList.remove("active");
-  el.assessmentPageBtn?.classList.remove("active");
-  el.storagePageBtn?.classList.remove("active");
-  setPageHash("#mistakes");
-  renderMistakeBookPage();
+  showUserInfoPage({ mode: "archive", tab: "collections" });
 }
 
 function showChatPage() {
@@ -1369,6 +1325,26 @@ function initEventHandlers() {
       );
       return;
     }
+    const removeFavoriteItem = target?.closest("[data-favorite-remove-item]");
+    if (removeFavoriteItem) {
+      event.stopPropagation();
+      removeItemFromFavoriteCollection(
+        removeFavoriteItem.getAttribute("data-favorite-folder-id") || "",
+        removeFavoriteItem.getAttribute("data-favorite-item-kind") || "",
+        removeFavoriteItem.getAttribute("data-favorite-remove-item") || "",
+      );
+      return;
+    }
+    const openFavoriteFile = target?.closest("[data-favorite-open-file]");
+    if (openFavoriteFile) {
+      const fileId = openFavoriteFile.getAttribute("data-favorite-open-file") || "";
+      const file = (state.storedMarkdownFiles || []).find((item) => String(item.id) === String(fileId));
+      if (file) {
+        recordLearningBehavior("storage_open", { category: file.category, title: file.title || file.filename });
+        openStorageFile(file);
+      }
+      return;
+    }
     const favoriteFolderButton = target?.closest("[data-favorite-folder]");
     if (favoriteFolderButton) {
       state.favoriteSelectedCollectionId = favoriteFolderButton.getAttribute("data-favorite-folder") || "";
@@ -1505,6 +1481,18 @@ function initEventHandlers() {
       });
       return;
     }
+  });
+  el.userInfoPage?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter") return;
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const openFavoriteFile = target?.closest("[data-favorite-open-file]");
+    if (!openFavoriteFile) return;
+    const fileId = openFavoriteFile.getAttribute("data-favorite-open-file") || "";
+    const file = (state.storedMarkdownFiles || []).find((item) => String(item.id) === String(fileId));
+    if (!file) return;
+    event.preventDefault();
+    recordLearningBehavior("storage_open", { category: file.category, title: file.title || file.filename });
+    openStorageFile(file);
   });
   el.userInfoPage?.addEventListener("submit", (event) => {
     const form = event.target instanceof HTMLElement ? event.target.closest("[data-profile-post-editor]") : null;
@@ -1655,7 +1643,7 @@ function initEventHandlers() {
     }
   });
   el.pushDetailClose?.addEventListener("click", closePushResourceDetail);
-  el.pushDetailModal?.addEventListener("click", (e) => {
+  el.pushDetailModal?.addEventListener("click", async (e) => {
     if (!(e.target instanceof HTMLElement)) return;
     if (e.target.hasAttribute("data-push-detail-close")) {
       closePushResourceDetail();
@@ -1682,7 +1670,8 @@ function initEventHandlers() {
       const resource = activeData?.resources?.[resourceIndex];
       const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
       if (exercise) {
-        addExerciseToMistakeBook(exercise, resource);
+        const added = await addExerciseToMistakeBook(exercise, resource);
+        if (!added) return;
         recordLearningBehavior("mistake_added", {
           category: exercise.knowledge || resource?.category || activeData?.category,
           topic: resource?.title || "",
@@ -1708,7 +1697,7 @@ function initEventHandlers() {
     const id = btn?.getAttribute("data-agent-id");
     if (id) toggleResourceAgent(id);
   });
-  el.resourceGrid?.addEventListener("click", (e) => {
+  el.resourceGrid?.addEventListener("click", async (e) => {
     if (e.target instanceof HTMLElement && e.target.closest("[data-mindmap-export], [data-mindmap-layout]")) return;
     const renderVideoBtn = e.target instanceof HTMLElement ? e.target.closest("[data-render-video]") : null;
     if (renderVideoBtn) {
@@ -1754,7 +1743,7 @@ function initEventHandlers() {
           title: resource?.title || "",
           meta: { resourceType: resource?.type || "" },
         });
-        storeAndDownloadResource(index);
+        await storeAndDownloadResource(index);
       }
       return;
     }
@@ -1766,7 +1755,8 @@ function initEventHandlers() {
       const resource = state.learningResources?.resources?.[resourceIndex];
       const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
       if (exercise) {
-        addExerciseToMistakeBook(exercise, resource);
+        const added = await addExerciseToMistakeBook(exercise, resource);
+        if (!added) return;
         recordLearningBehavior("mistake_added", {
           category: exercise.knowledge || state.learningResources?.category,
           topic: resource?.title || "",

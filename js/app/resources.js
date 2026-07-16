@@ -988,7 +988,7 @@ ${nodes}
 </svg>`;
 }
 
-function storeAndDownloadMindmapSvg(canvas) {
+async function storeAndDownloadMindmapSvg(canvas) {
   const svg = exportMindmapSvg(canvas);
   if (!svg) return;
   const title = canvas.dataset.mindmapTitle || "思维导图";
@@ -1004,7 +1004,17 @@ function storeAndDownloadMindmapSvg(canvas) {
     content: svg,
     createdAt: new Date().toISOString(),
   };
+  const folderId = typeof openFavoriteCollectionPicker === "function"
+    ? await openFavoriteCollectionPicker({
+      title: "思维导图收藏到哪个收藏夹？",
+      detail: file.title,
+      kind: "file",
+    })
+    : "default";
   const saved = saveStoredMarkdownFiles([file].concat(state.storedMarkdownFiles || []));
+  if (saved && typeof addItemToFavoriteCollection === "function") {
+    addItemToFavoriteCollection("file", file.id, folderId);
+  }
   if (saved) downloadMarkdownFile(file);
 }
 

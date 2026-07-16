@@ -670,7 +670,9 @@ async function handleFeedAction(action, post) {
         return item;
       });
       if (action === "favorite") {
-        if (payload.active && typeof addFavoriteToDefaultCollection === "function") {
+        if (payload.active && typeof chooseAndAddFavoritePost === "function") {
+          await chooseAndAddFavoritePost(post);
+        } else if (payload.active && typeof addFavoriteToDefaultCollection === "function") {
           addFavoriteToDefaultCollection(post);
         } else if (!payload.active && typeof removeFavoriteFromAllCollections === "function") {
           removeFavoriteFromAllCollections(post.id);

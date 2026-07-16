@@ -484,12 +484,12 @@ function saveMistakeBookItems(items) {
   return true;
 }
 
-function addExerciseToMistakeBook(exercise, resource) {
+async function addExerciseToMistakeBook(exercise, resource) {
   if (!exercise) return;
   const exists = state.mistakeBookItems.some((item) => item.fingerprint === exercise.fingerprint);
   if (exists) {
     alert("这道题已经在错题本里了。");
-    return;
+    return null;
   }
   const item = {
     id: `mistake-${Date.now()}-${Math.random().toString(16).slice(2)}`,
@@ -504,7 +504,18 @@ function addExerciseToMistakeBook(exercise, resource) {
     explanation: exercise.explanation || "",
     addedAt: new Date().toISOString(),
   };
-  saveMistakeBookItems([item].concat(state.mistakeBookItems || []));
+  const folderId = typeof openFavoriteCollectionPicker === "function"
+    ? await openFavoriteCollectionPicker({
+      title: "错题收藏到哪个收藏夹？",
+      detail: item.question || item.topic || "不选择时会放到默认收藏夹。",
+      kind: "mistake",
+    })
+    : "default";
+  const saved = saveMistakeBookItems([item].concat(state.mistakeBookItems || []));
+  if (saved && typeof addItemToFavoriteCollection === "function") {
+    addItemToFavoriteCollection("mistake", item.id, folderId);
+  }
+  return item;
 }
 
 function loadLearningDemandEvents() {
@@ -639,6 +650,14 @@ function summarizeDemandEvents(currentDemand = "") {
 
 function deleteMistakeBookItem(id) {
   saveMistakeBookItems((state.mistakeBookItems || []).filter((item) => item.id !== id));
+  if (typeof removeItemFromFavoriteCollection === "function") {
+    loadFavoriteCollections();
+    state.favoriteCollections = state.favoriteCollections.map((folder) => ({
+      ...folder,
+      mistakeIds: (folder.mistakeIds || []).filter((itemId) => String(itemId) !== String(id)),
+    }));
+    saveFavoriteCollections();
+  }
 }
 
 function loadMistakeBookGroupBy() {
@@ -995,6 +1014,14 @@ function deleteStorageFile(fileId) {
   if (!file) return;
   if (!confirm(`确定删除文件“${file.title || file.filename}”吗？`)) return;
   saveStoredMarkdownFiles(state.storedMarkdownFiles.filter((item) => item.id !== fileId));
+  if (typeof removeItemFromFavoriteCollection === "function") {
+    loadFavoriteCollections();
+    state.favoriteCollections = state.favoriteCollections.map((folder) => ({
+      ...folder,
+      fileIds: (folder.fileIds || []).filter((id) => String(id) !== String(fileId)),
+    }));
+    saveFavoriteCollections();
+  }
   if (state.activeStorageFileId === fileId) closeStorageModal();
 }
 
@@ -1014,10 +1041,18 @@ function deleteStorageCategory(category) {
   if (!confirm(`确定删除“${category}”大类及其中 ${files.length} 个文件吗？`)) return;
   const ids = new Set(files.map((file) => file.id));
   saveStoredMarkdownFiles(state.storedMarkdownFiles.filter((file) => !ids.has(file.id)));
+  if (typeof removeItemFromFavoriteCollection === "function") {
+    loadFavoriteCollections();
+    state.favoriteCollections = state.favoriteCollections.map((folder) => ({
+      ...folder,
+      fileIds: (folder.fileIds || []).filter((id) => !ids.has(id)),
+    }));
+    saveFavoriteCollections();
+  }
   if (state.activeStorageFileId && ids.has(state.activeStorageFileId)) closeStorageModal();
 }
 
-function storeAndDownloadResource(index) {
+async function storeAndDownloadResource(index) {
   const item = state.learningResources?.resources?.[index];
   if (!item) return;
   const content = resourcePlainText(item.content || "");
@@ -1034,8 +1069,18 @@ function storeAndDownloadResource(index) {
     content,
     createdAt: new Date().toISOString(),
   };
+  const folderId = typeof openFavoriteCollectionPicker === "function"
+    ? await openFavoriteCollectionPicker({
+      title: "文档收藏到哪个收藏夹？",
+      detail: title,
+      kind: "file",
+    })
+    : "default";
   const next = [file].concat(state.storedMarkdownFiles || []);
-  saveStoredMarkdownFiles(next);
+  const saved = saveStoredMarkdownFiles(next);
+  if (saved && typeof addItemToFavoriteCollection === "function") {
+    addItemToFavoriteCollection("file", file.id, folderId);
+  }
   recordLearningBehavior("storage_saved", {
     category: file.category,
     topic: title,

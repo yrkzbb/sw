@@ -353,10 +353,12 @@ function openProfileSocialLink(kind) {
 function defaultFavoriteCollections() {
   return [{
     id: "default",
-    name: "灵感收藏",
-    description: "收藏的帖子、问答、文章和经验都会先放在这里。",
+    name: "默认收藏夹",
+    description: "没有特别选择收藏夹时，帖子、存储文档和错题都会先放在这里。",
     visibility: "private",
     postIds: [],
+    fileIds: [],
+    mistakeIds: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   }];
@@ -366,14 +368,18 @@ function normalizeFavoriteCollections(value) {
   const raw = Array.isArray(value) ? value : [];
   const folders = raw.map((folder) => ({
     id: String(folder?.id || `fav-${Date.now()}`).slice(0, 80),
-    name: String(folder?.name || "未命名收藏夹").trim().slice(0, 32) || "未命名收藏夹",
+    name: String(folder?.id === "default" ? "默认收藏夹" : (folder?.name || "未命名收藏夹")).trim().slice(0, 32) || "未命名收藏夹",
     description: String(folder?.description || "").trim().slice(0, 120),
     visibility: folder?.visibility === "public" ? "public" : "private",
     postIds: Array.from(new Set(Array.isArray(folder?.postIds) ? folder.postIds.map((id) => String(id)) : [])),
+    fileIds: Array.from(new Set(Array.isArray(folder?.fileIds) ? folder.fileIds.map((id) => String(id)) : [])),
+    mistakeIds: Array.from(new Set(Array.isArray(folder?.mistakeIds) ? folder.mistakeIds.map((id) => String(id)) : [])),
     createdAt: folder?.createdAt || new Date().toISOString(),
     updatedAt: folder?.updatedAt || new Date().toISOString(),
   }));
-  return folders.length ? folders : defaultFavoriteCollections();
+  const existingDefault = folders.find((folder) => folder.id === "default");
+  if (existingDefault) return folders;
+  return defaultFavoriteCollections().concat(folders);
 }
 
 function loadFavoriteCollections() {
@@ -391,6 +397,79 @@ function loadFavoriteCollections() {
 function saveFavoriteCollections() {
   state.favoriteCollections = normalizeFavoriteCollections(state.favoriteCollections);
   localStorage.setItem(FAVORITE_COLLECTIONS_STORAGE, JSON.stringify(state.favoriteCollections));
+}
+
+function favoriteCollectionItemCount(folder) {
+  return (folder?.postIds?.length || 0) + (folder?.fileIds?.length || 0) + (folder?.mistakeIds?.length || 0);
+}
+
+function defaultFavoriteCollection() {
+  loadFavoriteCollections();
+  return state.favoriteCollections.find((folder) => folder.id === "default") || state.favoriteCollections[0] || defaultFavoriteCollections()[0];
+}
+
+function syncLocalItemsIntoFavoriteCollections() {
+  loadFavoriteCollections();
+  const fileIds = new Set((state.storedMarkdownFiles || []).map((file) => String(file.id)));
+  const mistakeIds = new Set((state.mistakeBookItems || []).map((item) => String(item.id)));
+  let changed = false;
+  state.favoriteCollections = state.favoriteCollections.map((folder) => {
+    const nextFileIds = (folder.fileIds || []).filter((id) => fileIds.has(String(id)));
+    const nextMistakeIds = (folder.mistakeIds || []).filter((id) => mistakeIds.has(String(id)));
+    if (nextFileIds.length !== (folder.fileIds || []).length || nextMistakeIds.length !== (folder.mistakeIds || []).length) changed = true;
+    return { ...folder, fileIds: nextFileIds, mistakeIds: nextMistakeIds };
+  });
+  const defaultFolder = state.favoriteCollections.find((folder) => folder.id === "default") || state.favoriteCollections[0];
+  if (!defaultFolder) return;
+  const assignedFileIds = new Set(state.favoriteCollections.flatMap((folder) => (folder.fileIds || []).map(String)));
+  const assignedMistakeIds = new Set(state.favoriteCollections.flatMap((folder) => (folder.mistakeIds || []).map(String)));
+  (state.storedMarkdownFiles || []).forEach((file) => {
+    const id = String(file.id);
+    if (!assignedFileIds.has(id)) {
+      defaultFolder.fileIds.unshift(id);
+      changed = true;
+    }
+  });
+  (state.mistakeBookItems || []).forEach((item) => {
+    const id = String(item.id);
+    if (!assignedMistakeIds.has(id)) {
+      defaultFolder.mistakeIds.unshift(id);
+      changed = true;
+    }
+  });
+  if (changed) {
+    defaultFolder.updatedAt = new Date().toISOString();
+    saveFavoriteCollections();
+  }
+}
+
+function addItemToFavoriteCollection(kind, itemId, folderId = "") {
+  if (!itemId || !["post", "file", "mistake"].includes(kind)) return;
+  loadFavoriteCollections();
+  const defaultFolder = defaultFavoriteCollection();
+  const target = state.favoriteCollections.find((folder) => folder.id === folderId) || defaultFolder;
+  const key = kind === "post" ? "postIds" : kind === "file" ? "fileIds" : "mistakeIds";
+  state.favoriteCollections = state.favoriteCollections.map((folder) => ({
+    ...folder,
+    [key]: (folder[key] || []).filter((id) => String(id) !== String(itemId)),
+  }));
+  const refreshed = state.favoriteCollections.find((folder) => folder.id === target.id) || target;
+  refreshed[key] = [String(itemId)].concat(refreshed[key] || []);
+  refreshed.updatedAt = new Date().toISOString();
+  saveFavoriteCollections();
+  if (state.personalProfileTab === "collections") renderFavoriteCollectionsPanel();
+}
+
+function removeItemFromFavoriteCollection(folderId, kind, itemId) {
+  loadFavoriteCollections();
+  const key = kind === "post" ? "postIds" : kind === "file" ? "fileIds" : "mistakeIds";
+  state.favoriteCollections = state.favoriteCollections.map((folder) => (
+    folder.id === folderId
+      ? { ...folder, [key]: (folder[key] || []).filter((id) => String(id) !== String(itemId)), updatedAt: new Date().toISOString() }
+      : folder
+  ));
+  saveFavoriteCollections();
+  renderFavoriteCollectionsPanel();
 }
 
 function favoritePostById(postId) {
@@ -444,16 +523,8 @@ async function loadFavoritePostsForProfile(force = false) {
 
 function addFavoriteToDefaultCollection(post) {
   if (!post?.id) return;
-  loadFavoriteCollections();
-  const folder = state.favoriteCollections[0] || defaultFavoriteCollections()[0];
-  if (!folder.postIds.includes(String(post.id))) {
-    folder.postIds.unshift(String(post.id));
-    folder.updatedAt = new Date().toISOString();
-  }
-  if (!state.favoriteCollections.find((item) => item.id === folder.id)) state.favoriteCollections.unshift(folder);
   if (!state.favoritePosts.find((item) => String(item.id) === String(post.id))) state.favoritePosts.unshift(post);
-  saveFavoriteCollections();
-  if (state.personalProfileTab === "collections") renderFavoriteCollectionsPanel();
+  addItemToFavoriteCollection("post", post.id, "default");
 }
 
 function removeFavoriteFromAllCollections(postId) {
@@ -479,6 +550,8 @@ function createFavoriteCollection() {
     description: description.trim().slice(0, 120),
     visibility: "private",
     postIds: [],
+    fileIds: [],
+    mistakeIds: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -537,6 +610,66 @@ async function removePostFromFavoriteCollection(folderId, postId) {
   renderFavoriteCollectionsPanel();
 }
 
+function openFavoriteCollectionPicker({ title = "选择收藏夹", detail = "", kind = "post" } = {}) {
+  loadFavoriteCollections();
+  return new Promise((resolve) => {
+    let settled = false;
+    const finish = (folderId = "default") => {
+      if (settled) return;
+      settled = true;
+      modal.remove();
+      resolve(folderId || "default");
+    };
+    const modal = document.createElement("div");
+    modal.className = "favorite-picker-modal";
+    modal.innerHTML = `
+      <div class="favorite-picker-backdrop" data-favorite-picker-default></div>
+      <section class="favorite-picker-panel wiki-glass" role="dialog" aria-modal="true" aria-label="选择收藏夹">
+        <header class="favorite-picker-head">
+          <div>
+            <span>${kind === "file" ? "SAVE DOCUMENT" : kind === "mistake" ? "SAVE MISTAKE" : "SAVE FAVORITE"}</span>
+            <h3>${escapeHtml(title)}</h3>
+            <p>${escapeHtml(detail || "不选择时会自动添加到默认收藏夹。")}</p>
+          </div>
+          <button type="button" data-favorite-picker-default aria-label="关闭">×</button>
+        </header>
+        <div class="favorite-picker-list">
+          ${state.favoriteCollections.map((folder) => `
+            <button type="button" data-favorite-picker-folder="${escapeHtml(folder.id)}">
+              <strong>${escapeHtml(folder.name)}</strong>
+              <span>${favoriteCollectionItemCount(folder)} 条 · ${folder.visibility === "public" ? "公开" : "仅自己"}</span>
+            </button>
+          `).join("")}
+        </div>
+        <footer>
+          <button type="button" data-favorite-picker-default>放到默认收藏夹</button>
+        </footer>
+      </section>
+    `;
+    modal.addEventListener("click", (event) => {
+      const target = event.target instanceof HTMLElement ? event.target : null;
+      const folderButton = target?.closest("[data-favorite-picker-folder]");
+      if (folderButton) {
+        finish(folderButton.getAttribute("data-favorite-picker-folder") || "default");
+        return;
+      }
+      if (target?.closest("[data-favorite-picker-default]")) finish("default");
+    });
+    document.body.appendChild(modal);
+  });
+}
+
+async function chooseAndAddFavoritePost(post) {
+  if (!post?.id) return;
+  if (!state.favoritePosts.find((item) => String(item.id) === String(post.id))) state.favoritePosts.unshift(post);
+  const folderId = await openFavoriteCollectionPicker({
+    title: "收藏到哪个收藏夹？",
+    detail: post.title || "不选择时会放到默认收藏夹。",
+    kind: "post",
+  });
+  addItemToFavoriteCollection("post", post.id, folderId);
+}
+
 function renderFavoritePostCard(post, folderId) {
   if (!post) return "";
   const tags = Array.isArray(post.tags) ? post.tags.slice(0, 3) : [];
@@ -548,6 +681,35 @@ function renderFavoritePostCard(post, folderId) {
       <p>${escapeHtml(post.summary || post.body || "")}</p>
       <div>${tags.map((tag) => `<em>#${escapeHtml(tag)}</em>`).join("")}</div>
       <small>${escapeHtml(post.author?.name || "社区用户")} · 赞 ${post.likes || 0} · 评 ${post.comments || 0}</small>
+    </article>
+  `;
+}
+
+function renderFavoriteFileCard(file, folderId) {
+  if (!file) return "";
+  const isSvg = /^\s*<svg[\s>]/i.test(file.content || "");
+  return `
+    <article class="wiki-favorite-post-card wiki-favorite-file-card" data-favorite-open-file="${escapeHtml(file.id)}" tabindex="0">
+      <button class="wiki-favorite-remove" type="button" data-favorite-remove-item="${escapeHtml(file.id)}" data-favorite-item-kind="file" data-favorite-folder-id="${escapeHtml(folderId)}" aria-label="移出收藏">×</button>
+      <span>${isSvg ? "思维导图" : "Markdown"} · ${escapeHtml(formatWikiDate(file.createdAt) || "")}</span>
+      <h4>${escapeHtml(file.title || file.filename || "未命名文档")}</h4>
+      <p>${escapeHtml((file.content || "").replace(/[#*_`>\-\n]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "暂无预览。")}</p>
+      <div><em>#${escapeHtml(file.category || "其他")}</em><em>${escapeHtml(file.filename || "文档")}</em></div>
+      <small>存储文档 · 点击或回车打开编辑</small>
+    </article>
+  `;
+}
+
+function renderFavoriteMistakeCard(item, folderId) {
+  if (!item) return "";
+  return `
+    <article class="wiki-favorite-post-card wiki-favorite-mistake-card">
+      <button class="wiki-favorite-remove" type="button" data-favorite-remove-item="${escapeHtml(item.id)}" data-favorite-item-kind="mistake" data-favorite-folder-id="${escapeHtml(folderId)}" aria-label="移出收藏">×</button>
+      <span>${escapeHtml(item.type || "练习题")} · ${escapeHtml(formatWikiDate(item.addedAt) || "")}</span>
+      <h4>${renderInlineMathText(item.question || "未命名题目")}</h4>
+      <p>${escapeHtml(item.explanation || item.answer || "暂无详解。")}</p>
+      <div><em>#${escapeHtml(item.category || "其他")}</em><em>${escapeHtml(item.difficulty || "中等")}</em></div>
+      <small>答案：${escapeHtml(item.answer || "待补充")}</small>
     </article>
   `;
 }
@@ -700,19 +862,31 @@ function renderWikiPortraitPanel() {
 function renderFavoriteCollectionsPanel() {
   if (!el.profileContentPanel) return;
   loadFavoriteCollections();
+  syncLocalItemsIntoFavoriteCollections();
   const selected = state.favoriteCollections.find((folder) => folder.id === state.favoriteSelectedCollectionId)
     || state.favoriteCollections[0];
   if (selected) state.favoriteSelectedCollectionId = selected.id;
   const posts = selected
     ? selected.postIds.map(favoritePostById).filter(Boolean)
     : [];
+  const files = selected
+    ? (selected.fileIds || []).map((id) => (state.storedMarkdownFiles || []).find((file) => String(file.id) === String(id))).filter(Boolean)
+    : [];
+  const mistakes = selected
+    ? (selected.mistakeIds || []).map((id) => (state.mistakeBookItems || []).find((item) => String(item.id) === String(id))).filter(Boolean)
+    : [];
+  const itemsHtml = [
+    ...posts.map((post) => renderFavoritePostCard(post, selected.id)),
+    ...files.map((file) => renderFavoriteFileCard(file, selected.id)),
+    ...mistakes.map((item) => renderFavoriteMistakeCard(item, selected.id)),
+  ].join("");
   el.profileContentPanel.innerHTML = `
     <section class="wiki-favorites-shell">
       <header class="wiki-favorites-head">
         <div>
           <span>FAVORITES</span>
           <h3>我的收藏</h3>
-          <p>收藏夹可公开或仅自己可见；帖子、问答、文章都可以归档在这里。</p>
+          <p>收藏夹可公开或仅自己可见；帖子、存储文档和错题都可以归档在这里。</p>
         </div>
         <button type="button" data-favorite-create-folder>新建收藏夹</button>
       </header>
@@ -721,7 +895,7 @@ function renderFavoriteCollectionsPanel() {
           ${state.favoriteCollections.map((folder) => `
             <button class="${folder.id === selected?.id ? "active" : ""}" type="button" data-favorite-folder="${escapeHtml(folder.id)}">
               <strong>${escapeHtml(folder.name)}</strong>
-              <span>${folder.postIds.length} 条 · ${folder.visibility === "public" ? "公开" : "仅自己"}</span>
+              <span>${favoriteCollectionItemCount(folder)} 条 · ${folder.visibility === "public" ? "公开" : "仅自己"}</span>
             </button>
           `).join("")}
         </div>
@@ -740,7 +914,7 @@ function renderFavoriteCollectionsPanel() {
             </div>
             <div class="wiki-favorite-post-grid">
               ${state.favoriteCollectionsLoading ? profileEmptyState("收藏同步中", "正在读取你收藏过的内容。") : ""}
-              ${posts.length ? posts.map((post) => renderFavoritePostCard(post, selected.id)).join("") : profileEmptyState("这个收藏夹还空着", "在推送页点星标收藏内容后，会先进入默认收藏夹。")}
+              ${itemsHtml || profileEmptyState("这个收藏夹还空着", "收藏帖子、下载存储文档或加入错题后，会先进入默认收藏夹。")}
             </div>
           ` : profileEmptyState("还没有收藏夹", "新建一个收藏夹开始收集内容。")}
         </article>
