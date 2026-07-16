@@ -4,6 +4,7 @@ async function init() {
       "https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/";
   }
   initTheme();
+  restoreViewFromHash();
   await initAuth();
   initApiKeyModal();
   initFeedEventHandlers();
@@ -25,6 +26,18 @@ async function init() {
       if (isAssessmentPageVisible()) void refreshLearningAssessment("desktop_browser_reload");
     }, 250);
   }
+  document.documentElement.classList.remove(
+    "route-boot-chat",
+    "route-boot-profile",
+    "route-boot-user-info",
+    "route-boot-resources",
+    "route-boot-push",
+    "route-boot-path",
+    "route-boot-assessment",
+    "route-boot-storage",
+    "route-boot-mistakes",
+    "route-boot-home"
+  );
 }
 
 

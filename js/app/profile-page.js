@@ -175,6 +175,14 @@ function renderPersonalProfileChrome() {
   if (el.profileOwnHomeBtn) {
     el.profileOwnHomeBtn.hidden = !publicProfile;
   }
+  if (el.profilePublicFollowBtn) {
+    const isOwnPublicPage = publicAuthor && String(publicAuthor.id) === String(state.activeUser?.id);
+    const showFollow = Boolean(publicAuthor) && !isOwnPublicPage;
+    el.profilePublicFollowBtn.hidden = !showFollow;
+    el.profilePublicFollowBtn.textContent = publicAuthor?.followed ? "取消关注" : "关注";
+    el.profilePublicFollowBtn.classList.toggle("is-active", Boolean(publicAuthor?.followed));
+    el.profilePublicFollowBtn.setAttribute("aria-pressed", String(Boolean(publicAuthor?.followed)));
+  }
   if (el.personalProfileName) el.personalProfileName.textContent = userName;
   if (el.personalProfileHandle) el.personalProfileHandle.textContent = handle;
   if (el.personalProfileBio) el.personalProfileBio.textContent = bio;
@@ -1214,6 +1222,33 @@ async function openPublicAuthorProfilePage(authorId) {
   }
 }
 
+async function togglePublicProfileFollow() {
+  const author = state.publicProfile?.author;
+  if (!author?.id) return;
+  if (el.profilePublicFollowBtn) el.profilePublicFollowBtn.disabled = true;
+  try {
+    const payload = await apiJson(`/api/feed/authors/${encodeURIComponent(author.id)}/follow`, { method: "POST" });
+    const active = Boolean(payload.active);
+    state.publicProfile.author = {
+      ...author,
+      followed: active,
+      followers: Math.max(0, Number(author.followers || 0) + (active ? 1 : -1)),
+    };
+    state.feedPosts = (state.feedPosts || []).map((post) => (
+      String(post.author?.id) === String(author.id)
+        ? { ...post, author: { ...post.author, followed: active } }
+        : post
+    ));
+    if (typeof loadProfileSocialStats === "function") void loadProfileSocialStats(true);
+    renderPersonalProfileChrome();
+    renderProfileContentPanel();
+  } catch (e) {
+    window.alert(String(e?.message || "关注操作失败。"));
+  } finally {
+    if (el.profilePublicFollowBtn) el.profilePublicFollowBtn.disabled = false;
+  }
+}
+
 function contributionValues() {
   return [2, 4, 1, 5, 3, 6, 4, 7, 3, 2, 6, 9, 4, 5, 8, 6, 4, 7, 10, 5, 3, 6, 8, 7, 5, 9, 6, 4, 8, 11];
 }
@@ -1372,13 +1407,34 @@ function renderProfilePostDetail(post, editable = false) {
   const headings = profilePostHeadings(post);
   const tags = profileArchiveTags(post).filter((tag) => tag !== "未打标签");
   const fullDate = formatWikiFullDate(post.createdAt || post.updatedAt) || "";
+  const backLabel = state.feedReturnContext?.openedPostId === String(post.id) ? "返回推送" : "返回归档";
+  const author = post.author || {};
+  const authorId = author.id != null ? String(author.id) : "";
+  const authorName = author.name || "社区作者";
+  const authorInitial = String(authorName).trim().slice(0, 2).toUpperCase() || "作";
+  const authorEntry = authorId
+    ? `<button class="wiki-post-author-link" type="button" data-profile-author-id="${escapeHtml(authorId)}" aria-label="查看 ${escapeHtml(authorName)} 的主页">
+        <span class="wiki-post-author-avatar">${escapeHtml(authorInitial)}</span>
+        <span class="wiki-post-author-meta">
+          <strong>${escapeHtml(authorName)}</strong>
+          <em>查看作者主页</em>
+        </span>
+      </button>`
+    : `<div class="wiki-post-author-link is-static">
+        <span class="wiki-post-author-avatar">${escapeHtml(authorInitial)}</span>
+        <span class="wiki-post-author-meta">
+          <strong>${escapeHtml(authorName)}</strong>
+          <em>作者</em>
+        </span>
+      </div>`;
   return `
     <article class="wiki-post-reader">
       <div class="wiki-post-main wiki-glass">
-        <button class="wiki-post-back" type="button" data-profile-back-archive>返回归档</button>
+        <button class="wiki-post-back" type="button" data-profile-back-archive>${escapeHtml(backLabel)}</button>
         <header>
           <h1>${escapeHtml(post.title || "未命名动态")}</h1>
           <time>${escapeHtml(fullDate)}</time>
+          ${authorEntry}
           <div class="wiki-post-tags">
             ${(tags.length ? tags : [post.category || "未分类"]).filter(Boolean).map((tag) => `<span>#${escapeHtml(String(tag).replace(/^#/, ""))}</span>`).join("")}
           </div>
@@ -1398,6 +1454,7 @@ function renderProfilePostDetail(post, editable = false) {
         </section>
         <section class="wiki-post-side-card wiki-glass">
           <strong>信息</strong>
+          ${authorId ? `<button class="wiki-post-side-author" type="button" data-profile-author-id="${escapeHtml(authorId)}">作者 ${escapeHtml(authorName)}</button>` : `<span>作者 ${escapeHtml(authorName)}</span>`}
           <span>${escapeHtml(post.category || "未分类")}</span>
           <span>${Number(post.likes || 0)} 赞 · ${Number(post.comments || 0)} 评论</span>
           <span>热度 ${Number(post.heatScore || 0).toFixed(1)}</span>

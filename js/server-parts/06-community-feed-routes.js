@@ -1,5 +1,5 @@
 const FEED_TYPES = new Set(["question", "answer", "thought", "article", "document", "video"]);
-const FEED_SORTS = new Set(["recommended", "latest", "hot"]);
+const FEED_SORTS = new Set(["recommended", "latest", "hot", "follow"]);
 const FEED_DEMO_AUTHORS = [
   { username: "Lin Chen", email: "lin.chen.feed@example.local" },
   { username: "Kai Ming", email: "kai.ming.feed@example.local" },
@@ -381,6 +381,9 @@ function rankFeedPosts(posts, sort) {
   if (sort === "hot") {
     return posts.sort((a, b) => b.heatScore - a.heatScore || new Date(b.createdAt) - new Date(a.createdAt));
   }
+  if (sort === "follow") {
+    return posts.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  }
   return posts.sort((a, b) => b.recommendationScore - a.recommendationScore || b.heatScore - a.heatScore);
 }
 
@@ -452,6 +455,18 @@ async function queryFeedPosts(pool, userId, sort, page, limit) {
   if (sort === "recommended") {
     const candidates = await recallFeedCandidates(pool, userId, signals, offset + limit + 8);
     return rankFeedPosts(candidates.map((row) => publicFeedPost(row, signals)), sort).slice(offset, offset + limit);
+  }
+  if (sort === "follow") {
+    const rows = await fetchFeedRows(
+      pool,
+      userId,
+      `AND EXISTS (SELECT 1 FROM ${tableName("feed_author_follows")} f WHERE f.follower_id = ? AND f.followee_id = p.author_id)`,
+      [userId],
+      "p.created_at DESC",
+      offset + limit,
+      "follow"
+    );
+    return rankFeedPosts(rows.map((row) => publicFeedPost(row, signals)), sort).slice(offset, offset + limit);
   }
   const orderBy = sort === "latest" ? "p.created_at DESC" : "p.heat_score DESC, p.created_at DESC";
   const rows = await fetchFeedRows(pool, userId, "", [], orderBy, offset + limit, sort);

@@ -622,6 +622,61 @@ function showPushPage() {
   renderPushPage();
 }
 
+function showPushComposePage() {
+  if (!el.pushPage) return;
+  setComposerVisible(false);
+  if (el.home) el.home.hidden = true;
+  if (el.chat) el.chat.hidden = true;
+  if (el.profilePage) el.profilePage.hidden = true;
+  if (el.userInfoPage) el.userInfoPage.hidden = true;
+  if (el.resourcePage) el.resourcePage.hidden = true;
+  if (el.pathPage) el.pathPage.hidden = true;
+  if (el.assessmentPage) el.assessmentPage.hidden = true;
+  if (el.storagePage) el.storagePage.hidden = true;
+  if (el.mistakePage) el.mistakePage.hidden = true;
+  el.pushPage.hidden = false;
+  el.pushPageBtn?.classList.add("active");
+  el.chatPageBtn?.classList.remove("active");
+  el.profilePageBtn?.classList.remove("active");
+  el.userInfoPageBtn?.classList.remove("active");
+  el.resourcePageBtn?.classList.remove("active");
+  el.pathPageBtn?.classList.remove("active");
+  el.assessmentPageBtn?.classList.remove("active");
+  el.storagePageBtn?.classList.remove("active");
+  el.mistakePageBtn?.classList.remove("active");
+  setPageHash("#push/compose");
+  if (typeof renderFeedComposePage === "function") renderFeedComposePage();
+}
+
+function returnToFeedFromPost() {
+  const context = state.feedReturnContext;
+  if (!context) return false;
+  state.feedSort = context.sort || state.feedSort || "recommended";
+  state.feedPage = Number(context.page || state.feedPage || 1);
+  state.feedPosts = Array.isArray(context.posts) ? context.posts : state.feedPosts;
+  state.feedHasMore = Boolean(context.hasMore);
+  showPushPage();
+  const openedPostId = String(context.openedPostId || "");
+  const scrollY = Number(context.scrollY || 0);
+  state.feedReturnContext = null;
+  const restoreScroll = () => {
+    const escapedId = window.CSS?.escape ? CSS.escape(openedPostId) : openedPostId.replace(/"/g, '\\"');
+    const openedCard = openedPostId ? document.querySelector(`[data-feed-post-id="${escapedId}"]`) : null;
+    if (openedCard) {
+      openedCard.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
+      return;
+    }
+    window.scrollTo({ top: scrollY, left: 0, behavior: "auto" });
+  };
+  window.requestAnimationFrame(() => {
+    restoreScroll();
+    window.requestAnimationFrame(restoreScroll);
+  });
+  window.setTimeout(restoreScroll, 80);
+  window.setTimeout(restoreScroll, 220);
+  return true;
+}
+
 function showPathPage() {
   if (!el.pathPage) return;
   setComposerVisible(false);
@@ -755,6 +810,8 @@ function restoreViewFromHash() {
     }
   } else if (window.location.hash === "#resources") {
     showResourcePage();
+  } else if (window.location.hash === "#push/compose") {
+    showPushComposePage();
   } else if (window.location.hash === "#push") {
     showPushPage();
   } else if (window.location.hash === "#path") {
@@ -1284,6 +1341,9 @@ function initEventHandlers() {
     showUserInfoPage();
   });
   el.profileOwnHomeBtn?.addEventListener("click", () => showUserInfoPage());
+  el.profilePublicFollowBtn?.addEventListener("click", () => {
+    if (typeof togglePublicProfileFollow === "function") void togglePublicProfileFollow();
+  });
   el.profileHeroAvatar?.addEventListener("click", () => {
     const input = document.querySelector("#profileAvatarImageInput");
     if (input instanceof HTMLInputElement) input.click();
@@ -1331,16 +1391,15 @@ function initEventHandlers() {
     }
     const postButton = target?.closest("[data-profile-post-id]");
     if (postButton) {
-      if (state.publicProfile) {
-        const post = (state.publicProfile.posts || [])
-          .concat((state.publicProfile.publicCollections || []).flatMap((folder) => folder.posts || []))
-          .find((item) => String(item.id) === String(postButton.getAttribute("data-profile-post-id")));
-        if (post && typeof openFeedPostDetail === "function") {
-          openFeedPostDetail(post);
-          return;
-        }
-      }
       showUserInfoPage({ mode: "post", postId: postButton.getAttribute("data-profile-post-id") });
+      return;
+    }
+    const authorButton = target?.closest("[data-profile-author-id]");
+    if (authorButton) {
+      const authorId = authorButton.getAttribute("data-profile-author-id") || "";
+      if (typeof openPublicAuthorProfilePage === "function") {
+        void openPublicAuthorProfilePage(authorId);
+      }
       return;
     }
     const socialButton = target?.closest("[data-profile-social]");
@@ -1363,6 +1422,7 @@ function initEventHandlers() {
       return;
     }
     if (target?.closest("[data-profile-back-archive]")) {
+      if (returnToFeedFromPost()) return;
       showUserInfoPage({ mode: "archive", tab: state.personalProfileTab || "answers", keepPublicProfile: Boolean(state.publicProfile) });
       return;
     }
@@ -1419,8 +1479,7 @@ function initEventHandlers() {
       return;
     }
     if (target?.closest(".wiki-write-btn")) {
-      showPushPage();
-      setFeedComposerOpen(true);
+      showPushComposePage();
       return;
     }
     const filterButton = target?.closest("[data-profile-filter]");

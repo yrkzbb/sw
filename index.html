@@ -13,26 +13,29 @@
           const authMode = localStorage.getItem("LINGXI_AUTH_MODE") === "login" ? "login" : "register";
           document.documentElement.classList.add(hasActiveUser ? "auth-boot-user" : "auth-boot-guest");
           document.documentElement.classList.add(`auth-boot-${authMode}`);
+          const bootRoute = (window.location.hash || "").replace(/^#/, "").split("/")[0] || "home";
+          const knownRoutes = new Set(["chat", "profile", "user-info", "resources", "push", "path", "assessment", "storage", "mistakes"]);
+          document.documentElement.classList.add(`route-boot-${knownRoutes.has(bootRoute) ? bootRoute : "home"}`);
         } catch {
           document.documentElement.classList.add("auth-boot-guest", "auth-boot-register");
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260716-resource-wiki" />
+    <link rel="stylesheet" href="./css/index.css?v=20260716-compose-studio" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/app/config-state.js?v=20260716-resource-copy-clean" defer></script>
+    <script src="./js/app/config-state.js?v=20260716-compose-studio" defer></script>
     <script src="./js/app/auth-account.js?v=20260715-account-modal" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260716-profile-evidence" defer></script>
     <script src="./js/app/resources.js?v=20260716-resource-copy-clean" defer></script>
     <script src="./js/app/learning-path-assessment.js?v=20260715-profile-modal-style" defer></script>
-    <script src="./js/app/community-feed.js?v=20260716-profile-evidence" defer></script>
+    <script src="./js/app/community-feed.js?v=20260716-compose-studio" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260716-resource-copy-clean" defer></script>
-    <script src="./js/app/profile-page.js?v=20260716-portrait-refresh" defer></script>
-    <script src="./js/app/chat-navigation-events.js?v=20260716-portrait-refresh" defer></script>
+    <script src="./js/app/profile-page.js?v=20260716-post-author-link" defer></script>
+    <script src="./js/app/chat-navigation-events.js?v=20260716-compose-studio" defer></script>
     <script src="./js/app/init.js?v=20260715-split" defer></script>
   </head>
   <body data-theme="dark">
@@ -223,6 +226,7 @@
                   <p id="personalProfileHandle">开发中</p>
                 </div>
               </div>
+              <button id="profilePublicFollowBtn" class="profile-follow-button wiki-public-follow-btn" type="button" hidden>关注</button>
               <div class="wiki-menu-list" id="profileTabs" role="tablist" aria-label="个人内容">
                 <button class="active" type="button" role="tab" data-profile-tab="answers"><span>▤</span>近期文章</button>
                 <button type="button" role="tab" data-profile-tab="collections"><span>◡</span>我的收藏</button>
@@ -312,13 +316,6 @@
         </section>
 
         <section id="resourcePage" class="resource-page resource-wiki-page" hidden>
-          <div class="resource-header resource-wiki-hero">
-            <div>
-              <span class="resource-wiki-kicker">LEARNING RESOURCES</span>
-              <h1 class="profile-title">学习资源</h1>
-            </div>
-            <button id="generateResourcesBtn" class="primary-btn resource-generate-btn" type="button">生成资源</button>
-          </div>
           <div class="resource-wiki-builder">
             <div class="resource-control">
               <label class="resource-field">
@@ -327,6 +324,7 @@
               </label>
             </div>
             <aside class="resource-wiki-brief" aria-label="生成策略">
+              <button id="generateResourcesBtn" class="primary-btn resource-generate-btn" type="button">生成资源</button>
               <span>RESOURCE PLAN</span>
               <h2>生成策略</h2>
               <p>先解析主题和薄弱点，再按你选择的 Agent 生成资料，最后自动沉淀到学习路径。</p>
@@ -360,27 +358,30 @@
         </section>
 
         <section id="pushPage" class="push-page" hidden>
-          <div class="resource-header">
-            <div>
-              <h1 class="profile-title">社区动态推送</h1>
-              <div class="profile-meta">像社区笔记流一样浏览回答、文档、视频、问题和经验分享；系统先召回候选内容，再按兴趣、画像、关注和热度重排。</div>
-            </div>
-            <button id="pushGenerateResourcesBtn" class="primary-btn resource-generate-btn" type="button">发布内容</button>
-          </div>
           <div class="feed-toolbar" aria-label="动态筛选">
             <div class="feed-tabs" role="tablist" aria-label="动态排序">
               <button class="feed-tab active" type="button" data-feed-sort="recommended" role="tab" aria-selected="true">推荐</button>
               <button class="feed-tab" type="button" data-feed-sort="latest" role="tab" aria-selected="false">最新</button>
               <button class="feed-tab" type="button" data-feed-sort="hot" role="tab" aria-selected="false">最热</button>
+              <button class="feed-tab" type="button" data-feed-sort="follow" role="tab" aria-selected="false">关注</button>
             </div>
-            <form id="feedInterestForm" class="feed-interest-form">
-              <input id="feedInterestInput" type="text" placeholder="兴趣标签，如 RAG、AI Coding、数据分析" autocomplete="off" />
-              <button type="submit">保存兴趣</button>
-            </form>
+            <button id="pushGenerateResourcesBtn" class="primary-btn resource-generate-btn" type="button">发布内容</button>
           </div>
-          <form id="feedComposer" class="feed-composer" hidden>
-            <div class="feed-composer-grid">
-              <label>
+          <form id="feedComposer" class="feed-composer feed-compose-studio" hidden>
+            <div class="feed-compose-hero">
+              <button class="wiki-post-back" type="button" data-feed-compose-close>返回推送</button>
+              <div>
+                <span>COMMUNITY PUBLISH</span>
+                <h1>发布内容</h1>
+                <p>用 Markdown 写下问题、经验、项目或资源，右侧预览会尽量贴近最终帖子效果。</p>
+              </div>
+              <div class="feed-compose-meter" aria-live="polite">
+                <strong id="feedComposeWordCount">0</strong>
+                <span id="feedComposeReadTime">约 1 分钟读完</span>
+              </div>
+            </div>
+            <div class="feed-compose-meta-grid">
+              <label class="feed-compose-field">
                 <span>类型</span>
                 <select id="feedTypeInput">
                   <option value="question">问题</option>
@@ -391,27 +392,50 @@
                   <option value="video">视频</option>
                 </select>
               </label>
-              <label>
+              <label class="feed-compose-field">
                 <span>分类</span>
                 <input id="feedCategoryInput" type="text" placeholder="例如：AI 应用" />
               </label>
-              <label class="feed-composer-wide">
+              <label class="feed-compose-field feed-compose-title-field">
                 <span>标题</span>
-                <input id="feedTitleInput" type="text" maxlength="180" placeholder="写一个清晰的标题" />
+                <input id="feedTitleInput" type="text" maxlength="180" placeholder="写一个清晰的标题" required />
               </label>
-              <label class="feed-composer-wide">
+              <label class="feed-compose-field">
                 <span>标签</span>
                 <input id="feedTagsInput" type="text" placeholder="用逗号或空格分隔" />
               </label>
-              <label class="feed-composer-wide">
-                <span>正文</span>
-                <textarea id="feedBodyInput" rows="5" placeholder="分享你的问题、答案、想法或经验"></textarea>
-              </label>
             </div>
+            <section class="feed-template-row" aria-label="发帖模板">
+              <button type="button" data-feed-template="question">问题求助模板</button>
+              <button type="button" data-feed-template="experience">经验分享模板</button>
+              <button type="button" data-feed-template="project">项目展示模板</button>
+              <button type="button" data-feed-template="resource">资源推荐模板</button>
+            </section>
+            <div class="feed-compose-mobile-tabs" role="tablist" aria-label="编辑器视图">
+              <button class="active" type="button" data-feed-compose-pane="edit" role="tab" aria-selected="true">编辑</button>
+              <button type="button" data-feed-compose-pane="preview" role="tab" aria-selected="false">预览</button>
+            </div>
+            <section class="feed-editor-shell">
+              <div class="feed-editor-pane" data-compose-pane="edit">
+                <div id="feedMarkdownToolbar" class="feed-markdown-toolbar" aria-label="Markdown 工具栏"></div>
+                <label class="feed-compose-body-field">
+                  <span>正文</span>
+                  <textarea id="feedBodyInput" rows="18" placeholder="从模板开始，或直接写 Markdown 正文" required></textarea>
+                </label>
+              </div>
+              <aside class="feed-preview-pane" data-compose-pane="preview">
+                <div class="feed-preview-head">
+                  <span>实时预览</span>
+                  <strong id="feedPreviewTitle">未命名内容</strong>
+                </div>
+                <div id="feedMarkdownPreview" class="feed-markdown-preview markdown-body"></div>
+              </aside>
+            </section>
             <div class="feed-composer-actions">
               <span id="feedComposerMessage" class="feed-message"></span>
+              <button type="button" class="feed-secondary-btn" data-feed-draft-save>保存草稿</button>
               <button type="button" class="feed-secondary-btn" data-feed-compose-close>取消</button>
-              <button type="submit" class="feed-primary-btn">发布</button>
+              <button id="feedPublishBtn" type="submit" class="feed-primary-btn" disabled>发布</button>
             </div>
           </form>
           <div id="pushGrid" class="push-grid" aria-live="polite"></div>

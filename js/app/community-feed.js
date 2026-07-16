@@ -15,6 +15,47 @@ const FEED_TYPE_META = {
   document: { icon: "页", cls: "document", cover: "知识文档" },
   video: { icon: "▶", cls: "video", cover: "视频笔记" },
 };
+const FEED_DRAFT_KEY = "LINGXI_FEED_COMPOSE_DRAFT";
+const FEED_MARKDOWN_TOOLS = [
+  { action: "bold", label: "B", title: "加粗" },
+  { action: "italic", label: "I", title: "斜体" },
+  { action: "heading", label: "H", title: "标题" },
+  { action: "quote", label: "“", title: "引用" },
+  { action: "codeblock", label: "{ }", title: "代码块" },
+  { action: "inlinecode", label: "`", title: "行内代码" },
+  { action: "ordered", label: "1.", title: "有序列表" },
+  { action: "unordered", label: "•", title: "无序列表" },
+  { action: "link", label: "↗", title: "链接" },
+  { action: "image", label: "图", title: "图片" },
+  { action: "hr", label: "—", title: "分割线" },
+  { action: "table", label: "表", title: "表格" },
+];
+const FEED_TEMPLATES = {
+  question: {
+    contentType: "question",
+    category: "问题求助",
+    tags: "求助 复盘",
+    body: "## 背景\n我正在学习/实现：\n\n## 遇到的问题\n- 现象：\n- 已尝试：\n- 卡住的位置：\n\n## 相关代码或材料\n```text\n贴一小段最关键的信息\n```\n\n## 希望得到的帮助\n1. \n2. ",
+  },
+  experience: {
+    contentType: "article",
+    category: "经验分享",
+    tags: "经验分享 方法论",
+    body: "## 一句话结论\n\n## 适用场景\n\n## 我的做法\n1. \n2. \n3. \n\n## 踩坑和修正\n| 问题 | 原因 | 解决方式 |\n| --- | --- | --- |\n|  |  |  |\n\n## 可以直接复用的清单\n- [ ] ",
+  },
+  project: {
+    contentType: "article",
+    category: "项目实践",
+    tags: "项目 实践 展示",
+    body: "## 项目简介\n\n## 核心功能\n- \n- \n\n## 技术实现\n```js\n// 放一段最能说明问题的代码\n```\n\n## 当前效果\n![项目截图](https://example.com/screenshot.png)\n\n## 下一步计划\n1. ",
+  },
+  resource: {
+    contentType: "document",
+    category: "资源推荐",
+    tags: "资源 推荐 学习路径",
+    body: "## 推荐资源\n\n## 适合谁\n\n## 为什么值得看\n> \n\n## 使用方式\n1. 先看：\n2. 再做：\n3. 最后复盘：\n\n## 相关链接\n[资源名称](https://example.com)",
+  },
+};
 
 function currentFeedPostById(id) {
   return state.feedPosts.find((item) => String(item.id) === String(id));
@@ -62,10 +103,11 @@ function setFeedMessage(message = "", type = "error") {
 }
 
 function setFeedComposerOpen(open) {
-  state.feedComposerOpen = Boolean(open);
-  if (el.feedComposer) el.feedComposer.hidden = !state.feedComposerOpen;
-  if (el.pushGenerateResourcesBtn) el.pushGenerateResourcesBtn.textContent = state.feedComposerOpen ? "收起发布" : "发布内容";
-  if (state.feedComposerOpen) el.feedTitleInput?.focus();
+  if (open) {
+    if (typeof showPushComposePage === "function") showPushComposePage();
+    return;
+  }
+  if (typeof showPushPage === "function") showPushPage();
 }
 
 async function loadFeed({ append = false } = {}) {
@@ -107,13 +149,29 @@ function renderFeedLoading() {
 }
 
 function renderPushPage() {
+  state.feedComposerOpen = false;
+  el.pushPage?.classList.remove("feed-compose-mode");
+  const toolbar = el.pushPage?.querySelector(".feed-toolbar");
+  if (toolbar) toolbar.hidden = false;
+  if (el.feedComposer) el.feedComposer.hidden = true;
+  if (el.pushGrid) el.pushGrid.hidden = false;
   updateFeedTabs();
-  if (el.feedInterestInput && !el.feedInterestInput.value && state.feedInterests.length) {
-    el.feedInterestInput.value = state.feedInterests.map((item) => item.tag).join("，");
-  }
   renderFeedPage();
   if (!state.feedPosts.length) void loadFeed();
   void loadFeedNotifications();
+}
+
+function renderFeedComposePage() {
+  state.feedComposerOpen = true;
+  el.pushPage?.classList.add("feed-compose-mode");
+  const toolbar = el.pushPage?.querySelector(".feed-toolbar");
+  if (toolbar) toolbar.hidden = true;
+  if (el.pushGrid) el.pushGrid.hidden = true;
+  if (el.feedComposer) el.feedComposer.hidden = false;
+  renderFeedMarkdownToolbar();
+  restoreFeedDraft();
+  updateFeedComposerPreview();
+  window.setTimeout(() => el.feedTitleInput?.focus(), 80);
 }
 
 function updateFeedTabs() {
@@ -127,21 +185,19 @@ function updateFeedTabs() {
 function renderFeedPage() {
   if (!el.pushGrid) return;
   updateFeedTabs();
-  const interestHtml = state.feedInterests.length
-    ? `<div class="feed-interest-strip">${state.feedInterests.slice(0, 8).map((item) => `<span>#${escapeHtml(item.tag)}</span>`).join("")}</div>`
-    : `<div class="feed-interest-strip"><span>还没有兴趣标签</span></div>`;
   const notificationHtml = renderFeedNotificationsHtml();
   if (!state.feedPosts.length) {
+    const emptyMessage = state.feedSort === "follow"
+      ? "还没有关注作者的动态。去推荐或最新里关注喜欢的作者后，这里会汇总他们的新帖子。"
+      : "还没有动态。发布第一条内容后会显示在这里。";
     el.pushGrid.innerHTML = `
       ${notificationHtml}
-      ${interestHtml}
-      <div class="resource-empty">还没有动态。发布第一条内容，或保存几个兴趣标签刷新推荐。</div>
+      <div class="resource-empty">${escapeHtml(emptyMessage)}</div>
     `;
     return;
   }
   el.pushGrid.innerHTML = `
     ${notificationHtml}
-    ${interestHtml}
     <section class="feed-masonry" aria-label="社区动态列表">
       ${state.feedPosts.map(renderFeedCard).join("")}
     </section>
@@ -229,12 +285,151 @@ function renderFeedCard(post) {
         <button type="button" data-feed-action="comment">
           <span aria-hidden="true">↗</span>${post.comments || 0}
         </button>
-        <button type="button" data-feed-action="follow" class="${post.author?.followed ? "active" : ""}" aria-pressed="${post.author?.followed ? "true" : "false"}">
-          ${post.author?.followed ? "已关" : "关注"}
-        </button>
       </div>
     </article>
   `;
+}
+
+function renderFeedMarkdownToolbar() {
+  if (!el.feedMarkdownToolbar || el.feedMarkdownToolbar.dataset.ready === "true") return;
+  el.feedMarkdownToolbar.innerHTML = FEED_MARKDOWN_TOOLS.map((tool) => `
+    <button type="button" data-markdown-tool="${escapeHtml(tool.action)}" title="${escapeHtml(tool.title)}" aria-label="${escapeHtml(tool.title)}">
+      ${escapeHtml(tool.label)}
+    </button>
+  `).join("");
+  el.feedMarkdownToolbar.dataset.ready = "true";
+}
+
+function feedDraftSnapshot() {
+  return {
+    contentType: el.feedTypeInput?.value || "question",
+    title: el.feedTitleInput?.value || "",
+    category: el.feedCategoryInput?.value || "",
+    tags: el.feedTagsInput?.value || "",
+    body: el.feedBodyInput?.value || "",
+  };
+}
+
+function saveFeedDraft({ silent = false } = {}) {
+  try {
+    localStorage.setItem(FEED_DRAFT_KEY, JSON.stringify(feedDraftSnapshot()));
+    if (!silent) setFeedMessage("草稿已保存。", "success");
+  } catch {
+    if (!silent) setFeedMessage("草稿保存失败。");
+  }
+}
+
+function restoreFeedDraft() {
+  if (el.feedComposer?.dataset.draftLoaded === "true") return;
+  el.feedComposer.dataset.draftLoaded = "true";
+  try {
+    const raw = localStorage.getItem(FEED_DRAFT_KEY);
+    if (!raw) return;
+    const draft = JSON.parse(raw);
+    if (el.feedTypeInput && draft.contentType) el.feedTypeInput.value = draft.contentType;
+    if (el.feedTitleInput) el.feedTitleInput.value = draft.title || "";
+    if (el.feedCategoryInput) el.feedCategoryInput.value = draft.category || "";
+    if (el.feedTagsInput) el.feedTagsInput.value = draft.tags || "";
+    if (el.feedBodyInput) el.feedBodyInput.value = draft.body || "";
+  } catch {
+  }
+}
+
+function applyFeedTemplate(name) {
+  const template = FEED_TEMPLATES[name];
+  if (!template) return;
+  if (el.feedTypeInput) el.feedTypeInput.value = template.contentType;
+  if (el.feedCategoryInput && !el.feedCategoryInput.value.trim()) el.feedCategoryInput.value = template.category;
+  if (el.feedTagsInput && !el.feedTagsInput.value.trim()) el.feedTagsInput.value = template.tags;
+  if (el.feedBodyInput) {
+    const current = el.feedBodyInput.value.trim();
+    el.feedBodyInput.value = current ? `${el.feedBodyInput.value.trim()}\n\n${template.body}` : template.body;
+    el.feedBodyInput.focus();
+  }
+  updateFeedComposerPreview();
+  saveFeedDraft({ silent: true });
+}
+
+function selectedFeedBodyText() {
+  const input = el.feedBodyInput;
+  if (!input) return { start: 0, end: 0, selected: "" };
+  return {
+    start: input.selectionStart || 0,
+    end: input.selectionEnd || 0,
+    selected: input.value.slice(input.selectionStart || 0, input.selectionEnd || 0),
+  };
+}
+
+function replaceFeedBodySelection(nextText, cursorStart, cursorEnd) {
+  const input = el.feedBodyInput;
+  if (!input) return;
+  const { start, end } = selectedFeedBodyText();
+  input.value = `${input.value.slice(0, start)}${nextText}${input.value.slice(end)}`;
+  const from = start + (cursorStart ?? nextText.length);
+  const to = start + (cursorEnd ?? cursorStart ?? nextText.length);
+  input.focus();
+  input.setSelectionRange(from, to);
+  updateFeedComposerPreview();
+  saveFeedDraft({ silent: true });
+}
+
+function prefixFeedSelection(prefix, fallback) {
+  const { selected } = selectedFeedBodyText();
+  const text = selected || fallback;
+  const next = text.split("\n").map((line) => `${prefix}${line || ""}`).join("\n");
+  replaceFeedBodySelection(next, prefix.length, next.length);
+}
+
+function wrapFeedSelection(before, after, fallback) {
+  const { selected } = selectedFeedBodyText();
+  const text = selected || fallback;
+  replaceFeedBodySelection(`${before}${text}${after}`, before.length, before.length + text.length);
+}
+
+function insertFeedMarkdown(action) {
+  const { selected } = selectedFeedBodyText();
+  if (action === "bold") wrapFeedSelection("**", "**", "加粗文字");
+  else if (action === "italic") wrapFeedSelection("*", "*", "斜体文字");
+  else if (action === "heading") prefixFeedSelection("## ", "小标题");
+  else if (action === "quote") prefixFeedSelection("> ", "引用内容");
+  else if (action === "inlinecode") wrapFeedSelection("`", "`", "code");
+  else if (action === "ordered") prefixFeedSelection("1. ", selected || "第一项\n2. 第二项");
+  else if (action === "unordered") prefixFeedSelection("- ", selected || "列表项\n列表项");
+  else if (action === "link") wrapFeedSelection("[", "](https://example.com)", selected || "链接文字");
+  else if (action === "image") replaceFeedBodySelection(`![${selected || "图片说明"}](https://example.com/image.png)`);
+  else if (action === "hr") replaceFeedBodySelection("\n---\n");
+  else if (action === "table") replaceFeedBodySelection("\n| 项目 | 说明 |\n| --- | --- |\n|  |  |\n");
+  else if (action === "codeblock") replaceFeedBodySelection(`\n\`\`\`js\n${selected || "// 在这里写代码"}\n\`\`\`\n`, 7, 7 + (selected || "// 在这里写代码").length);
+}
+
+function updateFeedComposePane(pane) {
+  state.feedComposePane = pane === "preview" ? "preview" : "edit";
+  document.querySelectorAll("[data-feed-compose-pane]").forEach((btn) => {
+    const active = btn.getAttribute("data-feed-compose-pane") === state.feedComposePane;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-selected", String(active));
+  });
+  el.feedComposer?.classList.toggle("is-preview-pane", state.feedComposePane === "preview");
+}
+
+function updateFeedComposerPreview() {
+  const title = el.feedTitleInput?.value.trim() || "未命名内容";
+  const body = el.feedBodyInput?.value || "";
+  const compact = body.replace(/\s+/g, "");
+  const wordCount = compact.length;
+  const readTime = Math.max(1, Math.ceil(wordCount / 420));
+  if (el.feedPreviewTitle) el.feedPreviewTitle.textContent = title;
+  if (el.feedComposeWordCount) el.feedComposeWordCount.textContent = `${wordCount} 字`;
+  if (el.feedComposeReadTime) el.feedComposeReadTime.textContent = `约 ${readTime} 分钟读完`;
+  if (el.feedPublishBtn) {
+    el.feedPublishBtn.disabled = !title.trim() || !body.trim();
+  }
+  if (el.feedMarkdownPreview) {
+    const previewMarkdown = body.trim()
+      ? body
+      : "## 预览会显示在这里\n\n选择一个模板，或者在左侧开始写 Markdown。";
+    renderMarkdownInto(el.feedMarkdownPreview, previewMarkdown);
+  }
 }
 
 function feedPostMarkdown(post) {
@@ -290,6 +485,24 @@ function openFeedPostDetail(post) {
   }
   el.pushDetailModal.hidden = false;
   void loadFeedComments(post.id);
+}
+
+function openFeedPostRoute(postOrId) {
+  const postId = typeof postOrId === "object" ? postOrId?.id : postOrId;
+  if (!postId) return;
+  state.feedReturnContext = {
+    sort: state.feedSort,
+    page: state.feedPage,
+    posts: Array.isArray(state.feedPosts) ? state.feedPosts : [],
+    hasMore: state.feedHasMore,
+    scrollY: window.scrollY || document.documentElement.scrollTop || 0,
+    openedPostId: String(postId),
+  };
+  if (typeof showUserInfoPage === "function") {
+    showUserInfoPage({ mode: "post", postId });
+    return;
+  }
+  window.location.hash = `#user-info/blog/${encodeURIComponent(String(postId))}`;
 }
 
 function renderFeedComments(postId, comments = []) {
@@ -395,12 +608,17 @@ async function submitFeedPost(e) {
   e.preventDefault();
   const payload = {
     contentType: el.feedTypeInput?.value || "thought",
-    title: el.feedTitleInput?.value || "",
-    category: el.feedCategoryInput?.value || "",
+    title: (el.feedTitleInput?.value || "").trim(),
+    category: (el.feedCategoryInput?.value || "").trim(),
     tags: feedTagsFromText(el.feedTagsInput?.value || ""),
-    body: el.feedBodyInput?.value || "",
+    body: (el.feedBodyInput?.value || "").trim(),
   };
   setFeedMessage("");
+  updateFeedComposerPreview();
+  if (!payload.title || !payload.body) {
+    setFeedMessage("标题和正文都要写完才能发布。");
+    return;
+  }
   try {
     await apiJson("/api/feed/posts", { method: "POST", body: JSON.stringify(payload) });
     recordLearningDemand("feed", `${payload.title} ${payload.body}`, {
@@ -427,8 +645,11 @@ async function submitFeedPost(e) {
     }
     if (el.feedTitleInput) el.feedTitleInput.value = "";
     if (el.feedBodyInput) el.feedBodyInput.value = "";
-    setFeedComposerOpen(false);
+    if (el.feedCategoryInput) el.feedCategoryInput.value = "";
+    if (el.feedTagsInput) el.feedTagsInput.value = "";
+    localStorage.removeItem(FEED_DRAFT_KEY);
     state.feedSort = "latest";
+    if (typeof showPushPage === "function") showPushPage();
     await loadFeed();
   } catch (e) {
     setFeedMessage(e.message || "发布失败。");
@@ -465,6 +686,12 @@ async function handleFeedAction(action, post) {
           : item
       ));
       if (typeof loadProfileSocialStats === "function") void loadProfileSocialStats(true);
+      if (state.feedSort === "follow" && !payload.active) {
+        state.feedPosts = [];
+        state.feedPage = 1;
+        await loadFeed();
+        return;
+      }
       renderFeedPage();
       return;
     }
@@ -494,25 +721,45 @@ function initFeedEventHandlers() {
       void loadFeed();
     });
   });
-  el.pushGenerateResourcesBtn?.addEventListener("click", () => setFeedComposerOpen(!state.feedComposerOpen));
+  el.pushGenerateResourcesBtn?.addEventListener("click", () => {
+    if (typeof showPushComposePage === "function") showPushComposePage();
+    else setFeedComposerOpen(true);
+  });
   el.feedComposer?.addEventListener("submit", submitFeedPost);
   el.feedComposer?.addEventListener("click", (e) => {
-    if (e.target instanceof HTMLElement && e.target.closest("[data-feed-compose-close]")) {
-      setFeedComposerOpen(false);
+    const target = e.target instanceof HTMLElement ? e.target : null;
+    if (!target) return;
+    if (target.closest("[data-feed-compose-close]")) {
+      setFeedMessage("");
+      if (typeof showPushPage === "function") showPushPage();
+      return;
+    }
+    const tool = target.closest("[data-markdown-tool]");
+    if (tool) {
+      insertFeedMarkdown(tool.getAttribute("data-markdown-tool") || "");
+      return;
+    }
+    const template = target.closest("[data-feed-template]");
+    if (template) {
+      applyFeedTemplate(template.getAttribute("data-feed-template") || "");
+      return;
+    }
+    const pane = target.closest("[data-feed-compose-pane]");
+    if (pane) {
+      updateFeedComposePane(pane.getAttribute("data-feed-compose-pane") || "edit");
+      return;
+    }
+    if (target.closest("[data-feed-draft-save]")) {
+      saveFeedDraft();
     }
   });
-  el.feedInterestForm?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const tags = feedTagsFromText(el.feedInterestInput?.value || "");
-    try {
-      const payload = await apiJson("/api/feed/interests", { method: "PUT", body: JSON.stringify({ tags }) });
-      state.feedInterests = payload.interests || [];
-      state.feedSort = "recommended";
-      state.feedPosts = [];
-      await loadFeed();
-    } catch (err) {
-      setFeedMessage(err.message || "兴趣标签保存失败。");
-    }
+  ["input", "change"].forEach((eventName) => {
+    el.feedComposer?.addEventListener(eventName, (e) => {
+      if (!(e.target instanceof HTMLElement)) return;
+      if (!e.target.closest("#feedComposer")) return;
+      updateFeedComposerPreview();
+      saveFeedDraft({ silent: true });
+    });
   });
   el.pushGrid?.addEventListener("click", (e) => {
     const loadMore = e.target instanceof HTMLElement ? e.target.closest("[data-feed-load-more]") : null;
@@ -537,14 +784,14 @@ function initFeedEventHandlers() {
       void handleFeedAction(actionBtn.getAttribute("data-feed-action"), post);
       return;
     }
-    openFeedPostDetail(post);
+    openFeedPostRoute(post);
   });
   el.pushGrid?.addEventListener("keydown", (e) => {
     if (e.key !== "Enter" && e.key !== " ") return;
     const card = e.target instanceof HTMLElement ? e.target.closest("[data-feed-post-id]") : null;
     if (!card) return;
     e.preventDefault();
-    openFeedPostDetail(currentFeedPostById(card.getAttribute("data-feed-post-id")));
+    openFeedPostRoute(card.getAttribute("data-feed-post-id"));
   });
   el.pushDetailModal?.addEventListener("click", (e) => {
     if (!(e.target instanceof HTMLElement)) return;
@@ -564,7 +811,7 @@ function initFeedEventHandlers() {
     }
     const postBtn = e.target.closest("[data-feed-open-post]");
     if (postBtn) {
-      openFeedPostDetail(currentFeedPostById(postBtn.getAttribute("data-feed-open-post")));
+      openFeedPostRoute(postBtn.getAttribute("data-feed-open-post"));
     }
   });
   el.pushDetailModal?.addEventListener("submit", (e) => {

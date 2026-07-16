@@ -184,6 +184,21 @@
   font-weight: 950;
 }
 
+.wiki-public-follow-btn {
+  width: 100%;
+  min-height: 44px;
+  margin-top: 14px;
+  border-radius: 22px;
+  padding: 0 18px;
+  font-size: 15px;
+  white-space: nowrap;
+  box-shadow: 0 14px 34px rgba(47, 121, 173, 0.12);
+}
+
+.wiki-public-follow-btn.is-active {
+  background: rgba(255, 255, 255, 0.68);
+}
+
 .wiki-menu-list {
   display: grid;
   gap: 16px;
@@ -1260,9 +1275,17 @@
 }
 
 .resource-wiki-brief {
+  position: relative;
   display: grid;
   align-content: center;
   gap: 12px;
+  padding-top: 78px;
+}
+
+.resource-wiki-brief .resource-generate-btn {
+  position: absolute;
+  top: 22px;
+  right: 22px;
 }
 
 .resource-wiki-brief h2,
@@ -1898,6 +1921,68 @@
   font-weight: 850;
 }
 
+.wiki-post-author-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(360px, 100%);
+  min-height: 48px;
+  margin-top: 18px;
+  border: 1px solid rgba(88, 199, 180, 0.3);
+  border-radius: 999px;
+  padding: 7px 16px 7px 8px;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.64);
+  box-shadow: 0 12px 28px rgba(64, 142, 137, 0.12);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.wiki-post-author-link.is-static {
+  cursor: default;
+}
+
+.wiki-post-author-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: #fff;
+  background: linear-gradient(135deg, #4d84f2, #27c7a3);
+  font-size: 14px;
+  font-weight: 950;
+  letter-spacing: 0;
+}
+
+.wiki-post-author-meta {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.wiki-post-author-meta strong,
+.wiki-post-author-meta em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wiki-post-author-meta strong {
+  color: #34484b;
+  font-size: 15px;
+  font-weight: 950;
+}
+
+.wiki-post-author-meta em {
+  color: #58c7b4;
+  font-size: 12px;
+  font-style: normal;
+  font-weight: 850;
+}
+
 .wiki-post-tags {
   display: flex;
   justify-content: center;
@@ -1909,6 +1994,17 @@
 .wiki-post-tags span {
   color: #58c7b4;
   font-weight: 950;
+}
+
+.wiki-post-side-author {
+  border: 0;
+  padding: 0;
+  color: #58c7b4;
+  background: transparent;
+  font: inherit;
+  font-weight: 950;
+  text-align: left;
+  cursor: pointer;
 }
 
 .wiki-post-body {
@@ -2647,4 +2743,157 @@
 .personal-profile-page.wiki-archive-mode .wiki-music-card,
 .personal-profile-page.wiki-archive-mode .wiki-love-card {
   display: none;
+}
+
+.top-nav {
+  top: 20px;
+  width: min(980px, calc(100vw - 72px));
+  min-height: 64px;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 30px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 24px 70px rgba(88, 139, 128, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(22px) saturate(1.05);
+  -webkit-backdrop-filter: blur(22px) saturate(1.05);
+}
+
+[data-theme="light"] .top-nav {
+  border-color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 24px 70px rgba(88, 139, 128, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.86);
+}
+
+.nav-brand {
+  min-width: 122px;
+  height: 48px;
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 20px;
+  padding: 0 14px;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.52);
+  box-shadow: 0 10px 28px rgba(88, 139, 128, 0.1);
+}
+
+[data-theme="light"] .nav-brand {
+  border-color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.nav-brand::before {
+  width: 28px;
+  height: 28px;
+  border-radius: 11px;
+  background:
+    linear-gradient(160deg, transparent 0 46%, rgba(255, 255, 255, 0.82) 47% 51%, transparent 52%),
+    linear-gradient(135deg, #2f86ad, #55c7b5 78%);
+  box-shadow: 0 12px 26px rgba(74, 180, 164, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.48);
+}
+
+.nav-btn {
+  min-width: 76px;
+  height: 48px;
+  border-radius: 20px;
+  padding: 0 12px;
+  color: #7d8c91;
+  background: transparent;
+  font-size: 14px;
+  font-weight: 950;
+  gap: 8px;
+}
+
+.nav-btn:hover {
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.nav-btn.active,
+.nav-btn.active:hover {
+  color: #fff;
+  background: linear-gradient(135deg, #2f79ad, #55c7b5);
+  box-shadow: 0 16px 36px rgba(47, 121, 173, 0.22), inset 0 0 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.nav-icon,
+.nav-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+@media (max-width: 1180px) {
+  .top-nav {
+    width: min(900px, calc(100vw - 48px));
+  }
+
+  .nav-btn {
+    min-width: 60px;
+    padding: 0 10px;
+  }
+}
+
+@media (max-width: 900px) {
+  .top-nav {
+    top: auto;
+    bottom: 16px;
+    width: min(560px, calc(100vw - 28px));
+    min-height: 66px;
+    overflow-x: auto;
+    justify-content: flex-start;
+    border-radius: 28px;
+    padding: 8px;
+    scrollbar-width: none;
+  }
+
+  body.nav-hidden .top-nav {
+    transform: translate(-50%, 140%);
+  }
+
+  .top-nav::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-brand {
+    min-width: 54px;
+    width: 54px;
+    height: 50px;
+    padding: 0;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  .nav-brand span {
+    display: none;
+  }
+
+  .nav-btn {
+    flex: 0 0 70px;
+    min-width: 70px;
+    height: 50px;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 8px;
+    font-size: 12px;
+    line-height: 1;
+  }
+
+  .nav-icon,
+  .nav-icon svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  .main {
+    padding-top: 84px;
+    padding-bottom: 112px;
+  }
+
+  .user-chip {
+    bottom: 92px;
+  }
+
+  #themeToggle {
+    bottom: 160px;
+  }
 }

@@ -59,6 +59,29 @@
   display: none !important;
 }
 
+html.auth-boot-user.route-boot-resources #home,
+html.auth-boot-user.route-boot-resources #chat {
+  display: none !important;
+}
+
+html.auth-boot-user.route-boot-resources #resourcePage[hidden] {
+  display: block !important;
+}
+
+html.auth-boot-user.route-boot-resources #chatPageBtn.active {
+  background: transparent !important;
+  border-color: transparent;
+  box-shadow: none !important;
+  color: inherit;
+}
+
+html.auth-boot-user.route-boot-resources #resourcePageBtn {
+  background: var(--accent-glow, rgba(74, 151, 158, 0.88)) !important;
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: 0 10px 28px rgba(31, 125, 134, 0.25) !important;
+  color: #fff;
+}
+
 html.auth-boot-guest #app {
   visibility: hidden;
 }
@@ -476,6 +499,17 @@ body.nav-hidden .top-nav {
   background: #0f766e;
   color: #fff;
   font-weight: 800;
+}
+
+.profile-follow-button.is-active {
+  border: 1px solid #b9d8d3;
+  background: #e8f7f4;
+  color: #0f766e;
+}
+
+.profile-follow-button:disabled {
+  opacity: 0.62;
+  cursor: wait;
 }
 
 .profile-workspace {
@@ -1137,4 +1171,3 @@ body.nav-hidden .top-nav {
     flex-direction: column;
   }
 }
-
