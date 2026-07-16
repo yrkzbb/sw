@@ -1,22 +1,17 @@
 function renderAgentPipeline(status = "idle") {
   if (!el.agentPipeline) return;
-  el.agentPipeline.innerHTML = RESOURCE_AGENTS.map((agent, index) => {
+  el.agentPipeline.innerHTML = SELECTABLE_RESOURCE_AGENTS.map((agent) => {
     const selected = state.selectedResourceAgents.includes(agent.id);
     const selectedSet = getSelectedResourceAgents();
-    const inCurrentFlow = !agent.selectable || selectedSet.some((item) => item.id === agent.id);
+    const inCurrentFlow = selectedSet.some((item) => item.id === agent.id);
     const running = status === "running" && inCurrentFlow;
     const done = status === "done" && inCurrentFlow;
-    const disabled = agent.selectable ? "" : "locked";
-    const cls = [done ? "done" : "", running ? "running" : "", selected ? "selected" : "", disabled].filter(Boolean).join(" ");
-    const tag = agent.selectable ? "button" : "article";
-    const attrs = agent.selectable
-      ? `type="button" data-agent-id="${agent.id}" aria-pressed="${selected ? "true" : "false"}"`
-      : "";
+    const cls = [done ? "done" : "", running ? "running" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
     return `
-      <${tag} class="agent-card ${cls}" ${attrs}>
+      <button class="agent-card ${cls}" type="button" data-agent-id="${agent.id}" aria-pressed="${selected ? "true" : "false"}">
         <div class="agent-role"><span class="agent-dot" aria-hidden="true"></span>${escapeHtml(agent.role)}</div>
         ${agent.task ? `<div class="agent-task">${escapeHtml(agent.task)}</div>` : ""}
-      </${tag}>
+      </button>
     `;
   }).join("");
 }

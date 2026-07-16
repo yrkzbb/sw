@@ -5,7 +5,7 @@
 @import url("./index-parts/visual-refresh.css");
 @import url("./index-parts/auth-account.css?v=20260716-face-camera-window-fix");
 @import url("./index-parts/community-feed.css?v=20260716-compose-studio");
-@import url("./index-parts/personal-wiki.css?v=20260717-profile-card-align");
+@import url("./index-parts/personal-wiki.css?v=20260717-resource-layout-tuning");
 
 body {
   --app-content-gap: 9px;

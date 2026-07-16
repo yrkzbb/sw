@@ -17,7 +17,7 @@ function renderLearningResources() {
   }
   const visibleResources = data.resources.filter((item) => item.type !== "多模态教学视频/动画");
   if (!visibleResources.length) {
-    el.resourceGrid.innerHTML = `<div class="resource-empty">当前没有可展示资源。<br>${escapeHtml(flowText)}</div>`;
+    el.resourceGrid.innerHTML = "";
     return;
   }
   el.resourceGrid.innerHTML = visibleResources.map((item, index) => {

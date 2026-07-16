@@ -939,7 +939,6 @@ function renderLearningPathPanel() {
         <div>
           <span>PERSONALIZED PATH</span>
           <h2>${escapeHtml(data.topic || "当前学习主题")}</h2>
-          <p>系统会把资源、对话、推送、收藏帖子、画像证据、路径执行进度和错题反馈放在一起，形成可持续更新的学习路线。</p>
         </div>
         <div class="path-planner-side">
           <div class="path-planner-score">
@@ -951,8 +950,6 @@ function renderLearningPathPanel() {
       </div>
       <div class="learning-path-head">
         <div>
-          <div class="resource-type">动态个性化学习路径</div>
-          <div class="learning-current-label">当前路径</div>
           <h2 class="learning-path-title">${escapeHtml(data.topic || "当前学习主题")}</h2>
         </div>
         <div class="learning-path-badge">大模型综合规划 · ${path.length} 个阶段</div>
@@ -1413,36 +1410,6 @@ function studentFriendlyAssessmentText(text) {
     .trim();
 }
 
-function assessmentTone(score) {
-  const n = clampScore(score);
-  if (n >= 80) {
-    return {
-      label: "节奏很好",
-      title: "这轮学习已经比较稳了",
-      mood: "steady",
-    };
-  }
-  if (n >= 60) {
-    return {
-      label: "正在变稳",
-      title: "你已经进入学习状态了",
-      mood: "growing",
-    };
-  }
-  if (n >= 35) {
-    return {
-      label: "线索还不够",
-      title: "先把下一步做小一点",
-      mood: "warming",
-    };
-  }
-  return {
-    label: "刚刚开始",
-    title: "我们先建立学习起点",
-    mood: "start",
-  };
-}
-
 function firstAssessmentItems(...groups) {
   return groups.flatMap((group) => normalizeAssessmentList(group)).filter(Boolean);
 }
@@ -1726,8 +1693,6 @@ function renderAssessmentPage() {
   const assessment = state.learningAssessment || buildFallbackAssessment(evidence);
   const dimensions = normalizeDimensions(assessment.dimensions, []);
   const weakDimensions = dimensions.filter((item) => item.score < 70).slice(0, 3);
-  const activeData = getActivePathData();
-  const tone = assessmentTone(assessment.overall_score);
   const firstActions = firstAssessmentItems(
     assessment.plan_adjustments,
     assessment.resource_strategy,
@@ -1747,21 +1712,6 @@ function renderAssessmentPage() {
     return;
   }
   el.assessmentGrid.innerHTML = `
-    <section class="assessment-hero assessment-student-hero ${tone.mood}">
-      <div>
-        <div class="resource-type">这轮复盘</div>
-        <h2>${escapeHtml(tone.title)}</h2>
-        <div class="assessment-meta">
-          <span>更新时间：${escapeHtml(formatAssessmentTime(assessment.generated_at))}</span>
-          <span>当前大类：${escapeHtml(activeData?.category || state.activePathCategory || "待生成路径")}</span>
-        </div>
-      </div>
-      <div class="assessment-student-status">
-        <span>${escapeHtml(tone.label)}</span>
-        <strong>${clampScore(assessment.overall_score)}%</strong>
-        <em>复盘线索完整度</em>
-      </div>
-    </section>
     <section class="assessment-focus-card">
       <div>
         <span>建议先做</span>

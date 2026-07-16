@@ -1180,6 +1180,22 @@
   width: min(1680px, calc(100vw - 96px));
   max-width: none;
   color: #34484b;
+  display: grid;
+  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+  grid-template-areas:
+    "builder builder"
+    "agents results";
+  gap: 18px;
+  align-items: start;
+}
+
+.resource-wiki-builder {
+  grid-area: builder;
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
+  gap: 18px;
+  margin-bottom: 0;
+  transform: translateX(-80px);
 }
 
 .resource-wiki-page .resource-wiki-hero,
@@ -1240,13 +1256,6 @@
   font-weight: 950;
 }
 
-.resource-wiki-builder {
-  display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
-  gap: 18px;
-  margin-bottom: 18px;
-}
-
 .resource-wiki-page .resource-control,
 .resource-wiki-brief,
 .resource-wiki-agents,
@@ -1285,6 +1294,7 @@
   align-content: center;
   gap: 12px;
   padding-top: 78px;
+  transform: translateX(48px);
 }
 
 .resource-wiki-brief .resource-generate-btn {
@@ -1325,7 +1335,30 @@
 
 .resource-wiki-agents,
 .resource-wiki-results {
-  margin-bottom: 18px;
+  margin-bottom: 0;
+}
+
+.resource-wiki-agents {
+  grid-area: agents;
+  position: sticky;
+  top: 12px;
+  transform: translateX(84px);
+}
+
+.resource-wiki-results {
+  grid-area: results;
+  width: min(960px, calc(100vw - 520px));
+}
+
+.resource-wiki-agents .resource-wiki-section-head {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.resource-wiki-agents .resource-wiki-section-head p {
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .resource-wiki-section-head {
@@ -1337,8 +1370,8 @@
 }
 
 .resource-wiki-page .agent-pipeline {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
+  grid-template-columns: 1fr;
+  gap: 10px;
   margin: 0;
   padding: 0;
   border: 0;
@@ -1348,7 +1381,7 @@
 }
 
 .resource-wiki-page .agent-card {
-  min-height: 118px;
+  min-height: 0;
   border: 1px solid rgba(255, 255, 255, 0.76);
   border-radius: 22px;
   padding: 17px;
@@ -1457,11 +1490,33 @@
 @media (max-width: 1100px) {
   .resource-wiki-page {
     width: min(100%, calc(100vw - 28px));
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "builder"
+      "agents"
+      "results";
   }
 
   .resource-wiki-builder,
   .resource-wiki-page .resource-grid {
     grid-template-columns: 1fr;
+  }
+
+  .resource-wiki-builder {
+    transform: none;
+  }
+
+  .resource-wiki-brief {
+    transform: none;
+  }
+
+  .resource-wiki-agents {
+    position: static;
+    transform: none;
+  }
+
+  .resource-wiki-results {
+    width: auto;
   }
 
   .resource-wiki-page .agent-pipeline {
