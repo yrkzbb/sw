@@ -1623,13 +1623,34 @@ function profileRenderMarkdownText(markdownText) {
     .join("");
 }
 
+function profilePostVideoUrl(post) {
+  if (typeof feedVideoUrlFromBody === "function") return feedVideoUrlFromBody(post?.body || "");
+  return String(post?.body || "").match(/\[\[video:([^\]\s]+)\]\]/i)?.[1] || "";
+}
+
+function profilePostTextBody(post) {
+  if (typeof feedBodyWithoutVideoMarker === "function") return feedBodyWithoutVideoMarker(post?.body || "");
+  return String(post?.body || "").replace(/\[\[video:[^\]\s]+\]\]/i, "").trim();
+}
+
+function profilePostSummary(post) {
+  const summary = String(post?.summary || "").replace(/\[\[video:[^\]\s]+\]\]/gi, "").trim();
+  if (summary) return summary;
+  return profilePostVideoUrl(post) ? "视频内容" : "暂无摘要";
+}
+
 function renderProfilePostBody(post) {
   const isQuizPost = post?.contentType === "quiz" || (typeof looksLikeFeedQuiz === "function" && looksLikeFeedQuiz(post?.body || ""));
   if (isQuizPost && typeof renderFeedQuizDetail === "function") {
     const quizHtml = renderFeedQuizDetail(post);
     if (quizHtml && !quizHtml.includes("feed-detail-content")) return quizHtml;
   }
-  return profileRenderMarkdownText(post?.body || post?.summary || "");
+  const videoUrl = profilePostVideoUrl(post);
+  const textBody = profilePostTextBody(post);
+  const videoHtml = videoUrl
+    ? `<video class="feed-published-video wiki-post-video" src="${escapeHtml(videoUrl)}" controls preload="metadata" playsinline></video>`
+    : "";
+  return `${videoHtml}${profileRenderMarkdownText(textBody || (!videoUrl ? post?.summary || "" : ""))}`;
 }
 
 function renderProfilePostDetail(post, editable = false) {
@@ -1685,7 +1706,7 @@ function renderProfilePostDetail(post, editable = false) {
       <aside class="wiki-post-side">
         <section class="wiki-post-side-card wiki-glass">
           <strong>摘要</strong>
-          <p>${escapeHtml(post.summary || "暂无摘要")}</p>
+          <p>${escapeHtml(profilePostSummary(post))}</p>
         </section>
         <section class="wiki-post-side-card wiki-glass">
           <strong>目录</strong>

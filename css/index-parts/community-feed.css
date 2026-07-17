@@ -278,6 +278,64 @@
   background: linear-gradient(135deg, #2f79ad, #55c7b5);
 }
 
+.feed-video-upload-panel {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto minmax(180px, auto);
+  gap: 14px;
+  align-items: center;
+  margin: -4px 0 18px;
+  padding: 14px 16px;
+  border: 1px dashed rgba(47, 121, 173, 0.38);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.feed-video-upload-panel[hidden] {
+  display: none;
+}
+
+.feed-video-upload-panel > div {
+  display: grid;
+  gap: 4px;
+}
+
+.feed-video-upload-panel span {
+  color: #71888c;
+  font-size: 12px;
+}
+
+.feed-video-pick-btn {
+  display: grid;
+  place-items: center;
+  min-height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  color: #fff;
+  background: linear-gradient(135deg, #2f79ad, #55c7b5);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.feed-video-upload-status.success {
+  color: #258f78;
+  font-weight: 800;
+}
+
+.feed-published-video {
+  display: block;
+  width: 100%;
+  max-height: 520px;
+  margin: 0 0 22px;
+  border-radius: 10px;
+  background: #0c1114;
+}
+
+@media (max-width: 760px) {
+  .feed-video-upload-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
 .feed-compose-mobile-tabs {
   display: none;
 }

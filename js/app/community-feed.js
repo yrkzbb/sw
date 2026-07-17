@@ -18,6 +18,7 @@ const FEED_TYPE_META = {
   video: { icon: "▶", cls: "video", cover: "视频笔记" },
 };
 const FEED_DRAFT_KEY = "LINGXI_FEED_COMPOSE_DRAFT";
+const FEED_VIDEO_MARKER_RE = /\[\[video:([^\]\s]+)\]\]/i;
 const FEED_MARKDOWN_TOOLS = [
   { action: "bold", label: "B", title: "加粗" },
   { action: "italic", label: "I", title: "斜体" },
@@ -457,6 +458,74 @@ function feedDraftSnapshot() {
   };
 }
 
+function feedVideoUrlFromBody(body = "") {
+  return String(body || "").match(FEED_VIDEO_MARKER_RE)?.[1] || "";
+}
+
+function feedBodyWithoutVideoMarker(body = "") {
+  return String(body || "").replace(FEED_VIDEO_MARKER_RE, "").replace(/^\s+/, "");
+}
+
+function updateFeedVideoControls() {
+  const isVideo = el.feedTypeInput?.value === "video";
+  if (el.feedVideoUploadPanel) el.feedVideoUploadPanel.hidden = !isVideo;
+  const videoUrl = feedVideoUrlFromBody(el.feedBodyInput?.value || "");
+  if (el.feedVideoUploadStatus && !el.feedVideoUploadStatus.dataset.uploading) {
+    el.feedVideoUploadStatus.textContent = videoUrl ? "视频已上传，可在右侧预览" : "尚未选择视频";
+    el.feedVideoUploadStatus.classList.toggle("success", Boolean(videoUrl));
+  }
+}
+
+async function uploadFeedVideo(file) {
+  if (!file) return;
+  const allowed = new Set(["video/mp4", "video/webm", "video/quicktime"]);
+  if (!allowed.has(file.type) && !/\.(mp4|webm|mov)$/i.test(file.name)) {
+    setFeedMessage("请选择 MP4、WebM 或 MOV 视频。");
+    return;
+  }
+  if (file.size > 200 * 1024 * 1024) {
+    setFeedMessage("视频不能超过 200 MB。");
+    return;
+  }
+  if (el.feedVideoUploadStatus) {
+    el.feedVideoUploadStatus.dataset.uploading = "true";
+    el.feedVideoUploadStatus.textContent = `正在上传 ${file.name}…`;
+    el.feedVideoUploadStatus.classList.remove("success");
+  }
+  if (el.feedVideoInput) el.feedVideoInput.disabled = true;
+  setFeedMessage("");
+  try {
+    const response = await fetch("/api/feed/videos", {
+      method: "POST",
+      headers: {
+        "Content-Type": file.type || "application/octet-stream",
+        "X-File-Name": encodeURIComponent(file.name),
+      },
+      body: file,
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || `上传失败（${response.status}）`);
+    const marker = `[[video:${data.url}]]`;
+    const current = feedBodyWithoutVideoMarker(el.feedBodyInput?.value || "").trim();
+    if (el.feedBodyInput) el.feedBodyInput.value = `${marker}\n\n${current}`;
+    if (el.feedVideoUploadStatus) {
+      el.feedVideoUploadStatus.textContent = `已上传：${file.name}`;
+      el.feedVideoUploadStatus.classList.add("success");
+    }
+    updateFeedComposerPreview();
+    saveFeedDraft({ silent: true });
+  } catch (error) {
+    setFeedMessage(error.message || "视频上传失败。");
+    if (el.feedVideoUploadStatus) el.feedVideoUploadStatus.textContent = "上传失败，请重新选择";
+  } finally {
+    if (el.feedVideoUploadStatus) delete el.feedVideoUploadStatus.dataset.uploading;
+    if (el.feedVideoInput) {
+      el.feedVideoInput.disabled = false;
+      el.feedVideoInput.value = "";
+    }
+  }
+}
+
 function saveFeedDraft({ silent = false } = {}) {
   try {
     localStorage.setItem(FEED_DRAFT_KEY, JSON.stringify(feedDraftSnapshot()));
@@ -592,22 +661,27 @@ function updateFeedComposerPreview() {
     if (el.feedTypeInput?.value === "quiz") {
       el.feedMarkdownPreview.innerHTML = renderFeedQuizPreview(body, title);
     } else {
-      const previewMarkdown = body.trim()
-        ? body
+      const videoUrl = feedVideoUrlFromBody(body);
+      const previewMarkdown = feedBodyWithoutVideoMarker(body).trim()
+        ? feedBodyWithoutVideoMarker(body)
         : "## 预览会显示在这里\n\n选择一个模板，或者在左侧开始写 Markdown。";
       renderMarkdownInto(el.feedMarkdownPreview, previewMarkdown);
+      if (videoUrl) {
+        el.feedMarkdownPreview.insertAdjacentHTML("afterbegin", `<video class="feed-published-video" src="${escapeHtml(videoUrl)}" controls preload="metadata" playsinline></video>`);
+      }
     }
   }
+  updateFeedVideoControls();
 }
 
 function feedPostMarkdown(post) {
   const lines = [
     post.summary ? `> ${post.summary}` : "",
     "",
-    post.body || post.summary || "",
+    feedBodyWithoutVideoMarker(post.body) || post.summary || "",
   ].filter((line, index, arr) => line || arr[index - 1]);
   if (post.contentType === "video") {
-    lines.push("", "### 视频要点", "- 这条内容当前以视频笔记卡片展示。", "- 后续接入真实视频资源时，可在这里嵌入播放器或播放链接。");
+    if (!feedVideoUrlFromBody(post.body)) lines.push("", "### 视频说明", "- 这条内容暂未附带视频文件。");
   }
   if (post.contentType === "document") {
     lines.push("", "### 文档信息", "- 这条内容当前以文档卡片展示。", "- 正文可继续扩展为完整 Markdown 文档、附件或知识库条目。");
@@ -653,7 +727,11 @@ function openFeedPostDetail(post) {
       </section>
     `;
     const detailContent = el.pushDetailBody.querySelector(".feed-detail-content");
-    if (detailContent) renderMarkdownInto(detailContent, feedPostMarkdown(post));
+    if (detailContent) {
+      renderMarkdownInto(detailContent, feedPostMarkdown(post));
+      const videoUrl = feedVideoUrlFromBody(post.body);
+      if (videoUrl) detailContent.insertAdjacentHTML("afterbegin", `<video class="feed-published-video" src="${escapeHtml(videoUrl)}" controls preload="metadata" playsinline></video>`);
+    }
   }
   el.pushDetailModal.hidden = false;
   void loadFeedComments(post.id);
@@ -913,6 +991,7 @@ function initFeedEventHandlers() {
     else setFeedComposerOpen(true);
   });
   el.feedComposer?.addEventListener("submit", submitFeedPost);
+  el.feedVideoInput?.addEventListener("change", () => void uploadFeedVideo(el.feedVideoInput.files?.[0]));
   el.feedComposer?.addEventListener("click", (e) => {
     const target = e.target instanceof HTMLElement ? e.target : null;
     if (!target) return;

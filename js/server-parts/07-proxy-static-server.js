@@ -671,6 +671,10 @@ const server = http.createServer((req, res) => {
       void markFeedNotificationsRead(req, res);
       return;
     }
+    if (url.pathname === "/api/feed/videos" && req.method === "POST") {
+      void uploadFeedVideo(req, res);
+      return;
+    }
     const feedCommentsMatch = url.pathname.match(/^\/api\/feed\/posts\/(\d+)\/comments$/);
     if (feedCommentsMatch && req.method === "GET") {
       void getFeedComments(req, res, feedCommentsMatch[1]);

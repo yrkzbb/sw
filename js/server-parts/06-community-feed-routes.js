@@ -1,5 +1,49 @@
 const FEED_TYPES = new Set(["question", "answer", "thought", "article", "document", "video", "quiz"]);
 const FEED_SORTS = new Set(["recommended", "latest", "hot", "follow"]);
+const FEED_VIDEO_DIR = path.join(ROOT_DIR, "uploads", "feed-videos");
+const FEED_VIDEO_LIMIT = 200 * 1024 * 1024;
+const FEED_VIDEO_TYPES = new Map([
+  ["video/mp4", ".mp4"],
+  ["video/webm", ".webm"],
+  ["video/quicktime", ".mov"],
+]);
+
+async function uploadFeedVideo(req, res) {
+  const user = await requireUser(req, res);
+  if (!user) return;
+  const contentType = String(req.headers["content-type"] || "").split(";")[0].trim().toLowerCase();
+  const extension = FEED_VIDEO_TYPES.get(contentType);
+  const length = Number(req.headers["content-length"] || 0);
+  if (!extension) {
+    sendJson(res, 415, { error: "仅支持 MP4、WebM 或 MOV 视频。" });
+    return;
+  }
+  if (length > FEED_VIDEO_LIMIT) {
+    sendJson(res, 413, { error: "视频不能超过 200 MB。" });
+    return;
+  }
+  await fs.promises.mkdir(FEED_VIDEO_DIR, { recursive: true });
+  const filename = `${Date.now()}-${crypto.randomBytes(8).toString("hex")}${extension}`;
+  const filePath = path.join(FEED_VIDEO_DIR, filename);
+  let received = 0;
+  const limiter = new (require("stream").Transform)({
+    transform(chunk, encoding, callback) {
+      received += chunk.length;
+      if (received > FEED_VIDEO_LIMIT) callback(new Error("VIDEO_TOO_LARGE"));
+      else callback(null, chunk);
+    },
+  });
+  try {
+    await pipeline(req, limiter, fs.createWriteStream(filePath, { flags: "wx" }));
+    if (!received) throw new Error("EMPTY_VIDEO");
+    sendJson(res, 201, { url: `/uploads/feed-videos/${filename}`, size: received, type: contentType });
+  } catch (error) {
+    await fs.promises.unlink(filePath).catch(() => {});
+    sendJson(res, error.message === "VIDEO_TOO_LARGE" ? 413 : 400, {
+      error: error.message === "VIDEO_TOO_LARGE" ? "视频不能超过 200 MB。" : "视频上传失败，请重试。",
+    });
+  }
+}
 const FEED_DEMO_AUTHORS = [
   { username: "Lin Chen", email: "lin.chen.feed@example.local" },
   { username: "Kai Ming", email: "kai.ming.feed@example.local" },

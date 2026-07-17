@@ -435,6 +435,15 @@
               <button type="button" data-feed-template="resource">资源推荐模板</button>
               <button type="button" data-feed-template="quiz">题库模板</button>
             </section>
+            <section id="feedVideoUploadPanel" class="feed-video-upload-panel" hidden>
+              <div>
+                <strong>上传视频</strong>
+                <span>支持 MP4、WebM、MOV，单个文件不超过 200 MB</span>
+              </div>
+              <label class="feed-video-pick-btn" for="feedVideoInput">选择视频</label>
+              <input id="feedVideoInput" type="file" accept="video/mp4,video/webm,video/quicktime,.mp4,.webm,.mov" hidden />
+              <span id="feedVideoUploadStatus" class="feed-video-upload-status" aria-live="polite">尚未选择视频</span>
+            </section>
             <div class="feed-compose-mobile-tabs" role="tablist" aria-label="编辑器视图">
               <button class="active" type="button" data-feed-compose-pane="edit" role="tab" aria-selected="true">编辑</button>
               <button type="button" data-feed-compose-pane="preview" role="tab" aria-selected="false">预览</button>
