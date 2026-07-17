@@ -29,6 +29,7 @@
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
     <script src="./js/app/config-state.js?v=20260717-remove-tutor-page" defer></script>
     <script src="./js/app/content-safety.js?v=20260717-safety-audit" defer></script>
+    <script src="./js/app/knowledge-base.js?v=20260717-pdf-rag" defer></script>
     <script src="./js/app/auth-account.js?v=20260716-face-window-copy-fix" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260716-path-agent" defer></script>
@@ -185,14 +186,7 @@
 
       <main class="main">
         <section id="home" class="home">
-          <div class="home-kicker">Personal AI Learning Workspace</div>
           <h1 class="title">向上一步，<span class="grad-text">问阶而行</span></h1>
-          <div class="subtitle">把问题、资源、路径和复盘都收进一个会陪你进阶的学习工作台。</div>
-          <div class="home-metrics" aria-label="能力概览">
-            <div><strong>8</strong><span>维学习画像</span></div>
-            <div><strong>5</strong><span>类资源协作</span></div>
-            <div><strong>1</strong><span>条动态路径</span></div>
-          </div>
         </section>
 
         <section id="chat" class="chat" hidden>
@@ -338,11 +332,8 @@
                 <textarea id="resourcePromptInput" class="resource-input" rows="4" placeholder="例如：Java 循环、数组和方法基础；希望补齐易错点并准备课程作业"></textarea>
               </label>
             </div>
-            <aside class="resource-wiki-brief" aria-label="生成策略">
+            <aside class="resource-wiki-brief" aria-label="资源生成操作">
               <button id="generateResourcesBtn" class="primary-btn resource-generate-btn" type="button">生成资源</button>
-              <span>RESOURCE PLAN</span>
-              <h2>生成策略</h2>
-              <p>先解析主题和薄弱点，再按你选择的 Agent 生成资料，最后自动沉淀到学习路径。</p>
               <label class="resource-ppt-theme">
                 <span>PPT 模板</span>
                 <select id="pptThemeSelect" aria-label="选择 PPT 模板" hidden>
@@ -357,15 +348,22 @@
               </label>
             </aside>
           </div>
+          <section class="course-kb-panel" aria-label="课程知识库">
+            <div class="course-kb-head">
+              <div><h2>课程知识库 / PDF 文档集</h2><p>上传高校课程电子书或讲义，系统会解析、OCR、切分并作为对话与多智能体生成的检索依据。</p></div>
+              <label class="course-kb-upload"><input id="knowledgeBasePdfInput" type="file" accept="application/pdf,.pdf" hidden><strong>上传课程 PDF</strong><small>最大 80MB</small></label>
+            </div>
+            <div id="knowledgeBaseTask" class="course-kb-task" hidden></div>
+            <div id="knowledgeBaseList" class="course-kb-list" aria-live="polite"></div>
+          </section>
           <section class="resource-wiki-agents" aria-label="Agent 编排">
             <div class="resource-wiki-section-head">
               <div>
-                <span>AGENTS</span>
                 <h2>Agent 编排</h2>
               </div>
             </div>
             <div id="agentPipeline" class="agent-pipeline" aria-live="polite"></div>
-            <section id="exerciseBlueprintPanel" class="exercise-blueprint-panel" aria-label="练习题型配置">
+            <section id="exerciseBlueprintPanel" class="exercise-blueprint-panel" aria-label="练习题型配置" hidden>
               <div class="exercise-blueprint-head">
                 <div><span>QUIZ BLUEPRINT</span><h3>练习题型与题量</h3></div>
                 <strong id="exerciseBlueprintTotal">共 10 题</strong>
@@ -383,7 +381,6 @@
           <section class="resource-wiki-results" aria-label="生成结果">
             <div class="resource-wiki-section-head">
               <div>
-                <span>OUTPUT</span>
                 <h2>资源结果</h2>
               </div>
             </div>

@@ -937,7 +937,6 @@ function renderLearningPathPanel() {
     <section class="learning-path-card">
       <div class="path-planner-hero">
         <div>
-          <span>PERSONALIZED PATH</span>
           <h2>${escapeHtml(data.topic || "当前学习主题")}</h2>
         </div>
         <div class="path-planner-side">
@@ -1419,58 +1418,6 @@ function renderStudentActionItems(items, fallback) {
   `).join("");
 }
 
-function renderAssessmentLiveBoard(evidence, assessment) {
-  const latestBehavior = Array.isArray(evidence.recent_behavior) ? evidence.recent_behavior[0] : null;
-  const weakCategory = Object.entries(evidence.mistake_performance.by_category || {})
-    .sort((a, b) => b[1] - a[1])
-    .map(([category]) => category)[0] || "";
-  const nextPath = evidence.path_progress.by_category.find((item) => item.next)?.next || "";
-  const items = [
-    {
-      label: "学习行为",
-      value: evidence.chat.user_question_count ? `${evidence.chat.user_question_count} 轮提问` : "待积累",
-      detail: latestBehavior?.title || latestBehavior?.type || "对话、刷新、资源打开都会进入实时信号。",
-    },
-    {
-      label: "练习测试",
-      value: evidence.practice_performance.total ? `${evidence.practice_performance.accuracy}% 正确率` : "待检测",
-      detail: evidence.practice_performance.total
-        ? `已记录 ${evidence.practice_performance.total} 题，错误 ${evidence.practice_performance.incorrect} 题。`
-        : weakCategory ? `当前优先复盘：${weakCategory}` : "先做诊断题，把正确/错误标出来。",
-    },
-    {
-      label: "资源反馈",
-      value: evidence.resource_usage.completed_count ? `${evidence.resource_usage.completed_count} 个完成` : evidence.resource_usage.total ? `${evidence.resource_usage.total} 次使用` : "待打开",
-      detail: evidence.resources.generated_types.length ? `资源池：${evidence.resources.generated_types.slice(0, 4).join("、")}` : "生成资源后会按路径阶段推送。",
-    },
-    {
-      label: "计划执行",
-      value: `${evidence.path_progress.percent || 0}%`,
-      detail: nextPath ? `下一项：${nextPath}` : "生成学习路径后会持续跟踪待办。",
-    },
-  ];
-  return `
-    <details class="assessment-live-board">
-      <summary class="assessment-live-head">
-        <div>
-          <span>实时学习信号</span>
-          <h3>系统正在用这些线索校准评估</h3>
-        </div>
-        <em>${escapeHtml(formatAssessmentTime(assessment.generated_at))}</em>
-      </summary>
-      <div class="assessment-live-grid">
-        ${items.map((item) => `
-          <article>
-            <span>${escapeHtml(item.label)}</span>
-            <strong>${escapeHtml(item.value)}</strong>
-            <p>${escapeHtml(studentFriendlyAssessmentText(item.detail))}</p>
-          </article>
-        `).join("")}
-      </div>
-    </details>
-  `;
-}
-
 function renderAssessmentOptimizationFlow(assessment, firstActions) {
   const strategy = normalizeAssessmentList(assessment.resource_strategy).slice(0, 2);
   const plans = normalizeAssessmentList(assessment.plan_adjustments).slice(0, 2);
@@ -1714,7 +1661,6 @@ function renderAssessmentPage() {
       <button class="primary-btn" type="button" data-assessment-go-path>去看学习路径</button>
     </section>
     ${renderAssessmentVisualizationBoard(evidence, dimensions)}
-    ${renderAssessmentLiveBoard(evidence, assessment)}
     ${renderAssessmentOptimizationFlow(assessment, firstActions)}
     ${renderAssessmentActionBoard(assessment)}
   `;

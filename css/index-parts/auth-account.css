@@ -1462,11 +1462,6 @@ html.auth-boot-login .auth-demo-shell.right-panel-active .auth-demo-right {
     font-size: 15px;
   }
 
-  .home-metrics {
-    grid-template-columns: 1fr;
-    width: min(360px, 100%);
-  }
-
   .suggest-card {
     min-height: 132px;
   }

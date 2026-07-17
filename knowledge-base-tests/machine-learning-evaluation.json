@@ -1,0 +1,26 @@
+{
+  "course": "机器学习",
+  "knowledge_base": "周志华《机器学习》本地私有PDF知识库",
+  "purpose": "验证课程知识库检索、页码引用和AI扩展标记",
+  "cases": [
+    { "query": "什么是经验误差与泛化误差？", "expected_topic": "模型评估与选择", "must_retrieve": true },
+    { "query": "解释十折交叉验证的基本过程", "expected_topic": "模型评估与选择", "must_retrieve": true },
+    { "query": "线性回归如何使用最小二乘法求解？", "expected_topic": "线性模型", "must_retrieve": true },
+    { "query": "决策树信息增益的含义是什么？", "expected_topic": "决策树", "must_retrieve": true },
+    { "query": "BP神经网络反向传播的核心步骤", "expected_topic": "神经网络", "must_retrieve": true },
+    { "query": "支持向量机为什么要使用核函数？", "expected_topic": "支持向量机", "must_retrieve": true },
+    { "query": "朴素贝叶斯分类器的属性条件独立假设", "expected_topic": "贝叶斯分类器", "must_retrieve": true },
+    { "query": "Bagging与Boosting有什么区别？", "expected_topic": "集成学习", "must_retrieve": true },
+    { "query": "K均值聚类算法的优化目标", "expected_topic": "聚类", "must_retrieve": true },
+    { "query": "主成分分析如何实现降维？", "expected_topic": "降维与度量学习", "must_retrieve": true },
+    { "query": "强化学习中的奖励与策略是什么？", "expected_topic": "强化学习", "must_retrieve": true },
+    { "query": "唐代诗歌的平仄格律如何判断？", "expected_topic": "知识库未覆盖", "must_retrieve": false, "must_mark_ai_extension": true }
+  ],
+  "pass_conditions": [
+    "知识库覆盖问题至少召回1个片段",
+    "回答标注文档名和PDF页码",
+    "不得大段复制教材原文",
+    "知识库未覆盖内容明确标记为AI扩展",
+    "检索资源和AI生成内容在界面中可区分"
+  ]
+}

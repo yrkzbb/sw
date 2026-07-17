@@ -9,6 +9,9 @@
 | hls.js 1.6.x | HLS 视频播放 | https://github.com/video-dev/hls.js | Apache-2.0 |
 | mysql2 3.11.x | MySQL 数据访问 | https://github.com/sidorares/node-mysql2 | MIT |
 | PptxGenJS 4.x | PowerPoint 文件生成 | https://github.com/gitbrent/PptxGenJS | MIT |
+| pdf-parse 1.1.1 | PDF文本层解析 | https://www.npmjs.com/package/pdf-parse | MIT |
+| Poppler pdftoppm | 扫描版PDF逐页渲染 | https://poppler.freedesktop.org/ | GPL-2.0-or-later |
+| Tesseract OCR | 中英文扫描文本识别 | https://github.com/tesseract-ocr/tesseract | Apache-2.0 |
 | Node.js | 服务端 JavaScript 运行环境 | https://nodejs.org/ | MIT及其依赖组件许可证 |
 
 ## 外部资源平台

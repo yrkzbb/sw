@@ -39,7 +39,6 @@ body:not(.chat-layout-active) .main:not(:has(#chat:not([hidden]))) {
 }
 
 #pushPage :is(.feed-tabs, .feed-toolbar, .feed-grid, .feed-masonry, .feed-composer),
-#resourcePage :is(.resource-wiki-builder, .resource-wiki-agents, .resource-wiki-results),
 #pathPage :is(.path-wiki-page, .path-hero, .path-stage),
 #assessmentPage :is(.assessment-wiki-page, .assessment-hero, .assessment-panel),
 #userInfoPage :is(.wiki-profile-canvas) {

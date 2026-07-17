@@ -7,3 +7,6 @@ build/
 .env.*
 !.env.example
 *.log
+tmp/
+uploads/
+work/

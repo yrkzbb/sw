@@ -591,34 +591,50 @@ code {
 
 .announcement-center {
   position: fixed;
-  top: 92px;
-  right: 28px;
+  top: 96px;
+  right: 32px;
   z-index: 42;
 }
 
 .announcement-toggle {
   position: relative;
-  width: 46px;
-  height: 46px;
+  width: 54px;
+  height: 54px;
   display: grid;
   place-items: center;
-  border: 1px solid rgba(118, 210, 255, 0.28);
-  border-radius: 16px;
-  color: #dff7ff;
-  background: rgba(10, 25, 38, 0.82);
-  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.2);
-  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  color: #74d8c5;
+  background: rgba(18, 28, 31, 0.62);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease, box-shadow 160ms ease;
 }
 
 [data-theme="light"] .announcement-toggle {
-  color: #215b74;
+  color: #45bda9;
+  background: rgba(255, 255, 255, 0.58);
+  border-color: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 18px 48px rgba(78, 111, 94, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+.announcement-toggle:hover,
+.announcement-toggle[aria-expanded="true"] {
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 54px rgba(0, 0, 0, 0.25), 0 0 0 5px rgba(85, 199, 181, 0.08);
+}
+
+[data-theme="light"] .announcement-toggle:hover,
+[data-theme="light"] .announcement-toggle[aria-expanded="true"] {
   background: rgba(255, 255, 255, 0.82);
-  border-color: rgba(44, 61, 98, 0.12);
-  box-shadow: 0 16px 36px rgba(25, 35, 60, 0.12);
+  box-shadow: 0 20px 54px rgba(78, 111, 94, 0.16), 0 0 0 5px rgba(85, 199, 181, 0.1);
 }
 
 .announcement-toggle span {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 950;
 }
 
@@ -642,24 +658,25 @@ code {
 
 .announcement-panel {
   position: absolute;
-  top: 56px;
+  top: 68px;
   right: 0;
-  width: min(380px, calc(100vw - 32px));
+  width: min(420px, calc(100vw - 32px));
   max-height: min(560px, calc(100vh - 130px));
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
-  border: 1px solid rgba(118, 210, 255, 0.22);
-  border-radius: 18px;
-  background: rgba(10, 25, 38, 0.92);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.26);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 30px;
+  background: rgba(18, 28, 31, 0.72);
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
   backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
 }
 
 [data-theme="light"] .announcement-panel {
-  border-color: rgba(44, 61, 98, 0.12);
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 22px 60px rgba(25, 35, 60, 0.16);
+  border-color: rgba(255, 255, 255, 0.8);
+  background: rgba(255, 255, 255, 0.62);
+  box-shadow: 0 28px 80px rgba(78, 111, 94, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.72);
 }
 
 .announcement-panel header {
@@ -667,12 +684,12 @@ code {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 14px;
-  border-bottom: 1px solid rgba(118, 210, 255, 0.16);
+  padding: 22px 22px 18px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 [data-theme="light"] .announcement-panel header {
-  border-bottom-color: rgba(44, 61, 98, 0.1);
+  border-bottom-color: rgba(88, 151, 132, 0.12);
 }
 
 .announcement-actions {
@@ -685,8 +702,12 @@ code {
 .announcement-item strong {
   display: block;
   color: var(--text);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 950;
+}
+
+.announcement-panel header strong {
+  font-size: 18px;
 }
 
 .announcement-panel header span,
@@ -701,29 +722,38 @@ code {
 .announcement-panel header button,
 .announcement-item button {
   flex: 0 0 auto;
-  min-height: 30px;
-  border: 1px solid rgba(118, 210, 255, 0.2);
-  border-radius: 10px;
-  padding: 0 10px;
+  min-height: 34px;
+  border: 1px solid rgba(85, 199, 181, 0.22);
+  border-radius: 999px;
+  padding: 0 13px;
   color: var(--text);
-  background: rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.1);
   font-size: 12px;
   font-weight: 900;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.announcement-panel header button:hover,
+.announcement-item button:hover {
+  color: #55c7b5;
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
 }
 
 .announcement-list {
   display: grid;
-  gap: 10px;
+  gap: 12px;
   overflow: auto;
-  padding: 12px;
+  padding: 16px 18px 20px;
 }
 
 .announcement-empty {
-  padding: 18px 14px;
-  border: 1px dashed rgba(118, 210, 255, 0.2);
-  border-radius: 14px;
+  padding: 28px 18px;
+  border: 1px dashed rgba(85, 199, 181, 0.24);
+  border-radius: 22px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.07);
 }
 
 .announcement-empty strong {
@@ -742,20 +772,22 @@ code {
 }
 
 [data-theme="light"] .announcement-empty {
-  border-color: rgba(44, 61, 98, 0.12);
-  background: rgba(245, 249, 252, 0.7);
+  border-color: rgba(85, 199, 181, 0.24);
+  background: rgba(255, 255, 255, 0.42);
 }
 
 .announcement-item {
-  padding: 12px;
-  border: 1px solid rgba(118, 210, 255, 0.16);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
+  padding: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 [data-theme="light"] .announcement-item {
-  border-color: rgba(44, 61, 98, 0.1);
-  background: rgba(245, 249, 252, 0.78);
+  border-color: rgba(255, 255, 255, 0.72);
+  background: rgba(255, 255, 255, 0.48);
+  box-shadow: 0 12px 34px rgba(78, 111, 94, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.62);
 }
 
 .announcement-item.is-read {
@@ -1016,7 +1048,6 @@ code {
   }
 
   .assessment-signal-grid,
-  .assessment-live-grid,
   .assessment-optimization-flow,
   .assessment-action-board,
   .assessment-two-col {
@@ -1150,7 +1181,6 @@ code {
   .push-card-grid,
   .assessment-dimension-list,
   .assessment-signal-grid,
-  .assessment-live-grid,
   .assessment-optimization-flow,
   .assessment-action-board,
   .assessment-two-col,
@@ -1160,10 +1190,6 @@ code {
 
   .assessment-wiki-page {
     width: 100%;
-  }
-
-  .assessment-live-head {
-    flex-direction: column;
   }
 
   .assessment-optimization-flow i {

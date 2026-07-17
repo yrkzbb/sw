@@ -21,24 +21,7 @@ function renderLearningResources() {
     el.resourceGrid.innerHTML = "";
     return;
   }
-  const trace = Array.isArray(data.collaboration_trace) ? data.collaboration_trace : [];
-  const traceHtml = trace.length ? `
-    <section class="agent-trace-panel">
-      <div class="agent-trace-head">
-        <div><strong>真实多智能体协作记录</strong><span>每个模型 Agent 独立调用，保留中间产物摘要与审核反馈</span></div>
-        <em>${trace.length} 个执行步骤</em>
-      </div>
-      <div class="agent-trace-list">
-        ${trace.map((step, stepIndex) => `
-          <article>
-            <i>${stepIndex + 1}</i>
-            <div><strong>${escapeHtml(step.role || "Agent")}</strong><span>${escapeHtml(step.output_summary || step.status || "已完成")}</span></div>
-            <b>${step.method === "local_rag" ? "本地 RAG" : step.independent_call ? "独立调用" : "系统步骤"}</b>
-          </article>`).join("")}
-      </div>
-      ${data.review?.findings?.length ? `<div class="agent-review-note"><strong>审核意见</strong>${data.review.findings.map((finding) => `<span>${escapeHtml(finding)}</span>`).join("")}</div>` : ""}
-    </section>` : "";
-  el.resourceGrid.innerHTML = traceHtml + visibleResources.map((item, index) => {
+  el.resourceGrid.innerHTML = visibleResources.map((item, index) => {
     const completed = typeof isResourceCompleted === "function" && isResourceCompleted(item);
     const rawText = resourcePlainText(item.content || "");
     const isExerciseResource = item.type === "不同类型练习题目";
@@ -79,26 +62,15 @@ function renderLearningResources() {
           ? `<span class="resource-agent">${escapeHtml(item.ppt_error)}</span>`
         : "";
     const isRetrieved = item.origin === "retrieved";
-    const originBadge = isRetrieved
-      ? `<span class="resource-origin resource-origin-retrieved">检索资源 · 可溯源</span>`
-      : `<span class="resource-origin resource-origin-generated">AI 生成资源</span>`;
     const sourceSummary = isRetrieved && Array.isArray(item.sources)
       ? `<div class="resource-source-summary">来源：${item.sources.slice(0, 3).map((source) => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a>`).join("、")}${item.sources.length > 3 ? ` 等 ${item.sources.length} 个` : ""}</div>`
       : "";
-    const safetyAudit = item.provenance?.safety_audit;
-    const safetyBadge = isRetrieved
-      ? `<span class="resource-safety-badge is-verified">目录来源已核验</span>`
-      : safetyAudit?.status === "needs_verification"
-        ? `<span class="resource-safety-badge is-warning">安全通过 · 引用待复核</span>`
-        : `<span class="resource-safety-badge is-safe">内容安全已检查</span>`;
     return `
     <article class="resource-card ${item.type === "知识点思维导图" ? "mindmap-resource-card" : ""}">
       <div class="resource-card-head">
         <div>
           <div class="resource-type">${escapeHtml(item.type || "学习资源")}</div>
           <div class="resource-title">${escapeHtml(displayTitle)}</div>
-          ${originBadge}
-          ${safetyBadge}
         </div>
         <div class="resource-agent">${escapeHtml((SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.type === item.type)?.role || item.agent || "Agent").replace("课程讲解 Agent", "知识文档 Agent").replace("知识讲解 Agent", "知识文档 Agent"))}</div>
       </div>
@@ -301,7 +273,8 @@ async function callResourceAgentJson(role, system, payload, temperature = 0.35, 
 function independentResourceAgentPrompt(agent, exerciseBlueprint) {
   const common = `你是独立运行的“${agent.role}”。你只能完成自己的职责，不得假装其他智能体已经工作。
 输出 {"type":"${agent.type}","title":string,"agent":"${agent.role}","content":string,"quality_notes":[string]}。
-content 可以使用 Markdown；内容必须围绕输入主题，并根据需求分析与学生画像调整难度，不得混入无关旧主题。`;
+content 可以使用 Markdown；内容必须围绕输入主题，并根据需求分析与学生画像调整难度，不得混入无关旧主题。
+如果输入提供 course_knowledge，必须优先依据课程知识库片段组织内容，并在相关表述后标注“课程文档：文档名，PDF第N页”；知识库没有覆盖的扩展内容必须明确标注为“AI扩展”，不得伪装成教材原文。`;
   const rules = {
     doc: "生成约 1300-1700 个中文字符的课程知识正文，包含具体概念、规则、例子、边界和易错点；编程或算法主题必须有可运行代码、复杂度或执行解释。",
     mindmap: "生成中心主题、5-7个一级分支、每个分支至少3个具体二级知识点及一条复习路径，禁止空泛占位。",
@@ -328,6 +301,7 @@ async function generateLearningResources() {
   const selectedAgents = getSelectedResourceAgents();
   state.resourcesGenerating = true;
   state.resourceAgentProgress = [
+    { role: "课程知识库检索", status: "pending", detail: "等待检索本地课程文档", attempt: 0 },
     { role: "需求分析师", status: "pending", detail: "等待分析学习需求", attempt: 0 },
     ...selectedAgents.map((agent) => ({ role: agent.role, status: "pending", detail: agent.task, attempt: 0 })),
     { role: "审核整合 Agent", status: "pending", detail: "等待检查资源与规划路径", attempt: 0 },
@@ -485,6 +459,18 @@ ${JSON.stringify(learningSignals, null, 2)}
 
   try {
     const collaborationTrace = [];
+    updateResourceAgentProgress("课程知识库检索", "running", "正在检索课程PDF与讲义", 1);
+    const courseKnowledge = typeof searchCourseKnowledge === "function" ? await searchCourseKnowledge(demand, 7) : [];
+    updateResourceAgentProgress("课程知识库检索", "completed", courseKnowledge.length ? `召回 ${courseKnowledge.length} 个课程片段` : "未召回相关片段，将使用其他可信资源", 1);
+    collaborationTrace.push({
+      role: "课程知识库检索",
+      status: "completed",
+      completed_at: new Date().toISOString(),
+      independent_call: true,
+      method: "local_course_rag",
+      output_summary: courseKnowledge.length ? `召回 ${courseKnowledge.length} 个课程片段` : "本次没有匹配片段",
+      citations: courseKnowledge.map((item) => ({ title: item.title, course: item.course, page: item.page, section: item.section })),
+    });
     const retrievedResource = selectedAgents.some((agent) => agent.id === "retrieval")
       ? buildRetrievedEducationResource(demand)
       : null;
@@ -505,7 +491,7 @@ ${JSON.stringify(learningSignals, null, 2)}
       `你是独立运行的需求分析 Agent。分析课程主题、知识大类、目标、先修基础、难度、学生短板与资源策略。
 输出 {"topic":string,"category":string,"goal":string,"prerequisites":[string],"difficulty":string,"weaknesses":[string],"resource_strategy":[string]}。
 不得生成教学正文，也不得声称其他 Agent 已完成任务。`,
-      { demand, student_profile: profile, learning_signals: learningSignals },
+      { demand, student_profile: profile, learning_signals: learningSignals, course_knowledge: courseKnowledge },
       0.2,
       {
         onProgress: (status, attempt) => updateResourceAgentProgress("需求分析师", status, status === "completed" ? "需求与学习目标已解析" : "正在分析主题、基础与短板", attempt),
@@ -526,6 +512,7 @@ ${JSON.stringify(learningSignals, null, 2)}
         analysis: analysisCall.result,
         student_profile: profile,
         verified_retrieval_sources: retrievedEvidence,
+        course_knowledge: courseKnowledge,
       },
       agent.id === "quiz" ? 0.3 : 0.4,
       {
@@ -600,6 +587,7 @@ ${JSON.stringify(learningSignals, null, 2)}
           sources: item.sources || [],
         })),
         learning_signals: learningSignals,
+        course_knowledge_citations: courseKnowledge.map((item) => ({ course: item.course, title: item.title, page: item.page, section: item.section })),
       },
       0.2,
       {
@@ -627,6 +615,7 @@ ${JSON.stringify(learningSignals, null, 2)}
       path_basis: reviewCall.result.path_basis,
       learning_path: reviewCall.result.learning_path,
       resources: allResources,
+      course_knowledge_sources: courseKnowledge.map((item) => ({ course: item.course, title: item.title, page: item.page, section: item.section, extraction: item.extraction })),
     };
     const normalized = normalizeGeneratedResources(parsed, demand);
     const presentation = normalized.resources.find((item) => item.type === "教学演示文稿（PPT）");

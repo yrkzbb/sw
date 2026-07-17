@@ -5,11 +5,13 @@
   "description": "问阶 AI 学习工作台",
   "scripts": {
     "start": "node js/server.js",
-    "dev": "PORT=4174 node js/server.js"
+    "dev": "PORT=4174 node js/server.js",
+    "test:knowledge-base": "node scripts/evaluate-knowledge-base.js"
   },
   "dependencies": {
     "hls.js": "^1.6.16",
     "mysql2": "^3.11.5",
+    "pdf-parse": "^1.1.1",
     "pptxgenjs": "^4.0.1"
   }
 }

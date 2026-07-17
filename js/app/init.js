@@ -12,6 +12,7 @@ async function init() {
   initImageLightbox();
   initCopyDelegation();
   initComposer();
+  initKnowledgeBase();
   if (state.activeUser) {
     reloadUserWorkspace();
   } else {

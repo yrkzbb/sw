@@ -1,0 +1,544 @@
+\documentclass{beamer}
+\usepackage[UTF8,fontset=none]{ctex}
+\usepackage{fontspec}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc}
+\usepackage{booktabs}
+\usepackage{array}
+\graphicspath{{assets/}}
+
+\setCJKmainfont[
+  Path=/System/Library/AssetsV2/com_apple_MobileAsset_Font7/54a2ad3dac6cac875ad675d7d273dc425010a877.asset/AssetData/,
+  FontIndex=0,
+  BoldFont=Kaiti.ttc,
+  BoldFeatures={FontIndex=3}
+]{Kaiti.ttc}
+\setCJKsansfont[
+  Path=/System/Library/AssetsV2/com_apple_MobileAsset_Font7/54a2ad3dac6cac875ad675d7d273dc425010a877.asset/AssetData/,
+  FontIndex=0,
+  BoldFont=Kaiti.ttc,
+  BoldFeatures={FontIndex=3}
+]{Kaiti.ttc}
+\setCJKmonofont[Path=/Users/yrk/Library/Fonts/]{NotoSansCJKsc-Regular.otf}
+
+\author[张书旋]{张书旋}
+\title[问阶 AI 学习工作台]{问阶 AI 学习工作台}
+\subtitle{多智能体个性化高校学习资源系统}
+\institute[华中师范大学]{华中师范大学计算机学院}
+\date{2026 年 7 月}
+\usepackage{Tsinghua}
+
+\definecolor{accentblue}{HTML}{2F80ED}
+\definecolor{accentgreen}{HTML}{159D82}
+\definecolor{accentorange}{HTML}{F2994A}
+\definecolor{accentred}{HTML}{E85D75}
+\setbeamertemplate{navigation symbols}{}
+\setbeamertemplate{section in toc}[sections numbered]
+
+\newcommand{\tagbox}[2]{\tikz[baseline=(x.base)]\node[fill=#1!12,draw=#1!28,rounded corners=2pt,inner xsep=5pt,inner ysep=2pt,text=#1,font=\scriptsize\bfseries](x){#2};}
+\newcommand{\bigmetric}[3]{\begin{minipage}[t]{.29\linewidth}\centering{\color{#3}\fontsize{23}{25}\selectfont\bfseries #1}\par{\scriptsize #2}\end{minipage}}
+
+\begin{document}
+\begin{frame}
+  \titlepage
+\end{frame}
+
+\begin{frame}{汇报提纲}
+  \tableofcontents[sectionstyle=show,subsectionstyle=show/shaded/hide]
+\end{frame}
+
+\section{项目简介}
+
+\begin{frame}{行业分析：政策与用户规模共同推动“AI+教育”}
+\begin{columns}[T,onlytextwidth]
+\column{.31\textwidth}
+\begin{block}{\centering 6.02 亿}
+\centering\small 2025 年末我国生成式 AI 用户规模
+\end{block}
+\column{.31\textwidth}
+\begin{block}{\centering 42.8\%}
+\centering\small 生成式 AI 普及率，使用进入大众阶段
+\end{block}
+\column{.31\textwidth}
+\begin{block}{\centering 2030}
+\centering\small 基本形成人工智能与教育深度融合格局
+\end{block}
+\end{columns}
+\vspace{7mm}
+\begin{block}{行业判断}
+高校 AI 应用正在从通用问答工具，走向具备课程知识、学习者状态和持续反馈能力的教育智能体。
+\end{block}
+\vfill
+{\tiny 数据来源：CNNIC《第57次中国互联网络发展状况统计报告》；教育部等五部门《“人工智能+教育”行动计划》，2026。}
+\end{frame}
+
+\begin{frame}[shrink=5]{发展现状：教育智能化已从探索进入系统推进阶段}
+\begin{columns}[T,onlytextwidth]
+\column{.48\textwidth}
+\includegraphics[width=\linewidth]{ai-education-plan.png}
+\column{.48\textwidth}
+\begin{block}{政策端}
+\small 强调全要素融合、全过程贯通、全场景覆盖，并提出研发智能学伴、建设学生数字档案、动态优化学习路径。
+\end{block}
+\begin{block}{技术端}
+\small 大语言模型、RAG、多智能体与多模态生成逐步成熟，为课程级个性化服务提供基础。
+\end{block}
+\begin{block}{应用端}
+\small 2025 年教育部已在 17 个省市、18 所高校开展人工智能赋能教育试点。
+\end{block}
+\end{columns}
+\vfill
+{\tiny 来源：教育部《“人工智能+教育”行动计划》及答记者问，2026。}
+\end{frame}
+
+\begin{frame}[shrink=20]{内容供给越丰富，学习决策反而越困难}
+\vspace{1mm}
+\begin{columns}[T,onlytextwidth]
+\column{.30\textwidth}
+\vspace{3mm}
+{\color{maincolor}\fontsize{24}{27}\selectfont\bfseries 内容更多}
+\par\vspace{2mm}
+{\color{accentred}\fontsize{24}{27}\selectfont\bfseries 决策更难}
+\par\vspace{5mm}
+{\small AI 能回答更多问题，\\却无法替学生判断下一步。}
+\par\vspace{4mm}
+{\color{maincolor}\rule{.68\linewidth}{1.2pt}}
+\par\vspace{2mm}
+{\scriptsize 学什么 · 怎么学\\[1mm] 是否可信 · 是否掌握}
+
+\column{.65\textwidth}
+\renewcommand{\arraystretch}{1.13}
+\begin{tabular}{>{\bfseries\color{maincolor}}p{.65cm}p{1.9cm}p{3.25cm}}
+\toprule
+01 & \bfseries 资源过载 & \small 资料分散，反复筛选仍难聚焦\\
+\midrule
+02 & \bfseries 个体失配 & \small 基础、目标与学习节奏各不相同\\
+\midrule
+03 & \bfseries 信任缺口 & \small 来源、页码与事实边界难以确认\\
+\midrule
+04 & \bfseries 反馈断点 & \small 缺少顺序、评价标准与持续调整\\
+\bottomrule
+\end{tabular}
+\end{columns}
+\vspace{3mm}
+\begin{beamercolorbox}[wd=\textwidth,sep=3mm,center,rounded=true]{block body}
+{\small\bfseries 真正稀缺的不是更多内容，而是
+\textcolor{maincolor}{有依据、可执行、能反馈的个性化学习决策}}
+\end{beamercolorbox}
+\end{frame}
+
+\begin{frame}{问阶把一次问答变成持续学习闭环}
+\centering
+\begin{tikzpicture}[node distance=2mm and 2mm]
+\tikzset{stage/.style={draw=maincolor!30,fill=maincolor!5,rounded corners=3pt,minimum width=1.48cm,minimum height=1.05cm,align=center,font=\scriptsize},
+flow/.style={-{Stealth[length=2mm]},draw=maincolor,line width=1pt}}
+\node[stage] (q) {\bfseries 01 提问\\\scriptsize 目标与困难};
+\node[stage,right=of q] (p) {\bfseries 02 理解\\\scriptsize 动态画像};
+\node[stage,right=of p] (r) {\bfseries 03 依据\\\scriptsize 课程 RAG};
+\node[stage,right=of r] (a) {\bfseries 04 生成\\\scriptsize 多智能体};
+\node[stage,right=of a] (l) {\bfseries 05 行动\\\scriptsize 路径与 Todo};
+\node[stage,right=of l] (e) {\bfseries 06 验证\\\scriptsize 练习与复盘};
+\draw[flow](q)--(p);\draw[flow](p)--(r);\draw[flow](r)--(a);
+\draw[flow](a)--(l);\draw[flow](l)--(e);
+\draw[flow,rounded corners=5pt](e.south)--++(0,-.75)-|(p.south);
+\node[fill=maincolor!10,rounded corners=2pt,inner sep=4pt,font=\small\bfseries] at ($(r.south)+(1.3,-.75)$)
+{学习证据反向更新画像、路径与资源优先级};
+\end{tikzpicture}
+\vspace{5mm}
+\begin{block}{应用价值}
+系统交付的不是一份孤立答案，而是一条能够执行、验证并持续优化的学习路径。
+\end{block}
+\end{frame}
+
+\section{框架结构}
+
+\begin{frame}{总体框架：画像、知识与多智能体共同驱动学习闭环}
+\begin{columns}[T,onlytextwidth]
+\column{.32\textwidth}
+\begin{block}{多智能体编排}
+\small 需求拆解、并行生成、集中审核，不同资源由不同 Agent 负责。\par\vspace{3mm}
+\tagbox{maincolor}{任务分解}\quad\tagbox{maincolor}{并行容错}
+\end{block}
+\column{.32\textwidth}
+\begin{block}{检索增强生成}
+\small 本地课程 PDF 页码级召回，相关片段注入对话与资源 Agent。\par\vspace{3mm}
+\tagbox{accentblue}{中文 OCR}\quad\tagbox{accentblue}{页码引用}
+\end{block}
+\column{.32\textwidth}
+\begin{block}{学习者建模}
+\small 从自然对话抽取 8 维画像，以行为证据持续修正难度与策略。\par\vspace{3mm}
+\tagbox{accentred}{增量画像}\quad\tagbox{accentred}{动态推荐}
+\end{block}
+\end{columns}
+\vspace{6mm}
+\begin{center}
+{\large\bfseries 技术融合的落点：\textcolor{maincolor}{更懂谁在学、依据什么、下一步做什么}}
+\end{center}
+\end{frame}
+
+\begin{frame}[shrink=15]{能力结构：五类 AI 能力分别解决关键学习问题}
+\begin{tabular}{>{\bfseries\color{maincolor}}p{2.4cm}p{3.4cm}p{4.1cm}}
+\toprule
+前沿技术 & 解决的问题 & 在问阶中的实现方法\\
+\midrule
+大语言模型 & 理解开放需求并生成教学内容 & 结构化提示、流式对话、资源生成与审核\\
+多智能体编排 & 单模型难以兼顾多种资源与质量 & 独立调用、并行执行、失败隔离、集中审核\\
+课程 RAG & 幻觉、来源不清与课程内容偏离 & PDF/OCR、页码切分、相关度检索、引用约束\\
+学习者建模 & 通用内容无法匹配个体差异 & 8 维画像、需求轨迹、行为证据增量更新\\
+反馈驱动推荐 & 资源生成后无法持续优化 & 正确率、错题、使用、路径完成共同调权\\
+\bottomrule
+\end{tabular}
+\vspace{4mm}
+\begin{block}{融合原则}
+每项技术都必须进入同一学习闭环，并对最终的内容难度、资源组合、学习顺序或推荐优先级产生可观察影响。
+\end{block}
+\end{frame}
+
+\begin{frame}[shrink=7]{智能体协作不是角色扮演，而是可追踪的独立执行}
+\begin{columns}[T,onlytextwidth]
+\column{.69\textwidth}
+\centering
+\begin{tikzpicture}[scale=.70,transform shape]
+\tikzset{agent/.style={draw=maincolor!35,fill=maincolor!5,rounded corners=3pt,minimum width=2.1cm,minimum height=.7cm,align=center,font=\small},
+arr/.style={-{Stealth[length=2mm]},draw=maincolor}}
+\node[agent] (d) at (0,1.7) {需求分析 Agent};
+\node[agent] (rag) at (2.8,1.7) {课程 RAG};
+\node[agent] (doc) at (5.6,2.7) {知识文档};
+\node[agent] (map) at (5.6,1.8) {思维导图};
+\node[agent] (quiz) at (5.6,.9) {题库 / 代码};
+\node[agent] (ppt) at (5.6,0) {阅读 / PPT};
+\node[agent,fill=maincolor!12] (review) at (8.6,1.35) {审核整合 Agent};
+\draw[arr](d)--(rag);
+\foreach \n in {doc,map,quiz,ppt}{\draw[arr](rag.east)--++(.3,0)|-(\n.west);}
+\foreach \n in {doc,map,quiz,ppt}{\draw[arr](\n.east)--++(.3,0)|-(review.west);}
+\end{tikzpicture}
+\column{.27\textwidth}
+\begin{block}{每一步都有证据}
+\small
+\begin{itemize}\setlength\itemsep{2mm}
+  \item 独立模型请求
+  \item 开始 / 完成时间
+  \item 尝试次数与状态
+  \item 中间产物摘要
+  \item 审核意见与反馈
+\end{itemize}
+\end{block}
+\tagbox{maincolor}{45 秒超时}\par\vspace{2mm}\tagbox{maincolor}{重试 1 次}
+\end{columns}
+\end{frame}
+
+\section{产品介绍}
+
+\begin{frame}{对话式构建画像：从自然交互中理解“谁在学”}
+\begin{columns}[T,onlytextwidth]
+\column{.62\textwidth}
+\includegraphics[width=\linewidth]{profile.png}
+\column{.34\textwidth}
+\begin{block}{8 维动态画像}
+\small 专业背景、学习目标、知识基础、认知风格、学习习惯、易错点、互动偏好、情绪动力。
+\end{block}
+\begin{block}{随学随新}
+\small 对话、错题、资源使用和路径完成触发更新；信息区分“确定、推测、待补充”。
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{智能辅导：即时问答同时读取画像与课程依据}
+\begin{columns}[T,onlytextwidth]
+\column{.64\textwidth}
+\includegraphics[width=\linewidth]{chat.png}
+\column{.32\textwidth}
+\begin{block}{多样化解答}
+\small 支持流式文字、图片输入、Markdown、代码高亮与多轮上下文。
+\end{block}
+\begin{block}{不是通用聊天}
+\small 回答前读取当前画像并检索课程 PDF；教材外内容明确标记“AI 扩展”。
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{完整课程输入：441 页教材成为智能体共同知识底座}
+\begin{columns}[T,onlytextwidth]
+\column{.64\textwidth}
+\includegraphics[width=\linewidth]{resources-top.png}
+\column{.32\textwidth}
+\begin{block}{满足赛题输入要求}
+\small 已构建一门完整高校专业课程文档集：机器学习，441 页、494 个片段、扫描版中文 OCR。
+\end{block}
+\begin{block}{页码级可溯源}
+\small 对话和资源 Agent 只接收相关片段，并要求标注课程文档与 PDF 页码。
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{多智能体协作：7 类资源独立生成，结果统一审核}
+\begin{columns}[T,onlytextwidth]
+\column{.62\textwidth}
+\includegraphics[width=\linewidth]{resources-agents.png}
+\column{.34\textwidth}
+\begin{block}{资源类型}
+\small 高校资源检索、知识文档、思维导图、练习题、拓展阅读、代码实操、PPT。
+\end{block}
+\begin{block}{真实协作证据}
+\small 每个 Agent 独立请求并保存状态、中间摘要与反馈；并行执行，单个失败不影响整轮。
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{个性化路径：把资源组织成阶段、Todo 与掌握证据}
+\begin{columns}[T,onlytextwidth]
+\column{.64\textwidth}
+\includegraphics[width=\linewidth]{path.png}
+\column{.32\textwidth}
+\begin{block}{动态规划}
+\small 综合专业、目标、进度、知识掌握与偏好，生成 4--6 阶段学习路径。
+\end{block}
+\begin{block}{可执行而非静态目录}
+\small 每阶段包含具体步骤、Todo、顺序理由、建议时长和掌握证据；同类需求增量更新。
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{学习效果评估：行为证据直接驱动下一轮调整}
+\begin{columns}[T,onlytextwidth]
+\column{.64\textwidth}
+\includegraphics[width=\linewidth]{assessment.png}
+\column{.32\textwidth}
+\begin{block}{多维度评估}
+\small 综合练习正确率、错题复盘、资源使用、路径完成度与知识掌握。
+\end{block}
+\begin{block}{评估后的动作}
+\small 未掌握内容升权，已完成资源降权；自动调整资源推送策略与下一阶段计划。
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{资源推送与文件沉淀：让生成结果可复用、可分享}
+\begin{columns}[T,onlytextwidth]
+\column{.49\textwidth}
+\includegraphics[width=\linewidth]{push.png}\par
+\centering\scriptsize 按阶段、画像与学习证据精准推送
+\column{.49\textwidth}
+\includegraphics[width=\linewidth]{storage.png}\par
+\centering\scriptsize Markdown 与 SVG 自动归档、下载和编辑
+\end{columns}
+\vspace{3mm}
+\begin{block}{资源利用率不止依赖推荐}
+\small 推送页解决“下一步看什么”，存储页解决“生成后如何沉淀”，共同支撑资源持续使用。
+\end{block}
+\end{frame}
+
+\section{关键技术}
+
+\begin{frame}{关键技术一：课程 RAG 让答案回到教材}
+\begin{columns}[T,onlytextwidth]
+\column{.58\textwidth}
+\centering
+\begin{tikzpicture}[node distance=3mm]
+\tikzset{box/.style={draw=maincolor!30,fill=maincolor!4,rounded corners=2pt,minimum width=5.0cm,minimum height=.56cm,align=center,font=\scriptsize},
+arr/.style={-{Stealth[length=1.8mm]},draw=maincolor}}
+\node[box](u){上传课程 PDF（最大 80 MB）};
+\node[box,below=of u](t){文本层检测 / 扫描版中文 OCR};
+\node[box,below=of t](c){按页切分并保留来源元数据};
+\node[box,below=of c](s){关键词 + 中文二元词相关度检索};
+\node[box,below=of s,fill=maincolor!12](i){相关片段注入 Agent + 页码引用约束};
+\draw[arr](u)--(t);\draw[arr](t)--(c);\draw[arr](c)--(s);\draw[arr](s)--(i);
+\end{tikzpicture}
+\column{.38\textwidth}
+\begin{block}{当前实证}
+\centering
+{\color{maincolor}\LARGE\bfseries 441 页}\par 课程教材\par\vspace{3mm}
+{\color{accentblue}\LARGE\bfseries 494 个}\par 检索片段\par\vspace{3mm}
+{\color{accentred}\LARGE\bfseries 12/12}\par 检索测试通过
+\end{block}
+\end{columns}
+\end{frame}
+
+\begin{frame}{关键技术二：画像与需求轨迹实现持续个性化}
+\begin{columns}[T,onlytextwidth]
+\column{.47\textwidth}
+\begin{block}{画像信号}
+\centering
+\tagbox{maincolor}{专业与目标}\quad
+\tagbox{maincolor}{知识基础}\par\vspace{3mm}
+\tagbox{accentblue}{认知风格}\quad
+\tagbox{accentblue}{学习习惯}\par\vspace{3mm}
+\tagbox{accentred}{易错点}\quad
+\tagbox{accentred}{互动与动力}
+\end{block}
+\column{.47\textwidth}
+\begin{block}{行为证据}
+\centering
+\tagbox{maincolor}{练习正确率}\quad
+\tagbox{maincolor}{错题主题}\par\vspace{3mm}
+\tagbox{accentblue}{资源使用}\quad
+\tagbox{accentblue}{Todo 完成}\par\vspace{3mm}
+\tagbox{accentred}{路径进度}\quad
+\tagbox{accentred}{近期需求}
+\end{block}
+\end{columns}
+\vspace{6mm}
+\begin{center}
+{\large\bfseries 画像决定“怎么教”，行为证据决定“下一步教什么”}
+\end{center}
+\end{frame}
+
+\begin{frame}{关键技术三：并行 Agent 与反馈闭环兼顾质量和效率}
+\centering
+\begin{tikzpicture}[node distance=4mm and 4mm]
+\tikzset{n/.style={draw=maincolor!30,fill=maincolor!5,rounded corners=3pt,minimum width=2.0cm,minimum height=.8cm,align=center,font=\small},
+a/.style={-{Stealth[length=2mm]},draw=maincolor,line width=1pt}}
+\node[n](d){需求分析};
+\node[n,right=of d](g){资源 Agent\\并行生成};
+\node[n,right=of g](r){审核整合};
+\node[n,right=of r](p){路径与推送};
+\node[n,below=10mm of r,fill=maincolor!12](e){练习 / 错题 / 使用 / 完成度};
+\draw[a](d)--(g);\draw[a](g)--(r);\draw[a](r)--(p);
+\draw[a](p.south)--++(0,-.45)-|(e.east);
+\draw[a](e.west)-|($(d.south)+(0,-.45)$)--(d.south);
+\end{tikzpicture}
+\vspace{7mm}
+\begin{columns}[T,onlytextwidth]
+\column{.31\textwidth}\centering\tagbox{maincolor}{Promise.allSettled 并行}
+\column{.31\textwidth}\centering\tagbox{accentblue}{45 秒超时 + 重试}
+\column{.31\textwidth}\centering\tagbox{accentred}{单 Agent 失败隔离}
+\end{columns}
+\end{frame}
+
+\section{工程特色 / 创新}
+
+\begin{frame}{可信不是附加项，而是生成链路的组成部分}
+\begin{columns}[T,onlytextwidth]
+\column{.32\textwidth}
+\begin{block}{输入侧}
+\small 浏览器与服务端双层拦截危险操作性请求，并防范提示注入。
+\end{block}
+\column{.32\textwidth}
+\begin{block}{生成侧}
+\small 资源进入结果池前审核；绝对化结论、论文与外链标记待复核。
+\end{block}
+\column{.32\textwidth}
+\begin{block}{证据侧}
+\small 课程教材、可信检索与 AI 生成使用不同标识，来源不混淆。
+\end{block}
+\end{columns}
+\vspace{4mm}
+\begin{itemize}\setlength\itemsep{2.5mm}
+  \item 危险请求：服务端返回 \texttt{CONTENT\_SAFETY\_BLOCKED}
+  \item 用户 PDF：仅保存在本地私有目录，不进入 Git
+  \item 重要事实：提示回到教材、教师或原始文献核验
+\end{itemize}
+\end{frame}
+
+\begin{frame}{非功能要求已落实为可验证的工程机制}
+\begin{tabular}{>{\bfseries\color{maincolor}}p{2.5cm}p{5.0cm}p{2.7cm}}
+\toprule
+赛题要求 & 工程实现 & 验证证据\\
+\midrule
+界面与交互 & 流式输出、Markdown、资源卡片、响应式布局 & 项目功能截图\\
+开源合规 & 第三方组件、AI 使用与内容安全单独声明 & 提交文档\\
+防幻觉与安全 & 教材页码、来源徽标、输出审核、前后端过滤 & 安全测试通过\\
+响应与进度 & Agent 并行、45 秒超时、重试一次、任务进度 & 执行轨迹\\
+完整课程输入 & PDF 文本解析 / 中文 OCR / 本地私有索引 & 441 页、494 片段\\
+\bottomrule
+\end{tabular}
+\vspace{4mm}
+\begin{center}
+\tagbox{maincolor}{390×844 无横向溢出}\quad
+\tagbox{accentblue}{危险请求 HTTP 400}\quad
+\tagbox{accentred}{知识库测试 12/12}
+\end{center}
+\end{frame}
+
+\begin{frame}{关键能力已经用可重复测试验证}
+\centering
+\bigmetric{8 维}{动态学习画像}{maincolor}\hfill
+\bigmetric{7 类}{个性化资源能力}{accentblue}\hfill
+\bigmetric{12/12}{知识库检索通过}{accentred}
+\vspace{6mm}
+\small
+\begin{tabular}{>{\bfseries}p{1.8cm}p{6.8cm}p{1.0cm}}
+\toprule
+验证域 & 可重复证据 & 结果\\
+\midrule
+知识库 & 相关问题有召回、无关问题不误召回、结果携带页码 & 通过\\
+多智能体 & 独立调用、并行执行、失败跳过、轨迹保存 & 通过\\
+内容安全 & 前端拦截、服务端 HTTP 400、输出复核标识 & 通过\\
+工程质量 & JavaScript 语法、Git 差异格式、390×844 移动布局 & 通过\\
+\bottomrule
+\end{tabular}
+\end{frame}
+
+\begin{frame}[shrink=15]{创新不在“接入大模型”，而在重构学习服务方式}
+\begin{tabular}{>{\bfseries}p{2.5cm}p{3.6cm}p{4.0cm}}
+\toprule
+比较维度 & 通用聊天式 AI & 问阶学习智能体\\
+\midrule
+学生理解 & 依赖当前对话，长期状态弱 & 8 维画像与需求轨迹持续更新\\
+知识依据 & 主要依靠模型参数知识 & 完整课程 PDF、页码级 RAG、可信目录\\
+资源生产 & 单次回答或单一文件 & 多角色 Agent 并行生成 7 类资源\\
+学习行动 & 用户自行整理与安排 & 阶段、Todo、顺序理由和掌握证据\\
+效果反馈 & 对话结束后链路中断 & 错题、正确率、使用与路径驱动再推荐\\
+可信边界 & 生成与检索结果容易混淆 & 教材、可信检索、AI 扩展明确区分\\
+\bottomrule
+\end{tabular}
+\vspace{4mm}
+\begin{center}
+{\large\bfseries 创新价值：从“内容生成器”升级为\textcolor{maincolor}{可验证、可执行、可进化的学习系统}}
+\end{center}
+\end{frame}
+
+\begin{frame}{创新价值来自四个“闭环连接”}
+\begin{columns}[T,onlytextwidth]
+\column{.48\textwidth}
+\begin{block}{画像与行为连接}
+\small 画像不是静态档案；学习行为持续改变内容难度、路径和推荐。
+\end{block}
+\begin{block}{生成与证据连接}
+\small 每份资源都能区分课程依据、可信检索与 AI 扩展。
+\end{block}
+\column{.48\textwidth}
+\begin{block}{多智能体与工程连接}
+\small 独立调用、并行容错、轨迹保存，让协作可观察、可调试、可审核。
+\end{block}
+\begin{block}{资源与行动连接}
+\small 资源进入阶段、Todo、掌握证据和复盘，不止停在“生成完成”。
+\end{block}
+\end{columns}
+\vspace{3mm}
+\begin{center}
+{\large\bfseries 从“聊天工具”升级为\textcolor{maincolor}{面向高校课程的个性化学习操作系统}}
+\end{center}
+\end{frame}
+
+\begin{frame}{从课程试点走向教学协同与平台化}
+\begin{columns}[T,onlytextwidth]
+\column{.31\textwidth}
+\begin{block}{第一步：课程试点}
+\small 从机器学习扩展到校内高频专业课，沉淀课程知识库与真实反馈。
+\end{block}
+\column{.31\textwidth}
+\begin{block}{第二步：教学协同}
+\small 教师审核资源与题库，查看共性薄弱点，辅助分层教学。
+\end{block}
+\column{.31\textwidth}
+\begin{block}{第三步：平台化}
+\small 接入更多高校资源目录与模型服务，形成可配置的 Agent 能力市场。
+\end{block}
+\end{columns}
+\vspace{8mm}
+\begin{center}
+\tagbox{maincolor}{学生：少筛选、能行动}\qquad
+\tagbox{accentblue}{教师：可分层、有证据}\qquad
+\tagbox{accentred}{学校：可沉淀、可运营}
+\end{center}
+\end{frame}
+
+\begin{frame}
+\begin{center}
+{\Huge\bfseries Thanks!}\par\vspace{8mm}
+{\Large\color{maincolor}\bfseries 让 AI 不只回答问题，更陪学生走完学习过程。}
+\end{center}
+\end{frame}
+
+\end{document}

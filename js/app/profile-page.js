@@ -1314,11 +1314,24 @@ function renderWikiSummaryCards() {
   const latest = posts[0] || docs[0] || null;
   const latestCard = document.querySelector(".wiki-latest-card");
   if (latestCard) {
+    delete latestCard.dataset.profilePostId;
+    delete latestCard.dataset.favoriteOpenFile;
+    latestCard.removeAttribute("role");
+    latestCard.removeAttribute("tabindex");
+    latestCard.removeAttribute("aria-label");
+    if (latest) {
+      const isPost = posts.includes(latest);
+      if (isPost) latestCard.dataset.profilePostId = String(latest.id || "");
+      else latestCard.dataset.favoriteOpenFile = String(latest.id || "");
+      latestCard.setAttribute("role", "button");
+      latestCard.setAttribute("tabindex", "0");
+      latestCard.setAttribute("aria-label", `打开最新内容：${latest.title || latest.filename || "未命名内容"}`);
+    }
     latestCard.innerHTML = latest
       ? `
         <span>最新内容</span>
         <strong>${escapeHtml(latest.title || latest.filename || "未命名内容")}</strong>
-        <p>${escapeHtml(latest.summary || latest.category || latest.type || "来自你的工作区")}</p>
+        <p>${escapeHtml(posts.includes(latest) ? profilePostSummary(latest) : (latest.summary || latest.category || latest.type || "来自你的工作区"))}</p>
         <time>${escapeHtml(formatWikiDate(latest.createdAt || latest.addedAt || latest.updatedAt || Date.now()))}</time>
       `
       : `<span>最新内容</span><strong>还没有公开内容</strong><p>发布动态或保存文档后会出现在这里。</p>`;
@@ -1326,6 +1339,17 @@ function renderWikiSummaryCards() {
   const recommend = paths[0] || resources[0] || null;
   const recommendCard = document.querySelector(".wiki-recommend-card");
   if (recommendCard) {
+    if (recommend) {
+      recommendCard.dataset.profileOpenResources = "true";
+      recommendCard.setAttribute("role", "button");
+      recommendCard.setAttribute("tabindex", "0");
+      recommendCard.setAttribute("aria-label", `打开推荐内容：${recommend.topic || recommend.title || recommend.category || "学习资源"}`);
+    } else {
+      delete recommendCard.dataset.profileOpenResources;
+      recommendCard.removeAttribute("role");
+      recommendCard.removeAttribute("tabindex");
+      recommendCard.removeAttribute("aria-label");
+    }
     recommendCard.innerHTML = recommend
       ? `
         <span>随机推荐</span>

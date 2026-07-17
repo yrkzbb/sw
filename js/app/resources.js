@@ -1,7 +1,7 @@
 function renderAgentPipeline(status = "idle") {
   if (!el.agentPipeline) return;
   const selectedSet = getSelectedResourceAgents();
-  const quizEnabled = selectedSet.some((agent) => agent.id === "quiz");
+  const quizEnabled = state.selectedResourceAgents.includes("quiz");
   if (el.exerciseBlueprintPanel) el.exerciseBlueprintPanel.hidden = !quizEnabled;
   el.agentPipeline.innerHTML = SELECTABLE_RESOURCE_AGENTS.map((agent) => {
     const selected = state.selectedResourceAgents.includes(agent.id);

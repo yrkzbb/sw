@@ -397,10 +397,10 @@
   }
 
   .resource-wiki-head,
+  .course-kb-panel,
   .resource-wiki-agents,
   .resource-wiki-results,
-  .resource-live-progress,
-  .agent-trace-panel {
+  .resource-live-progress {
     padding: 15px !important;
     border-radius: 18px !important;
   }
@@ -417,9 +417,9 @@
     overflow-wrap: anywhere;
   }
 
+  .course-kb-head,
   .resource-card-head,
   .resource-live-head,
-  .agent-trace-head,
   .resource-live-steps article {
     display: grid !important;
     grid-template-columns: 1fr !important;
@@ -430,17 +430,12 @@
     min-width: 0 !important;
   }
 
-  .resource-origin,
-  .resource-safety-badge {
-    margin-left: 0 !important;
-    margin-right: 5px;
-    white-space: normal !important;
-  }
+  .course-kb-upload { width:100%; min-height:52px; }
+  .course-kb-list { grid-template-columns:1fr !important; }
 
   .resource-source-summary,
   .resource-body,
-  .resource-preview,
-  .agent-review-note span {
+  .resource-preview {
     overflow-wrap: anywhere;
     word-break: break-word;
   }

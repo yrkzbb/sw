@@ -520,6 +520,17 @@
   padding: 28px;
 }
 
+.wiki-latest-card[role="button"],
+.wiki-recommend-card[role="button"] {
+  cursor: pointer;
+}
+
+.wiki-latest-card[role="button"]:focus-visible,
+.wiki-recommend-card[role="button"]:focus-visible {
+  outline: 3px solid rgba(85, 199, 181, 0.5);
+  outline-offset: 4px;
+}
+
 .wiki-latest-card span,
 .wiki-recommend-card span {
   display: block;
@@ -1177,13 +1188,15 @@
 }
 
 .resource-wiki-page {
-  width: min(1680px, calc(100vw - 96px));
-  max-width: none;
+  width: 100%;
+  max-width: 1680px;
+  min-width: 0;
   color: #34484b;
   display: grid;
-  grid-template-columns: minmax(250px, 300px) minmax(0, 1fr);
+  grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
   grid-template-areas:
     "builder builder"
+    "knowledge knowledge"
     "agents results";
   gap: 18px;
   align-items: start;
@@ -1195,7 +1208,12 @@
   grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
   gap: 18px;
   margin-bottom: 0;
-  transform: translateX(-80px);
+}
+
+.resource-wiki-page .course-kb-panel {
+  grid-area: knowledge;
+  min-width: 0;
+  margin-bottom: 0;
 }
 
 .resource-wiki-builder:has(.ppt-theme-preview-panel:not([hidden])) {
@@ -1229,7 +1247,6 @@
 
 .resource-wiki-kicker,
 .resource-wiki-section-head span,
-.resource-wiki-brief > span,
 .resource-wiki-page .resource-type {
   color: #64c8b7;
   font-size: 12px;
@@ -1299,7 +1316,6 @@
   align-content: center;
   gap: 12px;
   padding-top: 78px;
-  transform: translateX(48px);
 }
 
 .resource-wiki-brief:has(.ppt-theme-preview-panel:not([hidden])) {
@@ -1312,14 +1328,12 @@
   right: 22px;
 }
 
-.resource-wiki-brief h2,
 .resource-wiki-section-head h2 {
   margin: 0;
   color: #34484b;
   font-size: 24px;
 }
 
-.resource-wiki-brief p,
 .resource-wiki-section-head p {
   margin: 0;
   color: #7b898d;
@@ -1463,12 +1477,13 @@
   grid-area: agents;
   position: sticky;
   top: 12px;
-  transform: translateX(84px);
+  min-width: 0;
 }
 
 .resource-wiki-results {
   grid-area: results;
-  width: min(960px, calc(100vw - 520px));
+  width: auto;
+  min-width: 0;
 }
 
 .resource-wiki-agents .resource-wiki-section-head {
@@ -1614,12 +1629,13 @@
   line-height: 1.75;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1280px) {
   .resource-wiki-page {
-    width: min(100%, calc(100vw - 28px));
+    width: 100%;
     grid-template-columns: 1fr;
     grid-template-areas:
       "builder"
+      "knowledge"
       "agents"
       "results";
   }
@@ -1629,17 +1645,8 @@
     grid-template-columns: 1fr;
   }
 
-  .resource-wiki-builder {
-    transform: none;
-  }
-
-  .resource-wiki-brief {
-    transform: none;
-  }
-
   .resource-wiki-agents {
     position: static;
-    transform: none;
   }
 
   .resource-wiki-results {

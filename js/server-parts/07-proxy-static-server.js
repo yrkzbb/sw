@@ -749,6 +749,23 @@ const server = http.createServer((req, res) => {
       void proxyChat(req, res);
       return;
     }
+    if (url.pathname === "/api/knowledge-base/upload" && req.method === "POST") {
+      void uploadKnowledgeBase(req, res);
+      return;
+    }
+    if (url.pathname === "/api/knowledge-base" && req.method === "GET") {
+      getKnowledgeCatalog(req, res);
+      return;
+    }
+    if (url.pathname === "/api/knowledge-base/search" && req.method === "GET") {
+      searchKnowledgeRoute(req, res, url);
+      return;
+    }
+    const knowledgeTaskMatch = url.pathname.match(/^\/api\/knowledge-base\/tasks\/([^/]+)$/);
+    if (knowledgeTaskMatch && req.method === "GET") {
+      getKnowledgeTask(req, res, decodeURIComponent(knowledgeTaskMatch[1]));
+      return;
+    }
     if (url.pathname === "/api/presentations" && (req.method === "POST" || req.method === "OPTIONS")) {
       void createPresentation(req, res);
       return;
