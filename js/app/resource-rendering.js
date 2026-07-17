@@ -8,7 +8,7 @@ function renderLearningResources() {
     ? `当前将生成：${selectedAgents.map((agent) => agent.type).join("、")}`
     : "当前未选择具体 Agent，将默认走完整资源生成流程。";
   if (state.resourcesGenerating) {
-    el.resourceGrid.innerHTML = `<div class="resource-empty">多智能体正在协作生成个性化学习资料...<br>${escapeHtml(flowText)}</div>`;
+    renderResourceGenerationProgress(flowText);
     return;
   }
   const data = state.learningResources;
@@ -21,7 +21,24 @@ function renderLearningResources() {
     el.resourceGrid.innerHTML = "";
     return;
   }
-  el.resourceGrid.innerHTML = visibleResources.map((item, index) => {
+  const trace = Array.isArray(data.collaboration_trace) ? data.collaboration_trace : [];
+  const traceHtml = trace.length ? `
+    <section class="agent-trace-panel">
+      <div class="agent-trace-head">
+        <div><strong>真实多智能体协作记录</strong><span>每个模型 Agent 独立调用，保留中间产物摘要与审核反馈</span></div>
+        <em>${trace.length} 个执行步骤</em>
+      </div>
+      <div class="agent-trace-list">
+        ${trace.map((step, stepIndex) => `
+          <article>
+            <i>${stepIndex + 1}</i>
+            <div><strong>${escapeHtml(step.role || "Agent")}</strong><span>${escapeHtml(step.output_summary || step.status || "已完成")}</span></div>
+            <b>${step.method === "local_rag" ? "本地 RAG" : step.independent_call ? "独立调用" : "系统步骤"}</b>
+          </article>`).join("")}
+      </div>
+      ${data.review?.findings?.length ? `<div class="agent-review-note"><strong>审核意见</strong>${data.review.findings.map((finding) => `<span>${escapeHtml(finding)}</span>`).join("")}</div>` : ""}
+    </section>` : "";
+  el.resourceGrid.innerHTML = traceHtml + visibleResources.map((item, index) => {
     const completed = typeof isResourceCompleted === "function" && isResourceCompleted(item);
     const rawText = resourcePlainText(item.content || "");
     const isExerciseResource = item.type === "不同类型练习题目";
@@ -61,15 +78,31 @@ function renderLearningResources() {
         : item.type === "教学演示文稿（PPT）" && item.ppt_error
           ? `<span class="resource-agent">${escapeHtml(item.ppt_error)}</span>`
         : "";
+    const isRetrieved = item.origin === "retrieved";
+    const originBadge = isRetrieved
+      ? `<span class="resource-origin resource-origin-retrieved">检索资源 · 可溯源</span>`
+      : `<span class="resource-origin resource-origin-generated">AI 生成资源</span>`;
+    const sourceSummary = isRetrieved && Array.isArray(item.sources)
+      ? `<div class="resource-source-summary">来源：${item.sources.slice(0, 3).map((source) => `<a href="${escapeHtml(source.url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(source.title)}</a>`).join("、")}${item.sources.length > 3 ? ` 等 ${item.sources.length} 个` : ""}</div>`
+      : "";
+    const safetyAudit = item.provenance?.safety_audit;
+    const safetyBadge = isRetrieved
+      ? `<span class="resource-safety-badge is-verified">目录来源已核验</span>`
+      : safetyAudit?.status === "needs_verification"
+        ? `<span class="resource-safety-badge is-warning">安全通过 · 引用待复核</span>`
+        : `<span class="resource-safety-badge is-safe">内容安全已检查</span>`;
     return `
     <article class="resource-card ${item.type === "知识点思维导图" ? "mindmap-resource-card" : ""}">
       <div class="resource-card-head">
         <div>
           <div class="resource-type">${escapeHtml(item.type || "学习资源")}</div>
           <div class="resource-title">${escapeHtml(displayTitle)}</div>
+          ${originBadge}
+          ${safetyBadge}
         </div>
         <div class="resource-agent">${escapeHtml((SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.type === item.type)?.role || item.agent || "Agent").replace("课程讲解 Agent", "知识文档 Agent").replace("知识讲解 Agent", "知识文档 Agent"))}</div>
       </div>
+      ${sourceSummary}
       ${isExerciseResource ? "" : `<div class="resource-preview">${escapeHtml(preview || "点击展开查看完整内容")}${item.type !== "多模态教学视频/动画" && rawText.length > 170 ? "..." : ""}</div>`}
       <div class="resource-body" ${isExerciseResource ? "" : "hidden"}>${bodyHtml}</div>
       <button class="resource-toggle" type="button" data-resource-index="${index}" aria-expanded="${isExerciseResource ? "true" : "false"}">${isExerciseResource ? "收起题目" : "展开全文"}</button>
@@ -89,6 +122,25 @@ function renderLearningResources() {
     </article>
   `;
   }).join("");
+}
+
+function renderResourceGenerationProgress(flowText = "多智能体正在协作生成个性化学习资料") {
+  if (!el.resourceGrid) return;
+  const items = Array.isArray(state.resourceAgentProgress) ? state.resourceAgentProgress : [];
+  const finished = items.filter((item) => item.status === "completed" || item.status === "failed").length;
+  const percent = items.length ? Math.round((finished / items.length) * 100) : 5;
+  el.resourceGrid.innerHTML = `
+    <section class="resource-live-progress">
+      <div class="resource-live-head"><div><strong>正在生成学习资源</strong><span>${escapeHtml(flowText)}</span></div><em>${percent}%</em></div>
+      <div class="resource-live-bar"><i style="width:${percent}%"></i></div>
+      <div class="resource-live-steps">${items.map((item) => `
+        <article class="is-${escapeHtml(item.status)}">
+          <b>${escapeHtml(item.role)}</b>
+          <span>${escapeHtml(item.detail || (item.status === "completed" ? "已完成" : "等待执行"))}</span>
+          <em>${item.status === "completed" ? "完成" : item.status === "failed" ? "已跳过" : item.status === "retrying" ? `重试 ${item.attempt}` : "执行中"}</em>
+        </article>`).join("")}</div>
+      <p>可以停留在当前页面查看进度；单个 Agent 超时会自动重试一次，仍失败则降级跳过，不影响其他资源。</p>
+    </section>`;
 }
 
 async function loadPptThemes() {
@@ -203,6 +255,64 @@ async function pollPresentationTask(resource) {
   saveLearningResources(state.learningResources);
 }
 
+async function callResourceAgentJson(role, system, payload, temperature = 0.35, options = {}) {
+  const startedAt = new Date().toISOString();
+  const timeoutMs = Math.max(10000, Number(options.timeoutMs) || 45000);
+  const retries = Math.max(0, Math.min(2, Number(options.retries) || 1));
+  let lastError;
+  for (let attempt = 1; attempt <= retries + 1; attempt += 1) {
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+    options.onProgress?.(attempt > 1 ? "retrying" : "running", attempt);
+    try {
+      const response = await fetch(CHAT_ENDPOINT, {
+        method: "POST",
+        headers: buildChatHeaders(),
+        signal: controller.signal,
+        body: JSON.stringify({
+          model: DEFAULT_MODEL,
+          messages: [
+            { role: "system", content: `${system}\n只输出合法 JSON，不要输出 Markdown 代码块。` },
+            { role: "user", content: JSON.stringify(payload, null, 2) },
+          ],
+          stream: false,
+          temperature,
+        }),
+      });
+      if (!response.ok) throw new Error(`${role}调用失败：${await response.text().catch(() => response.statusText)}`);
+      const data = await response.json().catch(() => null);
+      const parsed = extractJsonObject(data?.choices?.[0]?.message?.content || "");
+      if (!parsed) throw new Error(`${role}未返回有效 JSON`);
+      options.onProgress?.("completed", attempt);
+      return {
+        result: parsed,
+        trace: { role, status: "completed", started_at: startedAt, completed_at: new Date().toISOString(), independent_call: true, attempts: attempt },
+      };
+    } catch (error) {
+      lastError = error?.name === "AbortError" ? new Error(`${role}响应超时`) : error;
+      if (attempt > retries) options.onProgress?.("failed", attempt, lastError);
+    } finally {
+      window.clearTimeout(timer);
+    }
+  }
+  throw lastError;
+}
+
+function independentResourceAgentPrompt(agent, exerciseBlueprint) {
+  const common = `你是独立运行的“${agent.role}”。你只能完成自己的职责，不得假装其他智能体已经工作。
+输出 {"type":"${agent.type}","title":string,"agent":"${agent.role}","content":string,"quality_notes":[string]}。
+content 可以使用 Markdown；内容必须围绕输入主题，并根据需求分析与学生画像调整难度，不得混入无关旧主题。`;
+  const rules = {
+    doc: "生成约 1300-1700 个中文字符的课程知识正文，包含具体概念、规则、例子、边界和易错点；编程或算法主题必须有可运行代码、复杂度或执行解释。",
+    mindmap: "生成中心主题、5-7个一级分支、每个分支至少3个具体二级知识点及一条复习路径，禁止空泛占位。",
+    quiz: `严格生成题库。题型与题量为 ${JSON.stringify(exerciseBlueprint)}。content 必须是 JSON 字符串：{"questions":[{"type":string,"difficulty":string,"knowledge":string,"source":string,"question":string,"answer":string,"explanation":string}]}。每题给答案和分步骤解析。`,
+    reading: "生成拓展阅读清单。AI 不得声称链接已经检索验证；不确定的精确链接不要输出。优先引用输入中的已检索高校资源，并明确哪些是检索来源、哪些只是延伸检索建议。",
+    code: "生成可运行实训卡，包含目标、输入输出、带 TODO 的代码骨架、参考实现、运行命令、至少3个测试、调试清单和2个修改挑战。",
+    ppt: 'content 必须是 JSON 字符串：{"audience":"学习者","slides":[{"title":string,"takeaway":string,"bullets":[string],"speaker_note":string}]}，共6-10页，包含封面、概念、过程/例题、易错点、练习、总结。',
+  };
+  return `${common}\n${rules[agent.id] || "生成完整、可直接使用的学习资源。"}\n所有内容均标记为 AI 生成，不得伪装成已检索原文。`;
+}
+
 async function generateLearningResources() {
   if (state.resourcesGenerating) return;
   if (USE_BROWSER_API_KEY && !ensureApiKey("未配置 API Key，请先配置后再生成资源")) return;
@@ -214,10 +324,15 @@ async function generateLearningResources() {
   const demandCategory = categorizeKnowledge(demand, demand);
   recordLearningDemand("resource", demand, { category: demandCategory, topic: demand });
 
-  state.resourcesGenerating = true;
-  renderLearningResources();
   const profile = state.studentProfile || createEmptyProfile();
   const selectedAgents = getSelectedResourceAgents();
+  state.resourcesGenerating = true;
+  state.resourceAgentProgress = [
+    { role: "需求分析师", status: "pending", detail: "等待分析学习需求", attempt: 0 },
+    ...selectedAgents.map((agent) => ({ role: agent.role, status: "pending", detail: agent.task, attempt: 0 })),
+    { role: "审核整合 Agent", status: "pending", detail: "等待检查资源与规划路径", attempt: 0 },
+  ];
+  renderLearningResources();
   const exerciseBlueprint = typeof getExerciseBlueprint === "function" ? getExerciseBlueprint() : {};
   const exerciseTotal = Object.values(exerciseBlueprint).reduce((sum, count) => sum + count, 0);
   if (selectedAgents.some((agent) => agent.id === "quiz") && exerciseTotal < 1) {
@@ -369,24 +484,150 @@ ${JSON.stringify(learningSignals, null, 2)}
 请生成围绕“${demand}”的多智能体协作学习资源，并把“个性化学习路径”作为系统生成资源后的动态规划产物输出。`;
 
   try {
-    const res = await fetch(CHAT_ENDPOINT, {
-      method: "POST",
-      headers: buildChatHeaders(),
-      body: JSON.stringify({
-        model: DEFAULT_MODEL,
-        messages: [
-          { role: "system", content: system },
-          { role: "user", content: user },
-        ],
-        stream: false,
-        temperature: 0.45,
-      }),
+    const collaborationTrace = [];
+    const retrievedResource = selectedAgents.some((agent) => agent.id === "retrieval")
+      ? buildRetrievedEducationResource(demand)
+      : null;
+    if (retrievedResource) {
+      updateResourceAgentProgress("教育资源检索 Agent", "completed", `召回 ${retrievedResource.sources.length} 个可信平台`, 1);
+      collaborationTrace.push({
+        role: "教育资源检索 Agent",
+        status: "completed",
+        completed_at: new Date().toISOString(),
+        independent_call: true,
+        method: "local_rag",
+        output_summary: `从可信目录召回 ${retrievedResource.sources.length} 个平台`,
+      });
+    }
+
+    const analysisCall = await callResourceAgentJson(
+      "需求分析师",
+      `你是独立运行的需求分析 Agent。分析课程主题、知识大类、目标、先修基础、难度、学生短板与资源策略。
+输出 {"topic":string,"category":string,"goal":string,"prerequisites":[string],"difficulty":string,"weaknesses":[string],"resource_strategy":[string]}。
+不得生成教学正文，也不得声称其他 Agent 已完成任务。`,
+      { demand, student_profile: profile, learning_signals: learningSignals },
+      0.2,
+      {
+        onProgress: (status, attempt) => updateResourceAgentProgress("需求分析师", status, status === "completed" ? "需求与学习目标已解析" : "正在分析主题、基础与短板", attempt),
+      }
+    );
+    collaborationTrace.push({
+      ...analysisCall.trace,
+      output_summary: `${analysisCall.result.category || demandCategory} · ${analysisCall.result.goal || "需求已解析"}`,
     });
-    if (!res.ok) throw new Error(await res.text().catch(() => "资源生成失败"));
-    const data = await res.json().catch(() => null);
-    const text = data?.choices?.[0]?.message?.content || "";
-    const parsed = extractJsonObject(text);
-    if (!parsed?.resources?.length) throw new Error("模型未返回有效资源 JSON");
+
+    const generationAgents = selectedAgents.filter((agent) => !agent.local);
+    const retrievedEvidence = retrievedResource?.sources || [];
+    const agentSettled = await Promise.allSettled(generationAgents.map((agent) => callResourceAgentJson(
+      agent.role,
+      independentResourceAgentPrompt(agent, exerciseBlueprint),
+      {
+        demand,
+        analysis: analysisCall.result,
+        student_profile: profile,
+        verified_retrieval_sources: retrievedEvidence,
+      },
+      agent.id === "quiz" ? 0.3 : 0.4,
+      {
+        onProgress: (status, attempt, error) => updateResourceAgentProgress(
+          agent.role,
+          status,
+          status === "completed" ? `${agent.type}已生成` : status === "failed" ? String(error?.message || "生成失败") : agent.task,
+          attempt
+        ),
+      }
+    )));
+    const generatedResources = agentSettled.flatMap((settled, index) => {
+      const agent = generationAgents[index];
+      if (settled.status === "rejected") {
+        collaborationTrace.push({
+          role: agent.role,
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          independent_call: true,
+          output_summary: String(settled.reason?.message || "调用失败"),
+        });
+        return [];
+      }
+      const call = settled.value;
+      const contentAudit = typeof auditGeneratedContent === "function"
+        ? auditGeneratedContent(call.result.content || "")
+        : { status: "passed", blocked: false };
+      if (contentAudit.blocked) {
+        collaborationTrace.push({
+          ...call.trace,
+          status: "blocked",
+          output_summary: `${agent.role}输出未通过内容安全审核`,
+          safety_audit: contentAudit,
+        });
+        updateResourceAgentProgress(agent.role, "failed", "输出未通过内容安全审核", call.trace.attempts || 1);
+        return [];
+      }
+      collaborationTrace.push({
+        ...call.trace,
+        output_summary: call.result.title || `${agent.type}已生成`,
+        safety_audit: contentAudit,
+      });
+      return [{
+        ...call.result,
+        type: agent.type,
+        agent: agent.role,
+        origin: "ai_generated",
+        provenance: {
+          method: "独立 Agent 模型调用",
+          generated_at: call.trace.completed_at,
+          based_on_retrieval: retrievedEvidence.length > 0,
+          safety_audit: contentAudit,
+        },
+      }];
+    });
+    const allResources = [...(retrievedResource ? [retrievedResource] : []), ...generatedResources];
+
+    const reviewCall = await callResourceAgentJson(
+      "审核整合 Agent",
+      `你是最后独立运行的审核整合与学习路径 Agent。你会收到需求分析和其他 Agent 的真实中间产物摘要。
+检查主题一致性、来源标记、资源互补性和个性化程度，并给出动态路径。
+输出 {"review":{"status":"passed/needs_attention","findings":[string],"agent_feedback":[{"target":string,"feedback":string}]},"path_basis":{"major_analysis":string,"progress_analysis":string,"mastery_analysis":string,"preference_analysis":string,"resource_strategy":string},"learning_path":[{"stage":string,"goal":string,"duration":string,"order_reason":string,"steps":[string],"todos":[{"label":string,"evidence":string}],"mastery":string,"resources":[{"type":string,"title":string,"reason":string}]}]}。
+路径必须有4-6阶段；只能引用实际收到的资源标题。检索资源与 AI 生成资源必须明确区分。`,
+      {
+        demand,
+        analysis: analysisCall.result,
+        resources: allResources.map((item) => ({
+          type: item.type,
+          title: item.title,
+          origin: item.origin,
+          preview: resourcePlainText(item.content).slice(0, 900),
+          sources: item.sources || [],
+        })),
+        learning_signals: learningSignals,
+      },
+      0.2,
+      {
+        onProgress: (status, attempt, error) => updateResourceAgentProgress(
+          "审核整合 Agent",
+          status,
+          status === "completed" ? "审核完成并生成动态路径" : status === "failed" ? String(error?.message || "审核失败") : "正在核对来源、内容安全与资源互补性",
+          attempt
+        ),
+      }
+    );
+    collaborationTrace.push({
+      ...reviewCall.trace,
+      output_summary: reviewCall.result.review?.status === "passed" ? "审核通过并生成动态路径" : "已给出审核意见与动态路径",
+      feedback: reviewCall.result.review?.agent_feedback || [],
+    });
+
+    const parsed = {
+      topic: analysisCall.result.topic || demand,
+      category: analysisCall.result.category || demandCategory,
+      generated_at: new Date().toISOString(),
+      agents: collaborationTrace.map((item) => ({ role: item.role, contribution: item.output_summary || item.status })),
+      collaboration_trace: collaborationTrace,
+      review: reviewCall.result.review || null,
+      path_basis: reviewCall.result.path_basis,
+      learning_path: reviewCall.result.learning_path,
+      resources: allResources,
+    };
     const normalized = normalizeGeneratedResources(parsed, demand);
     const presentation = normalized.resources.find((item) => item.type === "教学演示文稿（PPT）");
     if (presentation) {

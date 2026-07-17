@@ -8,6 +8,32 @@ function copyUpstreamHeaders(upstream, res) {
   }
 }
 
+function chatMessagePlainText(content) {
+  if (typeof content === "string") return content;
+  if (!Array.isArray(content)) return "";
+  return content.map((part) => typeof part?.text === "string" ? part.text : "").join("\n");
+}
+
+function validateChatSafety(body) {
+  const messages = Array.isArray(body?.messages) ? body.messages : [];
+  if (!messages.length || messages.length > 80) return { ok: false, error: "消息数量不符合安全限制" };
+  const oversized = messages.some((message) => chatMessagePlainText(message?.content).length > 60000);
+  if (oversized) return { ok: false, error: "单条消息过长，请缩短内容后重试" };
+  const lastUser = [...messages].reverse().find((message) => message?.role === "user");
+  const text = chatMessagePlainText(lastUser?.content);
+  const harmfulPatterns = [
+    /(窃取|盗取|套取|获取).{0,12}(密码|验证码|token|cookie|密钥)|(钓鱼|木马).{0,12}(页面|脚本|邮件)/i,
+    /(编写|制作|生成|提供).{0,12}(勒索软件|病毒|蠕虫|木马|恶意软件)/i,
+    /(教我|步骤|教程|如何|怎么).{0,10}(制造炸弹|制作爆炸物|投毒|伤害他人)/i,
+    /(教我|告诉我|步骤|最有效).{0,12}(自杀|自残|结束生命)/i,
+    /(未成年|儿童|幼童).{0,12}(色情|性行为|裸照)/i,
+  ];
+  if (harmfulPatterns.some((pattern) => pattern.test(text))) {
+    return { ok: false, error: "请求未通过内容安全审核，可改为防护、识别、合规分析或安全教育问题" };
+  }
+  return { ok: true };
+}
+
 async function proxyChat(req, res) {
   setCors(res);
 
@@ -36,6 +62,11 @@ async function proxyChat(req, res) {
     return null;
   });
   if (!body) return;
+  const safety = validateChatSafety(body);
+  if (!safety.ok) {
+    sendJson(res, 400, { error: safety.error, code: "CONTENT_SAFETY_BLOCKED" });
+    return;
+  }
 
   let upstream;
   try {

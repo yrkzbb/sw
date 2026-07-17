@@ -14,7 +14,7 @@
           document.documentElement.classList.add(hasActiveUser ? "auth-boot-user" : "auth-boot-guest");
           document.documentElement.classList.add(`auth-boot-${authMode}`);
           const bootRoute = (window.location.hash || "").replace(/^#/, "").split("/")[0] || "home";
-          const knownRoutes = new Set(["chat", "profile", "user-info", "resources", "push", "path", "assessment"]);
+          const knownRoutes = new Set(["chat", "profile", "user-info", "resources", "push", "path", "assessment", "storage"]);
           document.documentElement.classList.add(`route-boot-${knownRoutes.has(bootRoute) ? bootRoute : "home"}`);
         } catch {
           document.documentElement.classList.add("auth-boot-guest", "auth-boot-register");
@@ -22,11 +22,13 @@
       })();
     </script>
     <link rel="stylesheet" href="./css/index.css?v=20260717-ppt-template-preview-v2" />
+    <link rel="stylesheet" href="./css/mobile-overrides.css?v=20260717-mobile-native-layout" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
     <script src="./js/app/config-state.js?v=20260717-remove-tutor-page" defer></script>
+    <script src="./js/app/content-safety.js?v=20260717-safety-audit" defer></script>
     <script src="./js/app/auth-account.js?v=20260716-face-window-copy-fix" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
     <script src="./js/app/content-storage.js?v=20260716-path-agent" defer></script>
@@ -61,7 +63,7 @@
         </span>
       </button>
       <div id="userChip" class="user-chip" hidden>
-        <button id="userProfileBtn" class="user-profile-btn" type="button" aria-haspopup="menu" aria-expanded="false">
+        <button id="userProfileBtn" class="user-profile-btn" type="button" aria-label="打开账户菜单" aria-haspopup="menu" aria-expanded="false">
           <span class="user-avatar" aria-hidden="true">L</span>
           <span class="user-chip-text">
             <span id="userNameLabel">未登录</span>
@@ -70,6 +72,7 @@
         </button>
         <div id="userMenu" class="user-menu" role="menu" hidden>
           <button type="button" role="menuitem" data-account-action="profile">个人资料</button>
+          <button type="button" role="menuitem" data-account-action="storage">我的文件</button>
           <div class="user-menu-divider"></div>
           <button id="logoutBtn" type="button" role="menuitem">退出登录</button>
         </div>
@@ -139,6 +142,15 @@
             </svg>
           </span>
           推送
+        </button>
+        <button id="storagePageBtn" class="nav-btn nav-storage-btn" type="button">
+          <span class="nav-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M3 7a2 2 0 0 1 2-2h5l2 2h7a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z" />
+              <path d="M3 10h18" />
+            </svg>
+          </span>
+          文件
         </button>
         <button id="sideLogoutBtn" class="nav-btn nav-logout-btn" type="button">
           <span class="nav-icon" aria-hidden="true">

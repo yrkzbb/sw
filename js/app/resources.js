@@ -6,21 +6,159 @@ function renderAgentPipeline(status = "idle") {
   el.agentPipeline.innerHTML = SELECTABLE_RESOURCE_AGENTS.map((agent) => {
     const selected = state.selectedResourceAgents.includes(agent.id);
     const inCurrentFlow = selectedSet.some((item) => item.id === agent.id);
-    const running = status === "running" && inCurrentFlow;
-    const done = status === "done" && inCurrentFlow;
+    const progress = (state.resourceAgentProgress || []).find((item) => item.role === agent.role);
+    const running = progress?.status === "running" || progress?.status === "retrying" || (status === "running" && inCurrentFlow && !progress);
+    const done = progress?.status === "completed" || (status === "done" && inCurrentFlow);
+    const failed = progress?.status === "failed";
     const cls = [done ? "done" : "", running ? "running" : "", selected ? "selected" : ""].filter(Boolean).join(" ");
     return `
       <button class="agent-card ${cls}" type="button" data-agent-id="${agent.id}" aria-pressed="${selected ? "true" : "false"}">
         <div class="agent-role"><span class="agent-dot" aria-hidden="true"></span>${escapeHtml(agent.role)}</div>
-        ${agent.task ? `<div class="agent-task">${escapeHtml(agent.task)}</div>` : ""}
+        ${agent.task ? `<div class="agent-task">${escapeHtml(progress?.detail || agent.task)}</div>` : ""}
+        ${progress ? `<div class="agent-live-status ${failed ? "is-failed" : ""}">${escapeHtml(progress.status === "retrying" ? `正在重试（第 ${progress.attempt} 次）` : progress.status === "completed" ? "已完成" : progress.status === "failed" ? "已降级跳过" : "生成中")}</div>` : ""}
       </button>
     `;
   }).join("");
 }
 
+function updateResourceAgentProgress(role, status, detail = "", attempt = 1) {
+  const current = Array.isArray(state.resourceAgentProgress) ? state.resourceAgentProgress.slice() : [];
+  const index = current.findIndex((item) => item.role === role);
+  const next = { role, status, detail, attempt, updated_at: new Date().toISOString() };
+  if (index >= 0) current[index] = { ...current[index], ...next };
+  else current.push(next);
+  state.resourceAgentProgress = current;
+  renderAgentPipeline(state.resourcesGenerating ? "running" : "done");
+  if (state.resourcesGenerating && el.resourceGrid) renderResourceGenerationProgress();
+}
+
 function getSelectedResourceAgents() {
   if (!state.selectedResourceAgents.length) return SELECTABLE_RESOURCE_AGENTS;
   return SELECTABLE_RESOURCE_AGENTS.filter((agent) => state.selectedResourceAgents.includes(agent.id));
+}
+
+const HIGHER_EDUCATION_RESOURCE_CATALOG = [
+  {
+    title: "国家高等教育智慧教育平台",
+    provider: "中华人民共和国教育部",
+    author: "教育部",
+    url: "https://higher.smartedu.cn/",
+    kind: "国家级高等教育课程平台",
+    trust: "权威",
+    keywords: "高校 本科 研究生 精品课程 计算机 人工智能 数学 电子信息 通识",
+    note: "优先检索国家级一流本科课程和高校共享课程，可按学校、学科与课程筛选。",
+  },
+  {
+    title: "中国大学 MOOC",
+    provider: "高等教育出版社与网易",
+    author: "入驻高校课程团队",
+    url: "https://www.icourse163.org/",
+    kind: "高校公开课程平台",
+    trust: "较高",
+    keywords: "大学慕课 计算机 程序设计 数据结构 算法 人工智能 高等数学 编译原理 电子信息",
+    note: "进入平台后使用本次主题检索，优先选择标有开课学校、教师和课程大纲的资源。",
+  },
+  {
+    title: "学堂在线",
+    provider: "清华大学发起",
+    author: "入驻高校课程团队",
+    url: "https://www.xuetangx.com/",
+    kind: "高校在线课程平台",
+    trust: "较高",
+    keywords: "清华 高校 计算机 人工智能 软件工程 数据结构 算法 数学 电子信息 在线课程",
+    note: "适合补充国内高校课程视频、章节测验与课程讲义。",
+  },
+  {
+    title: "MIT OpenCourseWare",
+    provider: "Massachusetts Institute of Technology",
+    author: "MIT faculty",
+    url: "https://ocw.mit.edu/",
+    kind: "高校开放课程",
+    trust: "权威",
+    keywords: "computer science algorithms programming artificial intelligence mathematics electrical engineering course notes assignments",
+    note: "可检索英文课程讲义、作业、考试与课程日程，适合作为进阶材料。",
+  },
+  {
+    title: "Stanford Engineering Everywhere",
+    provider: "Stanford University",
+    author: "Stanford Engineering faculty",
+    url: "https://see.stanford.edu/",
+    kind: "高校工程课程",
+    trust: "权威",
+    keywords: "computer science artificial intelligence machine learning programming algorithms engineering",
+    note: "适合计算机、人工智能与工程类主题的课程视频和讲义。",
+  },
+  {
+    title: "arXiv",
+    provider: "Cornell University",
+    author: "论文作者",
+    url: "https://arxiv.org/",
+    kind: "开放学术论文库",
+    trust: "需同行评议核验",
+    keywords: "artificial intelligence machine learning multimodal computer vision natural language processing algorithms research paper survey",
+    note: "适合前沿主题检索；预印本不等于已同行评议，使用时应核对版本与发表信息。",
+  },
+];
+
+function tokenizeEducationQuery(value) {
+  return [...new Set(String(value || "").toLowerCase()
+    .replace(/[^\p{L}\p{N}+#]+/gu, " ")
+    .split(/\s+/)
+    .flatMap((token) => token.length > 2 && /[\u4e00-\u9fff]/.test(token)
+      ? [token, ...Array.from({ length: token.length - 1 }, (_, index) => token.slice(index, index + 2))]
+      : [token])
+    .filter((token) => token.length > 1))];
+}
+
+function retrieveHigherEducationResources(query, limit = 5) {
+  const tokens = tokenizeEducationQuery(`${query} ${categorizeKnowledge(query, query)}`);
+  return HIGHER_EDUCATION_RESOURCE_CATALOG
+    .map((item) => {
+      const haystack = `${item.title} ${item.provider} ${item.kind} ${item.keywords} ${item.note}`.toLowerCase();
+      const score = tokens.reduce((sum, token) => sum + (haystack.includes(token) ? (token.length > 3 ? 3 : 1) : 0), 0)
+        + (/教育|课程|学习|高校/.test(query) && /课程|高校/.test(item.kind) ? 2 : 0);
+      return { ...item, score };
+    })
+    .sort((a, b) => b.score - a.score || (a.trust === "权威" ? -1 : 1))
+    .slice(0, limit);
+}
+
+function buildRetrievedEducationResource(query) {
+  const matches = retrieveHigherEducationResources(query);
+  const content = [
+    `# “${query}”高校教育资源检索结果`,
+    "",
+    "> 以下条目来自系统维护的可信资源目录，属于“检索资源”，不是 AI 编造的课程或论文。平台内的具体课程仍需按主题二次筛选。",
+    "",
+    ...matches.flatMap((item, index) => [
+      `## ${index + 1}. [${item.title}](${item.url})`,
+      `- 来源机构：${item.provider}`,
+      `- 作者/责任主体：${item.author}`,
+      `- 资源类型：${item.kind}`,
+      `- 可信度：${item.trust}`,
+      `- 推荐理由：${item.note}`,
+      `- 与当前主题的检索相关度：${item.score > 4 ? "高" : item.score > 1 ? "中" : "基础入口"}`,
+      "",
+    ]),
+    "## 使用与核验建议",
+    "- 优先选择展示开课高校、主讲教师、课程大纲和更新时间的条目。",
+    "- 论文类资源应继续核对 DOI、正式发表版本和同行评议状态。",
+    "- 引用时记录课程名、教师/作者、机构、链接与访问日期。",
+  ].join("\n");
+  return {
+    type: "高校教育资源检索",
+    title: `${query} · 可信高校资源`,
+    agent: "教育资源检索 Agent",
+    origin: "retrieved",
+    provenance: {
+      method: "本地可信目录相关性检索",
+      retrieved_at: new Date().toISOString(),
+      source_count: matches.length,
+      verified_catalog: true,
+    },
+    sources: matches.map(({ title, provider, author, url, kind, trust }) => ({ title, provider, author, url, kind, trust })),
+    content,
+  };
 }
 
 function toggleResourceAgent(agentId) {
@@ -1376,11 +1514,73 @@ cC -> cc
 
 function buildFallbackKnowledgeDocument(demand, title) {
   const topic = demand || title || "当前学习主题";
+  if (/二分查找|binary\s*search/i.test(topic)) {
+    return `# ${title || "二分查找算法详解"}
+
+> 本文由本地可靠内容兜底生成，确保模型偶发输出异常时仍可继续学习。
+
+## 1. 核心思想
+二分查找用于**有序序列**。每次比较中间元素，并排除一半不可能包含目标值的区间，因此搜索范围会持续减半。
+
+## 2. 边界约定
+推荐使用左闭右闭区间 \`[left, right]\`：
+- 初始值：\`left = 0\`，\`right = n - 1\`
+- 循环条件：\`left <= right\`
+- 中点：\`mid = left + Math.floor((right - left) / 2)\`
+- 目标较大：\`left = mid + 1\`
+- 目标较小：\`right = mid - 1\`
+
+## 3. 循环不变量
+每轮循环开始时，如果目标存在，它一定仍在当前搜索区间中。更新左右边界时必须排除已经比较过的 \`mid\`，否则可能出现死循环。
+
+## 4. JavaScript 示例
+\`\`\`js
+function binarySearch(list, target) {
+  let left = 0;
+  let right = list.length - 1;
+  while (left <= right) {
+    const mid = left + Math.floor((right - left) / 2);
+    if (list[mid] === target) return mid;
+    if (list[mid] < target) left = mid + 1;
+    else right = mid - 1;
+  }
+  return -1;
+}
+\`\`\`
+
+## 5. 复杂度
+- 时间复杂度：\`O(log n)\`
+- 迭代写法空间复杂度：\`O(1)\`
+
+## 6. 常见错误
+1. 在无序数组上直接使用二分查找。
+2. 混用左闭右闭和左闭右开区间。
+3. 更新边界时没有跳过 \`mid\`。
+4. 忽略空数组、单元素数组和重复元素。
+
+## 7. 自测
+分别测试：空数组、目标在首位、目标在末位、目标不存在、存在重复元素。`;
+  }
   return `# ${title || topic || "知识文档"}
 
-模型这次没有返回可用的知识正文。
+> 本文由本地学习提纲兜底生成。模型内容暂不可用时，可先按这份结构继续学习。
 
-请重新生成，或在对话页直接提问“${topic}”。系统不会再用“知识结构/学习方法论”模板冒充该主题的知识点内容。`;
+## 学习目标
+- 能用自己的话解释“${topic}”的核心概念。
+- 能列出适用条件、关键步骤与常见错误。
+- 能完成一个最小示例，并说明结果。
+
+## 建议路径
+1. 明确定义和适用范围。
+2. 把过程拆成可检查的步骤。
+3. 用正例、反例和边界情况验证理解。
+4. 完成基础题后记录错因，再做一次迁移练习。
+
+## 自测问题
+- 这个主题解决什么问题？
+- 使用它需要满足哪些前提？
+- 哪一步最容易出错？
+- 如何判断自己已经真正掌握？`;
 }
 
 function buildFallbackExercises(topic) {

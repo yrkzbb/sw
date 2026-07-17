@@ -803,6 +803,23 @@ function downloadMarkdownFile(file) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+  showDownloadFeedback(file.filename);
+}
+
+function showDownloadFeedback(filename) {
+  let toast = document.querySelector("#downloadFeedbackToast");
+  if (!toast) {
+    toast = document.createElement("div");
+    toast.id = "downloadFeedbackToast";
+    toast.className = "download-feedback-toast";
+    toast.setAttribute("role", "status");
+    toast.setAttribute("aria-live", "polite");
+    document.body.appendChild(toast);
+  }
+  toast.textContent = `已保存到“我的文件”，并开始下载 ${filename || "文件"}`;
+  toast.classList.add("show");
+  window.clearTimeout(showDownloadFeedback.timer);
+  showDownloadFeedback.timer = window.setTimeout(() => toast.classList.remove("show"), 3200);
 }
 
 function updateStoragePreview() {

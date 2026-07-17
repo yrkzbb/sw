@@ -261,9 +261,9 @@ function updateUserChrome() {
 }
 
 function setUserMenuOpen(open) {
-  if (!el.userMenu || !el.userMenuBtn || !el.userProfileBtn) return;
+  if (!el.userMenu || !el.userProfileBtn) return;
   el.userMenu.hidden = !open;
-  el.userMenuBtn.setAttribute("aria-expanded", String(open));
+  el.userMenuBtn?.setAttribute("aria-expanded", String(open));
   el.userProfileBtn.setAttribute("aria-expanded", String(open));
 }
 
@@ -607,6 +607,10 @@ async function initAuth() {
     if (!button) return;
     const action = button.getAttribute("data-account-action");
     if (action === "profile") openAccountModal("profile");
+    if (action === "storage" && typeof showStoragePage === "function") {
+      setUserMenuOpen(false);
+      showStoragePage();
+    }
     if (action === "logout") void logoutCurrentUser();
   });
   document.addEventListener("click", (event) => {

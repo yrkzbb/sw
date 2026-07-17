@@ -74,6 +74,7 @@ const PROFILE_FIELD_META = {
 
 const RESOURCE_AGENTS = [
   { id: "analysis", role: "需求分析师", task: "", selectable: false },
+  { id: "retrieval", type: "高校教育资源检索", role: "教育资源检索 Agent", task: "从可信高校课程与学术平台检索并标注来源。", selectable: true, local: true },
   { id: "doc", type: "专业课程讲解文档", role: "知识文档 Agent", task: "生成完整、可直接阅读的知识正文文档。", selectable: true },
   { id: "mindmap", type: "知识点思维导图", role: "思维导图 Agent", task: "组织知识点结构和关联路径。", selectable: true },
   { id: "quiz", type: "不同类型练习题目", role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。", selectable: true },
@@ -356,6 +357,7 @@ const state = {
   storageSvgZoom: 100,
   storageFullscreenZoom: 100,
   resourcesGenerating: false,
+  resourceAgentProgress: [],
   exerciseBlueprint: { 单选题: 2, 多选题: 1, 判断题: 1, 填空题: 2, 简答题: 2, 应用题: 2 },
   pptThemes: [],
   pptThemesLoading: false,
