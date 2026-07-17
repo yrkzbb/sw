@@ -482,6 +482,22 @@ function restoreFeedDraft() {
   }
 }
 
+function resetFeedComposerForNewPost() {
+  if (el.feedTypeInput) el.feedTypeInput.value = "question";
+  if (el.feedCategoryInput) el.feedCategoryInput.value = "";
+  if (el.feedTitleInput) el.feedTitleInput.value = "";
+  if (el.feedTagsInput) el.feedTagsInput.value = "";
+  if (el.feedBodyInput) el.feedBodyInput.value = "";
+  if (el.feedComposer) el.feedComposer.dataset.draftLoaded = "true";
+  try {
+    localStorage.removeItem(FEED_DRAFT_KEY);
+  } catch {
+  }
+  setFeedMessage("");
+  updateFeedComposePane("edit");
+  updateFeedComposerPreview();
+}
+
 function applyFeedTemplate(name) {
   const template = FEED_TEMPLATES[name];
   if (!template) return;
@@ -892,6 +908,7 @@ function initFeedEventHandlers() {
     });
   });
   el.pushGenerateResourcesBtn?.addEventListener("click", () => {
+    resetFeedComposerForNewPost();
     if (typeof showPushComposePage === "function") showPushComposePage();
     else setFeedComposerOpen(true);
   });

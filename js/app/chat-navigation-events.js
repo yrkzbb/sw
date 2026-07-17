@@ -2156,7 +2156,7 @@ function initEventHandlers() {
       const exerciseIndex = Number(exerciseIndexRaw);
       const activeData = getActivePathData();
       const resource = activeData?.resources?.[resourceIndex];
-      const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
+      const exercise = getResourceExerciseList(resource, resource?.title || "")[exerciseIndex];
       if (exercise && (result === "correct" || result === "incorrect")) {
         recordLearningBehavior("practice_result", {
           category: exercise.knowledge || resource?.category || activeData?.category,
@@ -2188,7 +2188,7 @@ function initEventHandlers() {
       const exerciseIndex = Number(exerciseIndexRaw);
       const activeData = getActivePathData();
       const resource = activeData?.resources?.[resourceIndex];
-      const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
+      const exercise = getResourceExerciseList(resource, resource?.title || "")[exerciseIndex];
       if (exercise) {
         const added = await addExerciseToMistakeBook(exercise, resource);
         if (!added) return;
@@ -2212,6 +2212,12 @@ function initEventHandlers() {
   el.storagePageBtn?.addEventListener("click", showStoragePage);
   el.mistakePageBtn?.addEventListener("click", showMistakePage);
   el.generateResourcesBtn?.addEventListener("click", () => void generateLearningResources());
+  el.exerciseBlueprintPanel?.addEventListener("input", (e) => {
+    const input = e.target instanceof HTMLInputElement ? e.target.closest("[data-exercise-type]") : null;
+    if (!input) return;
+    input.value = String(Math.max(0, Math.min(20, Number.parseInt(input.value, 10) || 0)));
+    updateExerciseBlueprint();
+  });
   el.agentPipeline?.addEventListener("click", (e) => {
     const btn = e.target instanceof HTMLElement ? e.target.closest("[data-agent-id]") : null;
     const id = btn?.getAttribute("data-agent-id");
@@ -2220,6 +2226,20 @@ function initEventHandlers() {
   });
   el.resourceGrid?.addEventListener("click", async (e) => {
     if (e.target instanceof HTMLElement && e.target.closest("[data-mindmap-export], [data-mindmap-layout]")) return;
+    const exerciseWordBtn = e.target instanceof HTMLElement ? e.target.closest("[data-exercise-export-word]") : null;
+    if (exerciseWordBtn) {
+      const index = Number(exerciseWordBtn.getAttribute("data-exercise-export-word"));
+      const resource = state.learningResources?.resources?.[index];
+      if (resource) downloadExerciseWord(resource);
+      return;
+    }
+    const exerciseJsonBtn = e.target instanceof HTMLElement ? e.target.closest("[data-exercise-export-json]") : null;
+    if (exerciseJsonBtn) {
+      const index = Number(exerciseJsonBtn.getAttribute("data-exercise-export-json"));
+      const resource = state.learningResources?.resources?.[index];
+      if (resource) downloadExerciseJson(resource);
+      return;
+    }
     const renderVideoBtn = e.target instanceof HTMLElement ? e.target.closest("[data-render-video]") : null;
     if (renderVideoBtn) {
       const index = Number(renderVideoBtn.getAttribute("data-render-video"));
@@ -2292,7 +2312,7 @@ function initEventHandlers() {
       const resourceIndex = Number(resourceIndexRaw);
       const exerciseIndex = Number(exerciseIndexRaw);
       const resource = state.learningResources?.resources?.[resourceIndex];
-      const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
+      const exercise = getResourceExerciseList(resource, resource?.title || "")[exerciseIndex];
       if (exercise && (result === "correct" || result === "incorrect")) {
         recordLearningBehavior("practice_result", {
           category: exercise.knowledge || state.learningResources?.category,
@@ -2323,7 +2343,7 @@ function initEventHandlers() {
       const resourceIndex = Number(resourceIndexRaw);
       const exerciseIndex = Number(exerciseIndexRaw);
       const resource = state.learningResources?.resources?.[resourceIndex];
-      const exercise = normalizeExerciseList(resource?.content || "", resource?.title || "")[exerciseIndex];
+      const exercise = getResourceExerciseList(resource, resource?.title || "")[exerciseIndex];
       if (exercise) {
         const added = await addExerciseToMistakeBook(exercise, resource);
         if (!added) return;

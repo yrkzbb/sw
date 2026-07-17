@@ -353,6 +353,20 @@
               </div>
             </div>
             <div id="agentPipeline" class="agent-pipeline" aria-live="polite"></div>
+            <section id="exerciseBlueprintPanel" class="exercise-blueprint-panel" aria-label="练习题型配置">
+              <div class="exercise-blueprint-head">
+                <div><span>QUIZ BLUEPRINT</span><h3>练习题型与题量</h3></div>
+                <strong id="exerciseBlueprintTotal">共 10 题</strong>
+              </div>
+              <div class="exercise-blueprint-grid">
+                <label><span>单选题</span><input type="number" min="0" max="20" value="2" data-exercise-type="单选题"></label>
+                <label><span>多选题</span><input type="number" min="0" max="20" value="1" data-exercise-type="多选题"></label>
+                <label><span>判断题</span><input type="number" min="0" max="20" value="1" data-exercise-type="判断题"></label>
+                <label><span>填空题</span><input type="number" min="0" max="20" value="2" data-exercise-type="填空题"></label>
+                <label><span>简答题</span><input type="number" min="0" max="20" value="2" data-exercise-type="简答题"></label>
+                <label><span>应用题</span><input type="number" min="0" max="20" value="2" data-exercise-type="应用题"></label>
+              </div>
+            </section>
           </section>
           <section class="resource-wiki-results" aria-label="生成结果">
             <div class="resource-wiki-section-head">
@@ -360,7 +374,6 @@
                 <span>OUTPUT</span>
                 <h2>资源结果</h2>
               </div>
-              <p>生成后的资源会在这里展开，也会同步服务学习路径和画像更新。</p>
             </div>
             <div id="resourceGrid" class="resource-grid" aria-live="polite"></div>
           </section>

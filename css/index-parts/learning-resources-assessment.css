@@ -171,6 +171,72 @@ button.agent-card:hover {
   line-height: 1.45;
 }
 
+.exercise-blueprint-panel {
+  margin: 0 16px 18px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.exercise-blueprint-panel[hidden] {
+  display: none;
+}
+
+[data-theme="light"] .exercise-blueprint-panel { background: rgba(255, 255, 255, 0.66); }
+
+.exercise-blueprint-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+.exercise-blueprint-head span { color: #2abf9e; font-size: 10px; font-weight: 950; letter-spacing: .12em; }
+.exercise-blueprint-head h3 { margin: 4px 0; font-size: 16px; }
+.exercise-blueprint-head p, .exercise-blueprint-tip { margin: 0; color: var(--muted); font-size: 12px; }
+.exercise-blueprint-head strong {
+  flex: 0 0 auto;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(33, 212, 165, .12);
+  color: #20a989;
+  font-size: 12px;
+}
+
+.exercise-blueprint-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-bottom: 11px;
+}
+
+.exercise-blueprint-grid label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 11px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.exercise-blueprint-grid input {
+  width: 46px;
+  padding: 6px 4px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: center;
+  font: inherit;
+}
+
+
 .learning-path-panel {
   margin-bottom: 16px;
 }

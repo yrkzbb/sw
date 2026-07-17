@@ -1,8 +1,10 @@
 function renderAgentPipeline(status = "idle") {
   if (!el.agentPipeline) return;
+  const selectedSet = getSelectedResourceAgents();
+  const quizEnabled = selectedSet.some((agent) => agent.id === "quiz");
+  if (el.exerciseBlueprintPanel) el.exerciseBlueprintPanel.hidden = !quizEnabled;
   el.agentPipeline.innerHTML = SELECTABLE_RESOURCE_AGENTS.map((agent) => {
     const selected = state.selectedResourceAgents.includes(agent.id);
-    const selectedSet = getSelectedResourceAgents();
     const inCurrentFlow = selectedSet.some((item) => item.id === agent.id);
     const running = status === "running" && inCurrentFlow;
     const done = status === "done" && inCurrentFlow;
@@ -30,6 +32,87 @@ function toggleResourceAgent(agentId) {
     state.selectedResourceAgents = state.selectedResourceAgents.concat(agentId);
   }
   renderLearningResources();
+}
+
+function getExerciseBlueprint() {
+  const blueprint = {};
+  el.exerciseBlueprintPanel?.querySelectorAll("[data-exercise-type]").forEach((input) => {
+    const type = input.getAttribute("data-exercise-type");
+    blueprint[type] = Math.max(0, Math.min(20, Number.parseInt(input.value, 10) || 0));
+  });
+  return Object.keys(blueprint).length ? blueprint : (state.exerciseBlueprint || {});
+}
+
+function updateExerciseBlueprint() {
+  state.exerciseBlueprint = getExerciseBlueprint();
+  const total = Object.values(state.exerciseBlueprint).reduce((sum, count) => sum + count, 0);
+  if (el.exerciseBlueprintTotal) el.exerciseBlueprintTotal.textContent = `共 ${total} 题`;
+}
+
+function safeDownloadName(value, fallback = "练习题") {
+  return String(value || fallback).replace(/[\\/:*?"<>|]+/g, "-").replace(/\s+/g, " ").trim() || fallback;
+}
+
+function isPollutedExerciseList(exercises) {
+  return exercises.some((exercise) => {
+    const combined = `${exercise?.question || ""} ${exercise?.knowledge || ""} ${exercise?.answer || ""}`;
+    return /["“]?questions["”]?\s*:|\\?"type\\?"\s*:|\\?"question\\?"\s*:/.test(combined)
+      || String(exercise?.question || "").length > 800
+      || String(exercise?.knowledge || "").length > 300;
+  });
+}
+
+function getResourceExerciseList(resource, fallbackTitle = "") {
+  const contentExercises = normalizeExerciseList(resource?.content || "", fallbackTitle || resource?.title);
+  const titleExercises = normalizeExerciseList(resource?.title || "", fallbackTitle);
+  return titleExercises.length && (!contentExercises.length || isPollutedExerciseList(contentExercises))
+    ? titleExercises
+    : contentExercises;
+}
+
+function downloadBlobFile(filename, blob) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function downloadExerciseJson(resource) {
+  const questions = getResourceExerciseList(resource, resource?.title);
+  if (!questions.length) return alert("当前题库没有可导出的题目");
+  const payload = {
+    title: resource.title || "练习题",
+    exported_at: new Date().toISOString(),
+    question_count: questions.length,
+    questions: questions.map(({ fingerprint, ...question }) => question),
+  };
+  downloadBlobFile(`${safeDownloadName(resource.title)}.json`, new Blob(
+    [JSON.stringify(payload, null, 2)],
+    { type: "application/json;charset=utf-8" }
+  ));
+}
+
+function downloadExerciseWord(resource) {
+  const questions = getResourceExerciseList(resource, resource?.title);
+  if (!questions.length) return alert("当前题库没有可导出的题目");
+  const questionHtml = questions.map((question, index) => `
+    <section class="question">
+      <h2>${index + 1}. [${escapeHtml(question.type)} · ${escapeHtml(question.difficulty)}] ${escapeHtml(question.question)}</h2>
+      <p class="meta">知识点：${escapeHtml(question.knowledge || "综合知识")}　来源：${escapeHtml(question.source)}</p>
+      <div><b>答案：</b>${escapeHtml(question.answer || "见解析")}</div>
+      <div class="explanation"><b>解析：</b>${escapeHtml(question.explanation)}</div>
+    </section>`).join("");
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(resource.title || "练习题")}</title>
+    <style>body{font-family:"Microsoft YaHei",Arial,sans-serif;line-height:1.7;color:#172033;margin:36px}h1{text-align:center}.summary{text-align:center;color:#64748b;margin-bottom:28px}.question{page-break-inside:avoid;border-bottom:1px solid #dbe3ec;padding:0 0 20px;margin:0 0 22px}h2{font-size:16px}.meta{font-size:12px;color:#64748b}.explanation{background:#f5f8fb;padding:12px;margin-top:10px}</style>
+    </head><body><h1>${escapeHtml(resource.title || "练习题")}</h1><p class="summary">共 ${questions.length} 题 · 含标准答案与详解</p>${questionHtml}</body></html>`;
+  downloadBlobFile(`${safeDownloadName(resource.title)}.doc`, new Blob(
+    ["\ufeff", html],
+    { type: "application/msword;charset=utf-8" }
+  ));
 }
 
 function renderResourceMarkdown(markdown) {
@@ -1766,9 +1849,16 @@ function normalizeGeneratedResources(data, demand) {
   const quiz = resources.find((item) => item.type === "不同类型练习题目");
   if (quiz) {
     quiz.agent = "练习命题 Agent";
+    const titleExercises = normalizeExerciseList(quiz.title, data.topic || demand);
+    const contentExercises = normalizeExerciseList(quiz.content, quiz.title);
+    if (titleExercises.length) quiz.content = quiz.title;
+    if (titleExercises.length || /^[{[]/.test(String(quiz.title || "").trim())) {
+      const topic = String(data.topic || demand || "课程").replace(/\s+/g, " ").trim().slice(0, 28);
+      quiz.title = `${topic}练习题`;
+    }
     const subjectText = `${demand || ""} ${quiz.title || ""}`.trim();
     const exercises = normalizeExerciseList(quiz.content, quiz.title);
-    const weakExercises = exercises.length < 8 || exercises.some((item) => !item.answer || !item.explanation || item.explanation.length < 60);
+    const weakExercises = !exercises.length || exercises.some((item) => !item.answer || !item.explanation);
     if (weakExercises) {
       quiz.content = buildFallbackExercises(subjectText || quiz.title || "当前知识点");
     }

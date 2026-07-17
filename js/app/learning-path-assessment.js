@@ -948,12 +948,6 @@ function renderLearningPathPanel() {
           <button class="path-refresh-btn" type="button" data-path-refresh ${state.resourcesGenerating ? "disabled" : ""}>${state.resourcesGenerating ? "刷新中" : "刷新路径"}</button>
         </div>
       </div>
-      <div class="learning-path-head">
-        <div>
-          <h2 class="learning-path-title">${escapeHtml(data.topic || "当前学习主题")}</h2>
-        </div>
-        <div class="learning-path-badge">大模型综合规划 · ${path.length} 个阶段</div>
-      </div>
       <details class="path-evidence-details">
         <summary>
           <div>
