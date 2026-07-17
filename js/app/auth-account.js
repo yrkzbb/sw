@@ -195,116 +195,6 @@ function setAuthLoginMessage(message, type = "error") {
   el.authLoginMessage.classList.toggle("success", type === "success");
 }
 
-let faceLoginStream = null;
-let faceLoginRequestId = 0;
-
-function setFaceLoginStatus(message) {
-  const status = document.querySelector("#faceLoginStatus");
-  if (status) status.textContent = message;
-}
-
-function setFaceCameraBadge(message, stateName = "") {
-  const badge = document.querySelector("#faceCameraBadge");
-  if (!badge) return;
-  badge.textContent = message;
-  badge.dataset.state = stateName;
-}
-
-function setFaceLoginUiState(stateName) {
-  const modal = document.querySelector("#faceLoginModal");
-  if (!modal) return;
-  modal.classList.toggle("is-camera-loading", stateName === "loading");
-  modal.classList.toggle("is-camera-on", stateName === "ready");
-  modal.classList.toggle("is-camera-error", stateName === "error");
-}
-
-function stopFaceLoginCamera(options = {}) {
-  faceLoginRequestId += 1;
-  if (faceLoginStream) {
-    faceLoginStream.getTracks().forEach((track) => track.stop());
-    faceLoginStream = null;
-  }
-  const video = document.querySelector("#faceLoginVideo");
-  if (video) {
-    video.pause();
-    video.srcObject = null;
-    video.removeAttribute("src");
-  }
-  if (!options.keepStatus) {
-    setFaceLoginUiState("");
-    setFaceCameraBadge("摄像头未打开");
-  }
-}
-
-function closeFaceLoginModal() {
-  stopFaceLoginCamera();
-  const modal = document.querySelector("#faceLoginModal");
-  if (modal) modal.hidden = true;
-}
-
-async function openFaceLoginModal() {
-  const requestId = faceLoginRequestId + 1;
-  faceLoginRequestId = requestId;
-  const modal = document.querySelector("#faceLoginModal");
-  const video = document.querySelector("#faceLoginVideo");
-  const fallback = document.querySelector("#faceLoginFallback");
-  if (!modal) return;
-  modal.hidden = false;
-  if (fallback) fallback.hidden = true;
-  setFaceLoginUiState("loading");
-  setFaceCameraBadge("请求权限中", "loading");
-  setFaceLoginStatus("正在准备电脑摄像头...");
-  if (!navigator.mediaDevices?.getUserMedia || !video) {
-    if (fallback) fallback.hidden = false;
-    setFaceLoginUiState("error");
-    setFaceCameraBadge("不可用", "error");
-    setFaceLoginStatus("当前浏览器无法调用摄像头，请使用 HTTPS 或 localhost 环境。");
-    return;
-  }
-  stopFaceLoginCamera({ keepStatus: true });
-  faceLoginRequestId = requestId;
-  try {
-    faceLoginStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: { ideal: 640 }, height: { ideal: 480 } },
-      audio: false,
-    });
-    if (requestId !== faceLoginRequestId) {
-      faceLoginStream.getTracks().forEach((track) => track.stop());
-      return;
-    }
-    video.srcObject = faceLoginStream;
-    await video.play().catch(() => {});
-    const trackLabel = faceLoginStream.getVideoTracks()[0]?.label || "默认摄像头";
-    setFaceLoginUiState("ready");
-    setFaceCameraBadge("摄像头已打开", "ready");
-    setFaceLoginStatus(`${trackLabel} 已连接，请把脸部置于取景框中央。`);
-  } catch (error) {
-    if (requestId !== faceLoginRequestId) return;
-    if (fallback) fallback.hidden = false;
-    setFaceLoginUiState("error");
-    setFaceCameraBadge("未授权", "error");
-    setFaceLoginStatus("摄像头未授权或暂不可用，请允许浏览器访问摄像头后重试。");
-  }
-}
-
-function handleAlternativeLogin(provider) {
-  const labels = {
-    face: "人脸登录",
-    qq: "QQ 登录",
-    wechat: "微信登录",
-  };
-  const label = labels[provider] || "第三方登录";
-  setAuthMode("login");
-  if (el.authLoginAccount) el.authLoginAccount.value = provider === "face" ? "face-demo" : `${provider}-demo`;
-  if (el.authLoginPassword) el.authLoginPassword.value = "";
-  if (provider === "face") {
-    setAuthLoginMessage("正在打开摄像头小窗，请在浏览器提示中允许摄像头权限。", "success");
-    void openFaceLoginModal();
-    return;
-  }
-  setAuthLoginMessage(`${label}入口已就绪；当前演示环境未接入真实授权，请使用账号密码继续登录。`, "success");
-}
-
 function setActiveUser(user) {
   state.activeUser = user || null;
   persistActiveUserCache(user);
@@ -708,15 +598,6 @@ async function initAuth() {
   el.registerTab?.addEventListener("click", () => setAuthMode("register"));
   el.authForm?.addEventListener("submit", handleAuthSubmit);
   el.authLoginForm?.addEventListener("submit", handleAuthLoginSubmit);
-  document.querySelectorAll("[data-auth-alt-login]").forEach((button) => {
-    button.addEventListener("click", () => handleAlternativeLogin(button.getAttribute("data-auth-alt-login") || ""));
-  });
-  document.querySelector("#faceLoginClose")?.addEventListener("click", closeFaceLoginModal);
-  document.querySelector("#faceLoginBackBtn")?.addEventListener("click", closeFaceLoginModal);
-  document.querySelector("#faceLoginRetryBtn")?.addEventListener("click", () => void openFaceLoginModal());
-  document.querySelector("#faceLoginModal")?.addEventListener("click", (event) => {
-    if (event.target === event.currentTarget) closeFaceLoginModal();
-  });
   el.logoutBtn?.addEventListener("click", logoutCurrentUser);
   el.sideLogoutBtn?.addEventListener("click", logoutCurrentUser);
   el.userProfileBtn?.addEventListener("click", () => setUserMenuOpen(el.userMenu?.hidden !== false));

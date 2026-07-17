@@ -1790,6 +1790,10 @@ function normalizeGeneratedResources(data, demand) {
       code.content = buildFallbackCodePractice(subjectText || code.title || "当前知识点");
     }
   }
+  const presentation = resources.find((item) => item.type === "教学演示文稿（PPT）");
+  if (presentation) {
+    presentation.agent = "PPT 生成 Agent";
+  }
   const demandCategory = categorizeKnowledge(
     `${demand || ""} ${data.topic || ""}`,
     `${demand || ""} ${data.topic || ""} ${resources.map((item) => item.title || item.type || "").join(" ")}`

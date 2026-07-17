@@ -79,6 +79,7 @@ const RESOURCE_AGENTS = [
   { id: "quiz", type: "不同类型练习题目", role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。", selectable: true },
   { id: "reading", type: "拓展阅读材料", role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。", selectable: true },
   { id: "code", type: "代码类实操案例", role: "代码实操 Agent", task: "生成可运行实操案例和调试任务。", selectable: true },
+  { id: "ppt", type: "教学演示文稿（PPT）", role: "PPT 生成 Agent", task: "生成可下载的教学演示文稿。", selectable: true },
   { id: "review", role: "审核整合 Agent", task: "", selectable: false },
 ];
 
@@ -135,6 +136,7 @@ const el = {
   profileGrid: document.querySelector("#profileGrid"),
   profileMeta: document.querySelector("#profileMeta"),
   resourcePromptInput: document.querySelector("#resourcePromptInput"),
+  pptThemeSelect: document.querySelector("#pptThemeSelect"),
   generateResourcesBtn: document.querySelector("#generateResourcesBtn"),
   pushGenerateResourcesBtn: document.querySelector("#pushGenerateResourcesBtn"),
   feedComposer: document.querySelector("#feedComposer"),
@@ -347,6 +349,8 @@ const state = {
   storageSvgZoom: 100,
   storageFullscreenZoom: 100,
   resourcesGenerating: false,
+  pptThemes: [],
+  pptThemesLoading: false,
   lastScrollY: 0,
   navHidden: false,
   selectedResourceAgents: [],

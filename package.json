@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "hls.js": "^1.6.16",
-    "mysql2": "^3.11.5"
+    "mysql2": "^3.11.5",
+    "pptxgenjs": "^4.0.1"
   }
 }

@@ -1,4 +1,5 @@
 function renderLearningResources() {
+  if (!state.pptThemes.length && !state.pptThemesLoading) void loadPptThemes();
   if (!el.resourceGrid) return;
   renderAgentPipeline(state.resourcesGenerating ? "running" : state.learningResources ? "done" : "idle");
   renderLearningPathPanel();
@@ -40,6 +41,13 @@ function renderLearningResources() {
         : item.type === "代码类实操案例"
           ? renderCodePracticeResource(item.content || "")
           : renderResourceMarkdown(item.content || "");
+    const presentationDownload = item.type === "教学演示文稿（PPT）" && item.download_url
+      ? `<a class="resource-toggle resource-download" href="${escapeHtml(item.download_url)}" target="_blank" rel="noopener">下载 PPT</a>`
+      : item.type === "教学演示文稿（PPT）" && item.ppt_task_id
+        ? `<span class="resource-agent">PPT 正在生成，可继续浏览其他资源</span>`
+        : item.type === "教学演示文稿（PPT）" && item.ppt_error
+          ? `<span class="resource-agent">${escapeHtml(item.ppt_error)}</span>`
+        : "";
     return `
     <article class="resource-card ${item.type === "知识点思维导图" ? "mindmap-resource-card" : ""}">
       <div class="resource-card-head">
@@ -58,9 +66,65 @@ function renderLearningResources() {
           ? `<button class="resource-toggle resource-download" type="button" data-resource-download-index="${index}">下载 Markdown</button>`
           : ""
       }
+      ${presentationDownload}
     </article>
   `;
   }).join("");
+}
+
+async function loadPptThemes() {
+  state.pptThemesLoading = true;
+  try {
+    const response = await fetch("/api/presentation-themes");
+    const data = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(data?.error || "PPT 模板加载失败");
+    state.pptThemes = Array.isArray(data?.themes) ? data.themes : [];
+    if (!el.pptThemeSelect) return;
+    const selected = el.pptThemeSelect.value || "auto";
+    el.pptThemeSelect.innerHTML = [
+      '<option value="auto">智能匹配模板</option>',
+      ...state.pptThemes.map((theme) => `<option value="${escapeHtml(theme.key)}">${escapeHtml(theme.name || theme.key)}</option>`),
+    ].join("");
+    el.pptThemeSelect.value = state.pptThemes.some((theme) => theme.key === selected) ? selected : "auto";
+  } catch (error) {
+    console.warn("PPT 模板加载失败", error);
+  } finally {
+    state.pptThemesLoading = false;
+  }
+}
+
+async function pollPresentationTask(resource) {
+  const taskId = String(resource?.ppt_task_id || "").trim();
+  if (!taskId) return;
+  for (let attempt = 0; attempt < 96; attempt += 1) {
+    await new Promise((resolve) => setTimeout(resolve, 5000));
+    try {
+      const response = await fetch(`/api/presentations/tasks/${encodeURIComponent(taskId)}`);
+      const task = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(task?.error || "PPT 状态查询失败");
+      resource.ppt_status = task?.status || "PROCESSING";
+      if (task?.downloadUrl) {
+        resource.download_url = task.downloadUrl;
+        resource.ppt_task_id = "";
+        resource.ppt_status = "COMPLETED";
+        saveLearningResources(state.learningResources);
+        return;
+      }
+      if (task?.status === "FAILED") {
+        resource.ppt_task_id = "";
+        resource.ppt_status = "FAILED";
+        resource.ppt_error = task.error || "PPT 生成失败";
+        saveLearningResources(state.learningResources);
+        return;
+      }
+    } catch (error) {
+      console.warn("PPT 任务状态查询失败，将继续重试", error);
+    }
+  }
+  resource.ppt_status = "TIMEOUT";
+  resource.ppt_error = "PPT 生成时间较长，请稍后重新生成。";
+  resource.ppt_task_id = "";
+  saveLearningResources(state.learningResources);
 }
 
 async function generateLearningResources() {
@@ -93,7 +157,8 @@ async function generateLearningResources() {
 4. 练习命题 Agent：生成系统化题组，包含经典题、中等题、难题和易错题，每题必须有答案详解与来源。
 5. 阅读拓展 Agent：生成拓展阅读材料。
 6. 代码实操 Agent：生成代码类实操案例。
-7. 审核整合 Agent：检查个性化程度和学习路径。
+7. PPT 生成 Agent：生成教学演示文稿大纲与讲授要点。
+8. 审核整合 Agent：检查个性化程度和学习路径。
 
 本次用户选择参与资源输出的 Agent：
 ${selectedAgentRules}
@@ -128,7 +193,7 @@ ${resourceSchema}
   ]
 }
 
-resources 中只能包含本次用户选择的资源类型；如果用户没有选择 Agent，则生成完整 5 类资源。
+resources 中只能包含本次用户选择的资源类型；如果用户没有选择 Agent，则生成完整 6 类资源。
 path_basis 和 learning_path 是“学习路径规划 Agent”的核心产物，不能写成静态模板。
 路径规划必须体现多智能体协同：需求分析 Agent 负责识别主题与知识大类，画像诊断 Agent 负责结合专业背景、进度、掌握情况和偏好，资源编排 Agent 负责把本次生成的资源分配到阶段，练习复盘 Agent 负责用错题和完成证据修正后续阶段，动态优化 Agent 负责同类路径增量更新。
 path_basis 必须先综合分析：
@@ -166,7 +231,10 @@ content 可以使用 Markdown。数学表达式必须使用 Markdown 数学写�
 5. 测试用例：至少 3 个，覆盖基础、边界、易错场景。
 6. 调试清单：列出常见 bug、应该打印哪些中间变量、如何判断哪里错。
 7. 修改挑战：至少 2 个变式任务，例如改输入方式、增加边界处理、换一种算法或数据结构。
-代码必须能独立运行，不能依赖不存在的文件；如果主题不是编程题，也要设计一个最小可运行实验或伪代码验证任务。`;
+代码必须能独立运行，不能依赖不存在的文件；如果主题不是编程题，也要设计一个最小可运行实验或伪代码验证任务。
+PPT 生成 Agent 的 content 必须是 JSON 字符串，格式为：
+{"audience":"学习者","slides":[{"title":"页面标题","takeaway":"本页要传达的结论","bullets":["要点 1","要点 2","要点 3"],"speaker_note":"讲授提示"}]}
+PPT 至少 6 页、最多 10 页，包含封面、核心概念、关键过程或例题、易错点/练习、总结与下一步。每页只讲一个明确观点，bullets 控制在 3-5 条，每条不超过 30 个中文字符。不得编造数据、引用或案例。`;
 
   const learningSignals = {
     progress_summary: buildLearningProgressSummary([]),
@@ -232,7 +300,26 @@ ${JSON.stringify(learningSignals, null, 2)}
     const parsed = extractJsonObject(text);
     if (!parsed?.resources?.length) throw new Error("模型未返回有效资源 JSON");
     const normalized = normalizeGeneratedResources(parsed, demand);
+    const presentation = normalized.resources.find((item) => item.type === "教学演示文稿（PPT）");
+    if (presentation) {
+      const presentationRes = await fetch("/api/presentations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ topic: normalized.topic || demand, title: presentation.title, outline: presentation.content, theme: el.pptThemeSelect?.value || "auto" }),
+      });
+      if (presentationRes.ok) {
+        const presentationData = await presentationRes.json();
+        presentation.download_url = presentationData.downloadUrl || "";
+        presentation.ppt_task_id = presentationData.taskId || "";
+        presentation.ppt_status = presentationData.status || (presentation.download_url ? "COMPLETED" : "PROCESSING");
+      } else {
+        const errorData = await presentationRes.json().catch(() => null);
+        presentation.ppt_status = "FAILED";
+        presentation.ppt_error = errorData?.error || "PPT 文件生成失败，请稍后重试。";
+      }
+    }
     saveLearningResources(normalized);
+    if (presentation?.ppt_task_id) void pollPresentationTask(presentation);
     recordLearningBehavior("resource_generated", {
       category: normalized.category,
       topic: normalized.topic,

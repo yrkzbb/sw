@@ -1318,6 +1318,24 @@
   line-height: 1.65;
 }
 
+.resource-ppt-theme {
+  display: grid;
+  gap: 6px;
+  color: #7b898d;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.resource-ppt-theme select {
+  min-height: 36px;
+  border: 1px solid rgba(100, 200, 183, 0.32);
+  border-radius: 12px;
+  padding: 0 10px;
+  color: #34484b;
+  background: rgba(255, 255, 255, 0.62);
+  font: inherit;
+}
+
 .resource-wiki-brief div {
   display: flex;
   flex-wrap: wrap;
@@ -1427,7 +1445,7 @@
 }
 
 .resource-wiki-page .resource-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
   gap: 18px;
 }
 
@@ -1473,6 +1491,12 @@
 
 .resource-wiki-page .resource-download {
   background: rgba(100, 200, 183, 0.16);
+}
+
+.resource-wiki-page a.resource-download {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
 }
 
 .resource-wiki-page .resource-empty {

@@ -714,6 +714,24 @@ const server = http.createServer((req, res) => {
       void proxyChat(req, res);
       return;
     }
+    if (url.pathname === "/api/presentations" && (req.method === "POST" || req.method === "OPTIONS")) {
+      void createPresentation(req, res);
+      return;
+    }
+    if (url.pathname === "/api/presentation-themes" && req.method === "GET") {
+      void listPresentationThemes(req, res);
+      return;
+    }
+    const presentationTaskMatch = url.pathname.match(/^\/api\/presentations\/tasks\/([^/]+)$/);
+    if (presentationTaskMatch && req.method === "GET") {
+      void getPresentationTask(req, res, decodeURIComponent(presentationTaskMatch[1]));
+      return;
+    }
+    const presentationMatch = url.pathname.match(/^\/api\/presentations\/([^/]+)$/);
+    if (presentationMatch && req.method === "GET") {
+      downloadPresentation(req, res, decodeURIComponent(presentationMatch[1]));
+      return;
+    }
     if (
       (url.pathname === "/api/video" || url.pathname === "/api/video/generate") &&
       (req.method === "POST" || req.method === "OPTIONS")

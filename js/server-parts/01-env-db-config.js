@@ -35,6 +35,11 @@ const OPENAI_PROXY_BASE_URL = (
   "https://api.openai-proxy.org/v1"
 ).replace(/\/+$/, "");
 const OPENAI_PROXY_CHAT_ENDPOINT = `${OPENAI_PROXY_BASE_URL}/chat/completions`;
+const FELO_API_BASE_URL = (process.env.FELO_API_BASE_URL || "https://openapi.felo.ai").replace(/\/+$/, "");
+const FELO_API_KEY = (process.env.FELO_API_KEY || "").trim();
+const XFYUN_PPT_APP_ID = (process.env.XFYUN_PPT_APP_ID || process.env.XUNFEI_VMS_APP_ID || "").trim();
+const XFYUN_PPT_API_SECRET = (process.env.XFYUN_PPT_API_SECRET || process.env.XUNFEI_VMS_API_SECRET || "").trim();
+const XFYUN_PPT_BASE_URL = (process.env.XFYUN_PPT_BASE_URL || "https://zwapi.xfyun.cn").replace(/\/+$/, "");
 const VIDEO_API_URL = (
   process.env.XUNFEI_DIGITAL_HUMAN_API_URL ||
   process.env.LINGXI_VIDEO_API_URL ||

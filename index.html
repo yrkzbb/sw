@@ -331,6 +331,12 @@
               <span>RESOURCE PLAN</span>
               <h2>生成策略</h2>
               <p>先解析主题和薄弱点，再按你选择的 Agent 生成资料，最后自动沉淀到学习路径。</p>
+              <label class="resource-ppt-theme">
+                <span>PPT 模板</span>
+                <select id="pptThemeSelect" aria-label="选择 PPT 模板">
+                  <option value="auto">智能匹配模板</option>
+                </select>
+              </label>
             </aside>
           </div>
           <section class="resource-wiki-agents" aria-label="Agent 编排">
@@ -601,61 +607,7 @@
             <input id="authLoginPassword" class="auth-demo-input" type="password" autocomplete="current-password" placeholder="Password" />
             <div id="authLoginMessage" class="auth-message" aria-live="polite"></div>
             <button id="authLoginSubmitBtn" class="auth-demo-btn" type="submit">Sign In</button>
-            <div class="auth-alt-login" aria-label="其他方式登录">
-              <span>其他方式登录</span>
-              <div class="auth-alt-actions">
-                <button class="auth-alt-btn auth-alt-face" type="button" data-auth-alt-login="face" aria-label="人脸登录">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M8 3H5a2 2 0 0 0-2 2v3" />
-                    <path d="M16 3h3a2 2 0 0 1 2 2v3" />
-                    <path d="M8 21H5a2 2 0 0 1-2-2v-3" />
-                    <path d="M16 21h3a2 2 0 0 0 2-2v-3" />
-                    <path d="M8 14s1.2 1.4 4 1.4S16 14 16 14" />
-                    <path d="M9 10h.01M15 10h.01" />
-                  </svg>
-                </button>
-                <button class="auth-alt-btn auth-alt-qq" type="button" data-auth-alt-login="qq" aria-label="QQ 登录">Q</button>
-                <button class="auth-alt-btn auth-alt-wechat" type="button" data-auth-alt-login="wechat" aria-label="微信登录">
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M9.5 7.2C5.9 7.2 3 9.4 3 12.1c0 1.6 1 3 2.6 3.9l-.5 1.8 2.1-1c.7.2 1.5.3 2.3.3 3.6 0 6.5-2.2 6.5-5s-2.9-4.9-6.5-4.9Z" />
-                    <path d="M14.8 10.2c3.2.3 5.7 2.3 5.7 4.8 0 1.4-.8 2.7-2.2 3.6l.4 1.5-1.8-.8c-.6.2-1.3.3-2 .3-2.6 0-4.9-1.4-5.6-3.4" />
-                    <path d="M7.4 11h.01M11.7 11h.01" />
-                  </svg>
-                </button>
-              </div>
-            </div>
           </form>
-        </div>
-
-        <div id="faceLoginModal" class="face-login-modal" hidden>
-          <section class="face-login-panel" role="dialog" aria-modal="true" aria-labelledby="faceLoginTitle">
-            <button id="faceLoginClose" class="face-login-close" type="button" aria-label="关闭人脸登录">×</button>
-            <div class="face-login-copy">
-              <span>FACE ID</span>
-              <h2 id="faceLoginTitle">人脸登录</h2>
-              <p id="faceLoginStatus">正在准备电脑摄像头...</p>
-              <b id="faceCameraBadge" class="face-camera-badge">摄像头未打开</b>
-            </div>
-            <div class="face-camera-stage">
-              <video id="faceLoginVideo" autoplay muted playsinline></video>
-              <div class="face-scan-frame" aria-hidden="true">
-                <i></i><i></i><i></i><i></i>
-              </div>
-              <div id="faceLoginFallback" class="face-login-fallback" hidden>
-                <svg viewBox="0 0 120 120" aria-hidden="true">
-                  <rect x="24" y="24" width="72" height="72" rx="24" />
-                  <path d="M41 56h.01M79 56h.01" />
-                  <path d="M44 72c5 5 27 5 32 0" />
-                  <path d="M36 18H22a8 8 0 0 0-8 8v14M84 18h14a8 8 0 0 1 8 8v14M36 102H22a8 8 0 0 1-8-8V80M84 102h14a8 8 0 0 0 8-8V80" />
-                </svg>
-                <strong>摄像头预览</strong>
-              </div>
-            </div>
-            <div class="face-login-actions">
-              <button id="faceLoginRetryBtn" class="auth-demo-btn face-login-secondary" type="button">重新打开摄像头</button>
-              <button id="faceLoginBackBtn" class="auth-demo-btn face-login-back" type="button">返回账号登录</button>
-            </div>
-          </section>
         </div>
 
         <div class="auth-demo-overlay-wrap" aria-hidden="true">
