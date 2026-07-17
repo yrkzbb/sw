@@ -79,6 +79,7 @@ const RESOURCE_AGENTS = [
   { id: "retrieval", type: "拓展阅读与教育资源", role: "阅读扩展 Agent", task: "从可信高校课程与学术平台整理拓展阅读材料并标注来源。", selectable: true, local: true },
   { id: "doc", type: "专业课程讲解文档", role: "知识文档 Agent", task: "生成完整、可直接阅读的知识正文文档。", selectable: true },
   { id: "mindmap", type: "知识点思维导图", role: "思维导图 Agent", task: "组织知识点结构和关联路径。", selectable: true },
+  { id: "learning-path", type: "个性化学习路径", role: "学习路径 Agent", task: "结合当前问题与学习画像规划循序渐进的学习步骤。", selectable: true },
   { id: "quiz", type: "不同类型练习题目", role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。", selectable: true },
   { id: "reading", type: "拓展阅读材料", role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。", selectable: false },
   { id: "code", type: "代码类实操案例", role: "代码实操 Agent", task: "生成可运行实操案例和调试任务。", selectable: true },

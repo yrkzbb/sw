@@ -391,7 +391,7 @@ function setActivePathCategory(category) {
 }
 
 function upsertLearningPathLibrary(pathData) {
-  if (!pathData?.resources?.length) return;
+  if (!pathData?.resources?.length && !pathData?.learning_path?.length) return;
   const inferred = inferPathCategory(pathData);
   const category = normalizePathCategory(inferred && inferred !== "其他" ? inferred : pathData.category);
   const previous = state.learningPathLibrary?.[category] || {};
@@ -741,6 +741,8 @@ function categorizeKnowledge(title, content) {
 
   const strongTitleRules = [
     ["Agent", /(^|[\s_-])agent($|[\s_-])|智能体|多智能体|agent要|agent\s*要|agent学习|agent\s*学习|ai\s*agent|autonomous\s*agent/],
+    ["计算机网络", /计算机网络|网络协议|osi|tcp\/?ip|tcp|udp|路由|交换机|局域网|广域网|网络安全/],
+    ["计算机组成原理", /计算机组成原理|计算机组成|组成原理|cpu|指令系统|存储器|高速缓存|cache|总线|输入输出系统/],
     ["编译原理", /编译原理|文法|语法分析|词法分析|乔姆斯基|chomsky|type-?1|1型|一型|上下文有关|context.?sensitive/],
     ["数据结构", /floyd|弗洛伊德|dijkstra|最短路|图论|动态规划|dp|算法|数据结构|链表|栈|队列|树|堆|排序|查找|并查集/],
     ["编程语言", /python|java|javascript|typescript|c\+\+|cpp|c语言|c 语言|c#|go语言|golang|rust|swift|kotlin|php|ruby|node|编程语言|程序设计/],
@@ -757,6 +759,8 @@ function categorizeKnowledge(title, content) {
 
   const rules = [
     ["Agent", /(^|[\s_-])agent($|[\s_-])|智能体|多智能体|agent要|agent\s*要|agent学习|agent\s*学习|ai\s*agent|autonomous\s*agent/],
+    ["计算机网络", /计算机网络|网络协议|osi|tcp\/?ip|tcp|udp|路由|交换机|局域网|广域网|网络安全/],
+    ["计算机组成原理", /计算机组成原理|计算机组成|组成原理|cpu|指令系统|存储器|高速缓存|cache|总线|输入输出系统/],
     ["编译原理", /编译原理|文法|语法分析|词法分析|乔姆斯基|chomsky|type-?1|1型|一型|上下文有关|context.?sensitive|产生式|非收缩|线性有界/],
     ["前端", /前端|html|css|javascript|typescript|react|vue|浏览器|dom|页面/],
     ["编程语言", /python|java|javascript|typescript|c\+\+|cpp|c语言|c 语言|c#|go语言|golang|rust|swift|kotlin|php|ruby|node|npm|maven|gradle|cargo|pip|conda|jupyter|编程语言|程序设计/],

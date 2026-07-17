@@ -476,6 +476,12 @@ function commitAssistantTurn(assistantPlainText, newHistory, uiVersion, agentIds
   const lastUser = [...newHistory].reverse().find((item) => item.role === "user");
   if (lastUser?.content) {
     recordLearningDemand("chat", lastUser.content, { content: assistantPlainText });
+    recordLearningBehavior("chat_turn_completed", {
+      category: typeof categorizeKnowledge === "function" ? categorizeKnowledge(lastUser.content, assistantPlainText) : "",
+      topic: compactProfileEvidenceText(lastUser.content, 100),
+      title: agentIds.length ? `完成 Agent 对话：${agentIds.join("、")}` : "完成智能答疑",
+      meta: { agentIds },
+    });
   }
   updateComposerPlaceholder();
   state.currentAssistant = null;
@@ -572,22 +578,214 @@ function summarizeProfileEvidence(activity = {}) {
   };
 }
 
+function buildRealtimeLearningHistory(currentQuestion = "") {
+  ensureChatSessionsLoaded();
+  const evidence = typeof buildLearningEvidence === "function"
+    ? buildLearningEvidence()
+    : { profile: state.studentProfile || createEmptyProfile() };
+  const existingPaths = Object.entries(state.learningPathLibrary || {}).slice(0, 12).map(([category, data]) => {
+    const path = typeof normalizeLearningPath === "function"
+      ? normalizeLearningPath(data?.learning_path, data?.topic, data?.resources || [])
+      : (data?.learning_path || []);
+    return {
+      category,
+      topic: data?.topic || category,
+      revision: Number(data?.revision) || 0,
+      updated_at: data?.updatedAt || "",
+      stages: path.map((stage, stageIndex) => ({
+        stage: stage.stage,
+        goal: stage.goal,
+        duration: stage.duration,
+        todos: (stage.todos || []).map((todo, todoIndex) => ({
+          label: todo.label,
+          evidence: todo.evidence,
+          done: Boolean(state.learningPathTodoDone?.[pathTodoKey(category, stageIndex, todoIndex, todo.label)]),
+        })),
+        mastery: stage.mastery,
+        resources: (stage.resources || []).map((resource) => ({
+          type: resource.type,
+          title: resource.title,
+          reason: resource.reason,
+        })),
+      })),
+    };
+  });
+  const historicalChatTopics = (state.chatSessions || []).slice(0, 30).map((session) => {
+    const messages = sanitizeChatMessages(session.messages);
+    const userText = messages.filter((item) => item.role === "user").map((item) => item.content).join(" ");
+    const learningPathReply = [...messages].reverse().find((item) =>
+      item.role === "assistant" && (
+        item.agentIds?.includes("learning-path")
+        || /(?:学习路径|第\s*1\s*步|完成标志)/.test(item.content)
+      )
+    );
+    const category = typeof categorizeKnowledge === "function"
+      ? categorizeKnowledge(session.title || userText, `${session.title || ""} ${userText}`)
+      : "";
+    return {
+      session_id: session.id,
+      title: session.title || deriveChatTitle(messages),
+      category,
+      updated_at: new Date(session.updatedAt || session.createdAt || Date.now()).toISOString(),
+      user_questions: messages.filter((item) => item.role === "user").length,
+      recent_demand: compactProfileEvidenceText(
+        [...messages].reverse().find((item) => item.role === "user")?.content || "",
+        180
+      ),
+      learning_path_preview: compactProfileEvidenceText(learningPathReply?.content || "", 700),
+    };
+  }).filter((item) => item.category && item.category !== "其他");
+  const allCategoryNames = [...new Set([
+    ...existingPaths.map((item) => item.category),
+    ...(evidence.path_progress?.by_category || []).map((item) => item.category),
+    ...historicalChatTopics.map((item) => item.category),
+  ].filter(Boolean))];
+  return {
+    generated_at: new Date().toISOString(),
+    current_question: compactProfileEvidenceText(currentQuestion, 300),
+    profile: evidence.profile || state.studentProfile || createEmptyProfile(),
+    mastery: {
+      practice: evidence.practice_performance || {},
+      mistakes: evidence.mistake_performance || {},
+      assessment: state.learningAssessment || null,
+    },
+    mistakes: (state.mistakeBookItems || []).slice(0, 12).map((item) => ({
+      category: item.category || "",
+      topic: item.topic || "",
+      difficulty: item.difficulty || "",
+      type: item.type || "",
+      question: compactProfileEvidenceText(item.question, 180),
+    })),
+    resource_usage: evidence.resource_usage || {},
+    existing_paths: existingPaths,
+    historical_chat_topics: historicalChatTopics,
+    all_learning_categories: allCategoryNames,
+    path_progress: evidence.path_progress || {},
+    recent_behavior: evidence.recent_behavior || [],
+    learning_demands: evidence.demands || {},
+    recent_chat: (state.messages || []).slice(-12).map((item) => ({
+      role: item.role,
+      content: compactProfileEvidenceText(item.content, 260),
+      agents: item.agentIds || [],
+    })),
+  };
+}
+
+function ensureLearningPathOverviewCoverage(text, history) {
+  if (!history) return text;
+  const categories = (history.all_learning_categories || []).filter(Boolean);
+  const missing = categories.filter((category) => !String(text || "").includes(category));
+  if (!missing.length) return text;
+  const progress = new Map((history.path_progress?.by_category || []).map((item) => [item.category, item]));
+  const existing = new Map((history.existing_paths || []).map((item) => [item.category, item]));
+  const chats = history.historical_chat_topics || [];
+  const rows = categories.map((category) => {
+    const stat = progress.get(category);
+    const path = existing.get(category);
+    const relatedChat = chats.find((item) => item.category === category);
+    const percentText = stat ? `${stat.done}/${stat.total} 项（${stat.percent}%）` : "已有学习记录，结构化进度待确认";
+    const next = stat?.next
+      || path?.stages?.flatMap((stage) => stage.todos || []).find((todo) => !todo.done)?.label
+      || relatedChat?.recent_demand
+      || "需要结合下一轮练习继续确认";
+    return `- **${category}**：${percentText}；下一步：${next}`;
+  });
+  return `# 我的学习路径总览\n\n根据全部路径库和所有历史对话，目前共识别到 ${categories.length} 个学习类别：\n\n${rows.join("\n")}\n\n> 以下为当前优先路径的详细安排。\n\n${text}`;
+}
+
+async function updateRealtimeLearningPathAfterTurn(userPersist, assistantText, agentIds = []) {
+  if (!userPersist?.content || typeof upsertLearningPathLibrary !== "function") return;
+  const history = buildRealtimeLearningHistory(userPersist.content);
+  const overviewQuestion = /(?:我的|当前|现在|已有|全部|所有).{0,10}(?:学习路径|学习计划|学习进度)|(?:学习路径|学习计划).{0,10}(?:是什么|有哪些|总览)/.test(userPersist.content);
+  const categoryHint = overviewQuestion
+    ? (state.activePathCategory || history.existing_paths[0]?.category || "综合知识")
+    : (userPersist.category || (typeof categorizeKnowledge === "function"
+      ? categorizeKnowledge(userPersist.content, assistantText)
+      : (state.activePathCategory || "综合知识")));
+  const existing = history.existing_paths.find((item) => item.category === categoryHint)
+    || history.existing_paths.find((item) => item.category === state.activePathCategory)
+    || null;
+  const system = `你是实时个性化学习路径更新 Agent。只输出合法 JSON，不要 Markdown。
+你必须根据学生的完整学习历史增量更新路径，而不是生成通用模板。学习历史包括画像、掌握度、练习表现、错题、资源使用、已有路径及进度、最近学习行为、学习需求和最近对话。
+输出 {"category":string,"topic":string,"path_basis":{"profile":string,"mastery":string,"mistakes":string,"resource_usage":string,"recent_behavior":string,"update_reason":string},"learning_path":[stage]}。
+stage 格式为 {"stage":string,"goal":string,"duration":string,"order_reason":string,"steps":[string],"todos":[{"label":string,"evidence":string}],"mastery":string,"resources":[{"type":string,"title":string,"reason":string}]}。
+同一知识大类必须增量更新已有路径：保留仍有效的阶段以及已完成 Todo 的原标签，根据新对话、Agent 使用、错题和掌握变化调整后续步骤，禁止清零已有进度。
+新问题只是解释、追问或使用资源 Agent 时，也要作为学习证据融入原路径，不得无理由另建路径。
+路径包含 4-6 个阶段，每阶段 2-4 个可执行 Todo。资源只能引用历史中真实存在的资源，没有则使用空数组。证据不足时明确写“待确认”，不得假装已经掌握。`;
+  const user = `本轮问题：${userPersist.content}
+本轮回答摘要：${compactProfileEvidenceText(assistantText, 500)}
+本轮使用 Agent：${agentIds.length ? agentIds.join("、") : "智能答疑"}
+建议知识大类：${categoryHint}
+同类已有路径：${JSON.stringify(existing, null, 2)}
+完整实时学习历史：
+${JSON.stringify(history, null, 2)}
+请输出增量更新后的完整路径 JSON。`;
+  try {
+    const response = await fetch(CHAT_ENDPOINT, {
+      method: "POST",
+      headers: buildChatHeaders(),
+      body: JSON.stringify({
+        model: DEFAULT_MODEL,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: user },
+        ],
+        stream: false,
+        temperature: 0.2,
+      }),
+    });
+    if (!response.ok) return;
+    const data = await response.json().catch(() => null);
+    const result = extractJsonObject(data?.choices?.[0]?.message?.content || "");
+    if (!result?.learning_path?.length) return;
+    const category = result.category || categoryHint;
+    const resources = state.learningResources?.category === category
+      ? (state.learningResources.resources || [])
+      : (state.learningPathLibrary?.[category]?.resources || []);
+    upsertLearningPathLibrary({
+      ...(state.learningPathLibrary?.[category] || {}),
+      category,
+      topic: result.topic || userPersist.content.slice(0, 80),
+      demand: userPersist.content,
+      path_basis: result.path_basis || {},
+      learning_path: result.learning_path,
+      resources,
+      last_update_source: "chat_realtime_history",
+    });
+    recordLearningBehavior("path_auto_updated", {
+      category,
+      topic: result.topic || "",
+      title: "对话后实时更新学习路径",
+      meta: { agentIds, question: compactProfileEvidenceText(userPersist.content, 120) },
+    });
+    if (typeof renderLearningPathPanel === "function") renderLearningPathPanel();
+  } catch (error) {
+    console.warn("实时更新学习路径失败", error);
+  }
+}
+
 function requestStudentProfileRefreshFromActivity(source, detail = {}) {
   if (!state.activeUser) return;
   clearTimeout(state.profileRefreshTimer);
   state.profileRefreshTimer = setTimeout(() => {
+    const activityMessage = {
+      content: `学习行为更新：${source}；${compactProfileEvidenceText(JSON.stringify(detail || {}), 260)}`,
+      imageUrls: [],
+      category: detail.category || state.activePathCategory || "",
+    };
     state.profileUpdateInFlight = updateStudentProfileAfterTurn(
-      {
-        content: `学习行为更新：${source}`,
-        imageUrls: [],
-      },
+      activityMessage,
       "",
       state.uiVersion,
       {
         source,
         detail,
       },
-    );
+    ).then(() => updateRealtimeLearningPathAfterTurn(
+      activityMessage,
+      `学生产生了新的学习行为：${source}`,
+      []
+    ));
   }, 650);
 }
 
@@ -1027,30 +1225,12 @@ function returnToFeedFromPost() {
 }
 
 function showPathPage() {
-  if (!el.pathPage) return;
-  setChatLayoutActive(false);
-  setComposerVisible(false);
-  if (el.home) el.home.hidden = true;
-  if (el.chat) el.chat.hidden = true;
-  if (el.profilePage) el.profilePage.hidden = true;
-  if (el.userInfoPage) el.userInfoPage.hidden = true;
-  if (el.resourcePage) el.resourcePage.hidden = true;
-  if (el.pushPage) el.pushPage.hidden = true;
-  if (el.assessmentPage) el.assessmentPage.hidden = true;
-  if (el.storagePage) el.storagePage.hidden = true;
-  if (el.mistakePage) el.mistakePage.hidden = true;
-  el.pathPage.hidden = false;
-  el.pathPageBtn?.classList.add("active");
-  el.chatPageBtn?.classList.remove("active");
-  el.profilePageBtn?.classList.remove("active");
-  el.userInfoPageBtn?.classList.remove("active");
-  el.resourcePageBtn?.classList.remove("active");
-  el.pushPageBtn?.classList.remove("active");
-  el.assessmentPageBtn?.classList.remove("active");
-  el.storagePageBtn?.classList.remove("active");
-  el.mistakePageBtn?.classList.remove("active");
-  setPageHash("#path");
-  renderLearningPathPanel();
+  ensureActiveChatSession();
+  ensureChatVisible();
+  const selected = new Set(state.selectedChatAgentIds || []);
+  selected.add("learning-path");
+  state.selectedChatAgentIds = [...selected];
+  renderChatAgentSelection();
 }
 
 function showAssessmentPage() {
@@ -1296,6 +1476,7 @@ function chatAgentExecutionRule(agent, config = {}) {
     retrieval: "立即生成阅读扩展导读：说明经典研究脉络、近三年前沿方向、适合观看的视频主题、课程重点与科普切入点。不得编造论文、作者或 URL；真实可点击链接由系统核验目录在回答后附加。",
     doc: "必须立即生成一篇完整、可直接阅读和保存的 Markdown 知识讲解文档，不得回答“无法生成”“没有现成文档”，不得只给概述或反问用户。正文约 1300-1700 个中文字符，至少包含：标题、学习目标、核心概念、工作原理或推导过程、具体示例、易错点、总结；编程或算法主题还要包含可运行代码或执行过程说明。",
     mindmap: "必须直接生成可视化所需的结构化思维导图，不要写开场说明。格式严格为：第一行“# 中心主题”；随后 5-7 个“## 一级分支短标题”，每个分支下用“- ”列出至少 3 个简短二级知识点；最后写“复习路径：...”。节点文字必须简洁，不使用 Markdown 粗体符号；公式要同时给出便于直接显示的中文或纯文本含义，不得把长段落作为节点。",
+    "learning-path": "必须结合当前问题、对话历史和实时学习历史生成个性化学习路径。如果用户问“我当前/现在的学习路径是什么”“我的学习计划/进度”等未指定课程的总览问题，必须先输出“# 我的学习路径总览”，逐一列出历史中所有 existing_paths，包含每个知识大类的主题、完成进度、当前掌握依据、下一项未完成任务和最近更新时间，禁止只挑一个类别；随后选择最需要推进的一类输出详细路径。如果用户明确指定某门课程或知识类别，才只回答该类别。详细路径格式为：第一行“# 学习路径：主题”；第二行用一句话说明总体目标；随后输出 4-6 个“## 第 N 步 · 约 X 分钟/小时”。每一步依次包含“### 具体学习内容标题”（标题中禁止出现“步骤标题”四个字）、“说明：用一句 25-50 字说明本步骤学什么、解决什么问题”、“任务：具体可执行任务”和“完成标志：可验证的学习成果”。步骤必须由基础到应用，不得省略说明、任务或完成标志。",
     quiz: `必须立即生成完整题库，严格遵守题型与题量配置 ${JSON.stringify(config.exerciseBlueprint || {})}。每题必须包含题型、题目、答案、分步骤解析和对应知识点，不得减少题量或改为出题建议。`,
     reading: "必须直接生成可执行的拓展阅读清单，区分已知可信来源与延伸检索关键词，并说明每项材料适合解决什么学习问题；不得伪造未验证的精确链接。",
     code: "必须直接生成可运行的实训卡，包含任务目标、输入输出、带 TODO 的代码骨架、参考实现、运行命令、至少 3 个测试、调试清单和 2 个修改挑战。",
@@ -1506,6 +1687,103 @@ function renderChatAgentArtifacts(container, markdownText, agentIds = [], agentC
       link.rel = "noopener noreferrer";
     });
     container.appendChild(readingArtifact);
+  }
+
+  if (ids.has("learning-path")) {
+    const source = String(markdownText || "");
+    const title = (source.match(/^\s*#\s+(?:学习路径[:：]\s*)?(.+)$/m)?.[1] || agentConfig.topic || "本次学习主题").trim();
+    const stepPattern = /^##\s+第\s*(\d+)\s*步\s*[·・-]?\s*([^\n]*)\n([\s\S]*?)(?=^##\s+第\s*\d+\s*步|(?![\s\S]))/gm;
+    const steps = [];
+    let match;
+    while ((match = stepPattern.exec(source)) && steps.length < 8) {
+      const body = match[3] || "";
+      const rawTitle = body.match(/^###\s+(.+)$/m)?.[1]?.trim() || "";
+      const stepTitle = rawTitle.replace(/^步骤标题[:：]\s*/, "").replace(/^步骤\s*\d+\s*[:：]\s*/, "") || "完成本阶段学习任务";
+      const field = (names) => {
+        const lines = body.split("\n");
+        for (const sourceLine of lines) {
+          const line = sourceLine
+            .trim()
+            .replace(/^[-*]\s+/, "")
+            .replace(/\*\*/g, "")
+            .replace(/`/g, "");
+          for (const name of names) {
+            const prefix = line.match(new RegExp(`^${name}\\s*[:：]\\s*(.+)$`));
+            if (prefix?.[1]) return prefix[1].trim();
+          }
+        }
+        return "";
+      };
+      steps.push({
+        index: match[1],
+        duration: (match[2] || "").trim(),
+        title: stepTitle,
+        description: field(["说明", "目标", "步骤说明"]),
+        task: field(["任务", "学习任务"]),
+        evidence: field(["完成标志", "完成证据"]),
+      });
+    }
+    if (steps.length) {
+      const pathArtifact = document.createElement("section");
+      pathArtifact.className = "chat-learning-path";
+      pathArtifact.setAttribute("aria-label", "个性化学习路径");
+      pathArtifact.innerHTML = `
+        <header class="chat-learning-path-header">
+          <div><span class="chat-learning-path-icon">♧</span><strong>个性化学习路径</strong></div>
+          <span><b>0/${steps.length}</b> 已完成</span>
+        </header>
+        <h3>${escapeHtml(title)}</h3>
+        <div class="chat-learning-path-progress"><i></i><span>0%</span></div>
+        <ol class="chat-learning-path-steps">
+          ${steps.map((step) => `
+            <li>
+              <span class="chat-learning-path-node"></span>
+              <div class="chat-learning-path-step-meta">第 ${escapeHtml(step.index)} 步${step.duration ? ` · ${escapeHtml(step.duration)}` : ""}</div>
+              <label>
+                <input type="checkbox" data-learning-path-step>
+                <span>
+                  <strong data-step="${escapeHtml(step.index)}">${escapeHtml(step.title)}</strong>
+                  ${step.task || step.description ? `<small>${escapeHtml(step.task || step.description)}</small>` : ""}
+                  ${step.evidence ? `<em>完成标志：${escapeHtml(step.evidence)}</em>` : ""}
+                </span>
+              </label>
+            </li>`).join("")}
+        </ol>`;
+      const updateProgress = () => {
+        const checks = [...pathArtifact.querySelectorAll("[data-learning-path-step]")];
+        const done = checks.filter((input) => input.checked).length;
+        const percent = Math.round((done / checks.length) * 100);
+        pathArtifact.querySelector(".chat-learning-path-header span b").textContent = `${done}/${checks.length}`;
+        pathArtifact.querySelector(".chat-learning-path-progress i").style.width = `${percent}%`;
+        pathArtifact.querySelector(".chat-learning-path-progress span").textContent = `${percent}%`;
+        checks.forEach((input) => input.closest("li")?.classList.toggle("is-complete", input.checked));
+      };
+      pathArtifact.addEventListener("change", (event) => {
+        updateProgress();
+        const input = event.target instanceof HTMLInputElement
+          ? event.target.closest("[data-learning-path-step]")
+          : null;
+        if (!input) return;
+        const item = input.closest("li");
+        const stepTitle = item?.querySelector("strong")?.textContent || "";
+        const category = typeof categorizeKnowledge === "function"
+          ? categorizeKnowledge(title, `${title} ${stepTitle}`)
+          : "";
+        recordLearningBehavior(input.checked ? "chat_path_step_done" : "chat_path_step_reopen", {
+          category,
+          topic: title,
+          title: stepTitle,
+          meta: { source: "chat_learning_path", checked: input.checked },
+        });
+        if (typeof requestStudentProfileRefreshFromActivity === "function") {
+          requestStudentProfileRefreshFromActivity(
+            input.checked ? "chat_path_step_done" : "chat_path_step_reopen",
+            { category, topic: title, title: stepTitle, checked: input.checked }
+          );
+        }
+      });
+      container.appendChild(pathArtifact);
+    }
   }
 
   const actions = document.createElement("div");
@@ -1972,6 +2250,13 @@ async function generateAssistantFromUserText(
   const courseKnowledgePrompt = typeof formatCourseKnowledgeForPrompt === "function"
     ? formatCourseKnowledgeForPrompt(courseKnowledge)
     : "";
+  const needsRealtimePathContext = selectedChatAgentIds.includes("learning-path")
+    || /(?:我的|当前|现在|实时|个性化).{0,8}(?:学习路径|学习计划|学习进度)|学习路径.{0,8}(?:是什么|怎么走|更新)/.test(userText);
+  const isLearningPathOverview = /(?:我的|当前|现在|已有|全部|所有).{0,10}(?:学习路径|学习计划|学习进度)|(?:学习路径|学习计划).{0,10}(?:是什么|有哪些|总览)/.test(userText)
+    && !/(?:计算机组成|计算机网络|数据结构|操作系统|数据库|高等数学|线性代数|概率|Java|Python|C\+\+|前端|后端)/i.test(userText);
+  const realtimeLearningHistory = needsRealtimePathContext
+    ? buildRealtimeLearningHistory(userText)
+    : null;
   const chatAgentPrompt = selectedChatAgents.length
     ? `本轮只调用用户显式选择的以下资源 Agent。用户点击能力按钮本身就是明确的生成授权，必须执行，不要退回普通答疑模式：
 ${selectedChatAgents.map((agent) => `- ${agent.role}：${chatAgentExecutionRule(agent, requestedAgentConfig)}`).join("\n")}
@@ -2015,7 +2300,10 @@ ${selectedChatAgentIds.includes("quiz") ? `题库生成配置：${JSON.stringify
         const reviewed = typeof safeGeneratedText === "function"
           ? safeGeneratedText(ca.fullText)
           : { text: ca.fullText, audit: null };
-        const full = reviewed.text;
+        let full = reviewed.text;
+        if (isLearningPathOverview) {
+          full = ensureLearningPathOverviewCoverage(full, realtimeLearningHistory);
+        }
         ca.fullText = full;
         ca.typingEl.hidden = true;
         ca.markdownEl.hidden = false;
@@ -2035,7 +2323,11 @@ ${selectedChatAgentIds.includes("quiz") ? `题库生成配置：${JSON.stringify
           userPersist,
           full,
           uiVersion
-        );
+        ).then(() => updateRealtimeLearningPathAfterTurn(
+          userPersist,
+          full,
+          selectedChatAgentIds
+        ));
       }
     }, typingSpeedMs);
   }
@@ -2060,7 +2352,15 @@ ${selectedChatAgentIds.includes("quiz") ? `题库生成配置：${JSON.stringify
             role: "system",
             content: `以下内容来自用户本地私有课程知识库，是本轮回答的优先依据。回答时应在相关结论后标注“课程文档：文档名，PDF第N页”。不要大段复述原文，只做必要概括；知识库未覆盖的内容标注为“AI扩展”。\n\n${courseKnowledgePrompt}`,
           }] : []),
+          ...(realtimeLearningHistory ? [{
+            role: "system",
+            content: `以下是学生截至本轮发送前的实时学习历史快照。回答学习路径问题时必须逐项依据这些真实记录，说明画像依据、当前掌握、错题短板、资源使用、已有路径进度和最近行为；优先续接已有路径，不得用通用模板替代。没有证据的掌握情况必须标为“待确认”。\n\n${JSON.stringify(realtimeLearningHistory, null, 2)}`,
+          }] : []),
           ...(chatAgentPrompt ? [{ role: "system", content: chatAgentPrompt }] : []),
+          ...(isLearningPathOverview ? [{
+            role: "system",
+            content: "这是学习路径总览问题。必须以 all_learning_categories 为完整清单，并结合 existing_paths、path_progress.by_category 和 historical_chat_topics 逐类回答；即使某类只存在于其他历史对话、进度为 0% 或记录较少也不能省略。先给总览，再给当前最优先类别的详细步骤。不得只回答最近、当前激活或证据最多的一个类别。",
+          }] : []),
           ...apiMessages,
         ],
         stream: true,

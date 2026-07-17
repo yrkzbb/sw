@@ -290,6 +290,90 @@
   display: none;
 }
 
+.chat-learning-path {
+  margin-top: 14px;
+  padding: 22px 24px 24px;
+  border: 1px solid rgba(27, 65, 61, .15);
+  border-radius: 14px;
+  background: var(--panel, #fff);
+  color: var(--text, #1c302e);
+}
+
+.chat-learning-path-header,
+.chat-learning-path-header > div,
+.chat-learning-path-progress {
+  display: flex;
+  align-items: center;
+}
+
+.chat-learning-path-header { justify-content: space-between; gap: 16px; }
+.chat-learning-path-header > div { gap: 9px; font-size: 17px; }
+.chat-learning-path-header > span { color: #1649b8; font-size: 14px; }
+.chat-learning-path-icon { color: #1649b8; font-size: 21px; }
+.chat-learning-path h3 { margin: 20px 0 14px; font-size: 16px; }
+
+.chat-learning-path-progress {
+  position: relative;
+  height: 8px;
+  margin: 0 42px 25px 0;
+  border-radius: 999px;
+  background: #edf0f8;
+}
+.chat-learning-path-progress i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #174bb9;
+  transition: width .25s ease;
+}
+.chat-learning-path-progress span {
+  position: absolute;
+  left: calc(100% + 10px);
+  color: #66716f;
+  font-size: 14px;
+}
+.chat-learning-path-steps { margin: 0; padding: 0 0 0 46px; list-style: none; }
+.chat-learning-path-steps li {
+  position: relative;
+  padding: 0 0 25px 24px;
+  border-left: 2px solid #e1e5ef;
+}
+.chat-learning-path-steps li:last-child { padding-bottom: 0; border-left-color: transparent; }
+.chat-learning-path-node {
+  position: absolute;
+  left: -7px;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  border: 2px solid #174bb9;
+  border-radius: 50%;
+  background: #fff;
+}
+.chat-learning-path-step-meta { margin-bottom: 9px; color: #929a9e; font-size: 13px; }
+.chat-learning-path-steps label { display: flex; align-items: flex-start; gap: 11px; cursor: pointer; }
+.chat-learning-path-steps input { width: 17px; height: 17px; margin-top: 2px; accent-color: #174bb9; }
+.chat-learning-path-steps label span { min-width: 0; }
+.chat-learning-path-steps strong { display: block; font-size: 15px; }
+.chat-learning-path-steps strong::before {
+  content: "步骤" attr(data-step) "：";
+}
+.chat-learning-path-steps small,
+.chat-learning-path-steps p,
+.chat-learning-path-steps em { display: block; margin-top: 6px; color: #6e7d7a; font-size: 13px; font-style: normal; }
+.chat-learning-path-steps p { margin-bottom: 0; line-height: 1.65; }
+.chat-learning-path-steps em { width: fit-content; padding: 4px 8px; border-radius: 6px; background: #f4f5f8; }
+.chat-learning-path-steps li.is-complete strong { color: #75817f; text-decoration: line-through; }
+.chat-learning-path-steps li.is-complete .chat-learning-path-node { background: #174bb9; }
+
+[data-theme="dark"] .chat-learning-path { background: rgba(16, 35, 34, .96); border-color: rgba(151, 190, 184, .2); }
+[data-theme="dark"] .chat-learning-path-node { background: #102321; }
+
+@media (max-width: 700px) {
+  .chat-learning-path { padding: 18px 15px; }
+  .chat-learning-path-steps { padding-left: 14px; }
+}
+
 .chat-artifact-actions {
   display: flex;
   align-items: center;

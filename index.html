@@ -24,24 +24,24 @@
         }
       })();
     </script>
-    <link rel="stylesheet" href="./css/index.css?v=20260718-reading-extension-links" />
+    <link rel="stylesheet" href="./css/index.css?v=20260718-chat-learning-path-detail" />
     <link rel="stylesheet" href="./css/mobile-overrides.css?v=20260717-mobile-native-layout" />
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/marked@14.1.2/marked.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/prism.min.js" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/plugins/autoloader/prism-autoloader.min.js" defer></script>
-    <script src="./js/app/config-state.js?v=20260718-reading-extension" defer></script>
+    <script src="./js/app/config-state.js?v=20260718-chat-learning-path" defer></script>
     <script src="./js/app/content-safety.js?v=20260717-safety-audit" defer></script>
     <script src="./js/app/knowledge-base.js?v=20260718-storage-knowledge-folder" defer></script>
     <script src="./js/app/auth-account.js?v=20260716-face-window-copy-fix" defer></script>
     <script src="./js/app/announcements.js?v=20260715-split" defer></script>
-    <script src="./js/app/content-storage.js?v=20260718-favorites-storage" defer></script>
+    <script src="./js/app/content-storage.js?v=20260718-computer-course-categories" defer></script>
     <script src="./js/app/resources.js?v=20260718-reading-extension-clean" defer></script>
-    <script src="./js/app/learning-path-assessment.js?v=20260716-login-alt-tooltip" defer></script>
+    <script src="./js/app/learning-path-assessment.js?v=20260718-chat-path-only" defer></script>
     <script src="./js/app/community-feed.js?v=20260716-quiz-detail" defer></script>
     <script src="./js/app/resource-rendering.js?v=20260717-ppt-template-preview" defer></script>
     <script src="./js/app/profile-page.js?v=20260718-favorites-storage" defer></script>
-    <script src="./js/app/chat-navigation-events.js?v=20260718-architecture-reading-fix" defer></script>
+    <script src="./js/app/chat-navigation-events.js?v=20260718-all-chat-path-categories" defer></script>
     <script src="./js/app/init.js?v=20260718-chat-agent-selector" defer></script>
   </head>
   <body data-theme="dark">
@@ -114,7 +114,7 @@
           </span>
           资源
         </button>
-        <button id="pathPageBtn" class="nav-btn" type="button">
+        <button id="pathPageBtn" class="nav-btn" type="button" hidden aria-hidden="true" tabindex="-1">
           <span class="nav-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M4 19V5" />
@@ -663,6 +663,7 @@
             <button class="chat-agent-tool" type="button" data-chat-agent="code" aria-pressed="false"><span>⌘</span>编程</button>
             <button class="chat-agent-tool" type="button" data-chat-agent="retrieval" aria-pressed="false"><span>⌕</span>阅读扩展</button>
             <button class="chat-agent-tool" type="button" data-chat-agent="mindmap" aria-pressed="false"><span>⌘</span>思维导图</button>
+            <button class="chat-agent-tool" type="button" data-chat-agent="learning-path" aria-pressed="false"><span>♧</span>学习路径</button>
           </div>
         </div>
         <div id="chatAgentSelection" class="chat-agent-selection" aria-live="polite">当前：智能答疑（未调用资源 Agent）</div>
