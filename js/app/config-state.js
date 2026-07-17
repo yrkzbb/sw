@@ -137,6 +137,8 @@ const el = {
   profileMeta: document.querySelector("#profileMeta"),
   resourcePromptInput: document.querySelector("#resourcePromptInput"),
   pptThemeSelect: document.querySelector("#pptThemeSelect"),
+  pptThemePreviewBtn: document.querySelector("#pptThemePreviewBtn"),
+  pptThemePreviewPanel: document.querySelector("#pptThemePreviewPanel"),
   generateResourcesBtn: document.querySelector("#generateResourcesBtn"),
   pushGenerateResourcesBtn: document.querySelector("#pushGenerateResourcesBtn"),
   feedComposer: document.querySelector("#feedComposer"),

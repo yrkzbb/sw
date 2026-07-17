@@ -86,12 +86,69 @@ async function loadPptThemes() {
       ...state.pptThemes.map((theme) => `<option value="${escapeHtml(theme.key)}">${escapeHtml(theme.name || theme.key)}</option>`),
     ].join("");
     el.pptThemeSelect.value = state.pptThemes.some((theme) => theme.key === selected) ? selected : "auto";
+    renderPptThemePreviewPicker();
   } catch (error) {
     console.warn("PPT 模板加载失败", error);
   } finally {
     state.pptThemesLoading = false;
   }
 }
+
+function pptThemeClass(themeKey) {
+  return `ppt-theme-${String(themeKey || "auto").replace(/[^a-zA-Z0-9_-]/g, "") || "auto"}`;
+}
+
+function renderPptThemePreviewPicker() {
+  if (!el.pptThemePreviewBtn || !el.pptThemePreviewPanel || !el.pptThemeSelect) return;
+  const selectedKey = el.pptThemeSelect.value || "auto";
+  const themes = [{ key: "auto", name: "智能匹配模板" }, ...state.pptThemes];
+  const selected = themes.find((theme) => theme.key === selectedKey) || themes[0];
+  el.pptThemePreviewBtn.innerHTML = `
+    <span class="ppt-theme-preview-swatch ${pptThemeClass(selected.key)}" aria-hidden="true"></span>
+    <span class="ppt-theme-preview-copy"><b>${escapeHtml(selected.name || selected.key)}</b><small>点击预览并选择</small></span>
+    <span class="ppt-theme-preview-arrow" aria-hidden="true">⌄</span>`;
+  el.pptThemePreviewPanel.innerHTML = `
+    <div class="ppt-theme-preview-head"><div><b>选择 PPT 模板</b><span>所见即生成风格</span></div><button type="button" data-ppt-theme-close aria-label="关闭模板预览">×</button></div>
+    <div class="ppt-theme-preview-grid">${themes.map((theme) => {
+      const isSelected = theme.key === selectedKey;
+      const thumbnail = String(theme.thumbnail || "").trim();
+      const visual = thumbnail
+        ? `<img src="${escapeHtml(thumbnail)}" alt="${escapeHtml(theme.name || theme.key)} 模板预览">`
+        : `<span class="ppt-theme-card-art ${pptThemeClass(theme.key)}" aria-hidden="true"><i></i><em>${escapeHtml(theme.key === "auto" ? "AI" : "PPT")}</em><strong>${escapeHtml(theme.name || theme.key)}</strong></span>`;
+      return `<button class="ppt-theme-card ${isSelected ? "is-selected" : ""}" type="button" data-ppt-theme-key="${escapeHtml(theme.key)}" aria-pressed="${isSelected}">${visual}<span>${escapeHtml(theme.name || theme.key)}</span>${isSelected ? "<b>已选</b>" : ""}</button>`;
+    }).join("")}</div>`;
+  el.pptThemePreviewPanel.querySelector("[data-ppt-theme-close]")?.addEventListener("click", closePptThemePreview);
+  el.pptThemePreviewPanel.querySelectorAll("[data-ppt-theme-key]").forEach((card) => {
+    card.addEventListener("click", () => {
+      setPptTheme(card.getAttribute("data-ppt-theme-key"));
+      closePptThemePreview();
+    });
+  });
+}
+
+function setPptTheme(themeKey) {
+  if (!el.pptThemeSelect) return;
+  const normalizedKey = String(themeKey || "auto");
+  const valid = normalizedKey === "auto" || state.pptThemes.some((theme) => theme.key === normalizedKey);
+  el.pptThemeSelect.value = valid ? normalizedKey : "auto";
+  renderPptThemePreviewPicker();
+}
+
+function closePptThemePreview() {
+  if (!el.pptThemePreviewPanel) return;
+  el.pptThemePreviewPanel.hidden = true;
+  el.pptThemePreviewBtn?.setAttribute("aria-expanded", "false");
+}
+
+el.pptThemePreviewBtn?.addEventListener("click", () => {
+  const panel = el.pptThemePreviewPanel;
+  if (!panel) return;
+  const willOpen = panel.hidden;
+  panel.hidden = !willOpen;
+  el.pptThemePreviewBtn.setAttribute("aria-expanded", String(willOpen));
+});
+
+renderPptThemePreviewPicker();
 
 async function pollPresentationTask(resource) {
   const taskId = String(resource?.ppt_task_id || "").trim();
