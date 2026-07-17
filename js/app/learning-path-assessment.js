@@ -1653,15 +1653,6 @@ function renderAssessmentPage() {
     return;
   }
   el.assessmentGrid.innerHTML = `
-    <section class="assessment-focus-card">
-      <div>
-        <span>建议先做</span>
-        <h3>${escapeHtml(studentFriendlyAssessmentText(firstActions[0] || "先完成当前路径里的一个小待办，再回来刷新复盘。"))}</h3>
-      </div>
-      <button class="primary-btn" type="button" data-assessment-go-path>在对话中查看学习路径</button>
-    </section>
     ${renderAssessmentVisualizationBoard(evidence, dimensions)}
-    ${renderAssessmentOptimizationFlow(assessment, firstActions)}
-    ${renderAssessmentActionBoard(assessment)}
   `;
 }
