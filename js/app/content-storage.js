@@ -816,7 +816,7 @@ function showDownloadFeedback(filename) {
     toast.setAttribute("aria-live", "polite");
     document.body.appendChild(toast);
   }
-  toast.textContent = `已保存到“我的文件”，并开始下载 ${filename || "文件"}`;
+  toast.textContent = `已保存到对应收藏夹，并开始下载 ${filename || "文件"}`;
   toast.classList.add("show");
   window.clearTimeout(showDownloadFeedback.timer);
   showDownloadFeedback.timer = window.setTimeout(() => toast.classList.remove("show"), 3200);

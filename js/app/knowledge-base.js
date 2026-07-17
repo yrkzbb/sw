@@ -1,7 +1,11 @@
-let knowledgeBasePollTimer = null;
+const knowledgeBasePollTimers = new Map();
 
 function renderKnowledgeBaseCatalog(items = []) {
   if (!el.knowledgeBaseList) return;
+  state.knowledgeBaseItemCount = items.length;
+  if (el.storageKnowledgeCount) el.storageKnowledgeCount.textContent = `${items.length} 个文件 ·`;
+  const favoriteKnowledgeCount = document.querySelector('[data-favorite-folder="__personal_knowledge__"] span');
+  if (favoriteKnowledgeCount) favoriteKnowledgeCount.textContent = `${items.length} 个文件 · 仅自己`;
   if (!items.length) {
     el.knowledgeBaseList.innerHTML = `<div class="course-kb-empty">尚未导入课程文档。上传一门完整课程的电子书、教材或讲义后，系统会建立本地私有知识库。</div>`;
     return;
@@ -24,6 +28,7 @@ async function loadKnowledgeBaseCatalog() {
     renderKnowledgeBaseCatalog(items);
     return items;
   } catch (error) {
+    if (el.storageKnowledgeCount) el.storageKnowledgeCount.textContent = "加载失败 ·";
     el.knowledgeBaseList.innerHTML = `<div class="course-kb-empty">${escapeHtml(String(error?.message || error))}</div>`;
     return [];
   }
@@ -40,19 +45,25 @@ function renderKnowledgeBaseTask(task) {
 }
 
 async function pollKnowledgeBaseTask(taskId) {
-  window.clearTimeout(knowledgeBasePollTimer);
+  window.clearTimeout(knowledgeBasePollTimers.get(taskId));
   try {
     const response = await fetch(`/api/knowledge-base/tasks/${encodeURIComponent(taskId)}`);
     const task = await response.json().catch(() => null);
     if (!response.ok) throw new Error(task?.error || "知识库任务查询失败");
     renderKnowledgeBaseTask(task);
     if (task.status === "completed") {
+      knowledgeBasePollTimers.delete(taskId);
       await loadKnowledgeBaseCatalog();
       return;
     }
-    if (task.status === "failed") return;
-    knowledgeBasePollTimer = window.setTimeout(() => void pollKnowledgeBaseTask(taskId), 1500);
+    if (task.status === "failed") {
+      knowledgeBasePollTimers.delete(taskId);
+      return;
+    }
+    const timer = window.setTimeout(() => void pollKnowledgeBaseTask(taskId), 1500);
+    knowledgeBasePollTimers.set(taskId, timer);
   } catch (error) {
+    knowledgeBasePollTimers.delete(taskId);
     renderKnowledgeBaseTask({ progress: 0, message: String(error?.message || error), status: "failed" });
   }
 }
@@ -103,6 +114,19 @@ function formatCourseKnowledgeForPrompt(results = []) {
 }
 
 function initKnowledgeBase() {
-  el.knowledgeBasePdfInput?.addEventListener("change", () => void uploadKnowledgeBasePdf(el.knowledgeBasePdfInput.files?.[0]));
+  el.storageKnowledgeFolderBtn?.addEventListener("click", () => {
+    const willOpen = Boolean(el.storageKnowledgeFolderBody?.hidden);
+    if (el.storageKnowledgeFolderBody) el.storageKnowledgeFolderBody.hidden = !willOpen;
+    el.storageKnowledgeFolderBtn?.setAttribute("aria-expanded", String(willOpen));
+    el.storageKnowledgeFolder?.classList.toggle("is-open", willOpen);
+    if (willOpen) void loadKnowledgeBaseCatalog();
+  });
+  el.knowledgeBasePdfInput?.addEventListener("change", () => {
+    const files = Array.from(el.knowledgeBasePdfInput.files || []);
+    if (!files.length) return;
+    void (async () => {
+      for (const file of files) await uploadKnowledgeBasePdf(file);
+    })();
+  });
   void loadKnowledgeBaseCatalog();
 }

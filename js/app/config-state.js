@@ -47,6 +47,8 @@ const AUTH_ENDPOINT = "/api/auth";
 const USER_DATA_ENDPOINT = "/api/user-data";
 const ANNOUNCEMENT_ENDPOINT = "/api/announcements";
 const USE_BROWSER_API_KEY = /^https?:\/\//i.test(CHAT_ENDPOINT);
+const RESOURCE_PAGE_UI_ENABLED = false;
+const STORAGE_PAGE_UI_ENABLED = false;
 
 const DEFAULT_MODEL = "gpt-4o-mini";
 
@@ -74,11 +76,11 @@ const PROFILE_FIELD_META = {
 
 const RESOURCE_AGENTS = [
   { id: "analysis", role: "需求分析师", task: "", selectable: false },
-  { id: "retrieval", type: "高校教育资源检索", role: "教育资源检索 Agent", task: "从可信高校课程与学术平台检索并标注来源。", selectable: true, local: true },
+  { id: "retrieval", type: "拓展阅读与教育资源", role: "阅读扩展 Agent", task: "从可信高校课程与学术平台整理拓展阅读材料并标注来源。", selectable: true, local: true },
   { id: "doc", type: "专业课程讲解文档", role: "知识文档 Agent", task: "生成完整、可直接阅读的知识正文文档。", selectable: true },
   { id: "mindmap", type: "知识点思维导图", role: "思维导图 Agent", task: "组织知识点结构和关联路径。", selectable: true },
   { id: "quiz", type: "不同类型练习题目", role: "练习命题 Agent", task: "设计基础、进阶、易错和应用题。", selectable: true },
-  { id: "reading", type: "拓展阅读材料", role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。", selectable: true },
+  { id: "reading", type: "拓展阅读材料", role: "阅读拓展 Agent", task: "提供拓展阅读材料和检索关键词。", selectable: false },
   { id: "code", type: "代码类实操案例", role: "代码实操 Agent", task: "生成可运行实操案例和调试任务。", selectable: true },
   { id: "ppt", type: "教学演示文稿（PPT）", role: "PPT 生成 Agent", task: "生成可下载的教学演示文稿。", selectable: true },
   { id: "review", role: "审核整合 Agent", task: "", selectable: false },
@@ -140,6 +142,10 @@ const el = {
   knowledgeBasePdfInput: document.querySelector("#knowledgeBasePdfInput"),
   knowledgeBaseTask: document.querySelector("#knowledgeBaseTask"),
   knowledgeBaseList: document.querySelector("#knowledgeBaseList"),
+  storageKnowledgeFolder: document.querySelector("#storageKnowledgeFolder"),
+  storageKnowledgeFolderBtn: document.querySelector("#storageKnowledgeFolderBtn"),
+  storageKnowledgeFolderBody: document.querySelector("#storageKnowledgeFolderBody"),
+  storageKnowledgeCount: document.querySelector("#storageKnowledgeCount"),
   pptThemeSelect: document.querySelector("#pptThemeSelect"),
   pptThemePreviewBtn: document.querySelector("#pptThemePreviewBtn"),
   pptThemePreviewPanel: document.querySelector("#pptThemePreviewPanel"),
@@ -205,6 +211,14 @@ const el = {
   uploadBtn: document.querySelector("#uploadBtn"),
   imageInput: document.querySelector("#imageInput"),
   imagePreview: document.querySelector("#imagePreview"),
+  chatAgentToolbar: document.querySelector("#chatAgentToolbar"),
+  chatAgentSelection: document.querySelector("#chatAgentSelection"),
+  chatAgentOptions: document.querySelector("#chatAgentOptions"),
+  chatPptOptions: document.querySelector("#chatPptOptions"),
+  chatPptThemeGrid: document.querySelector("#chatPptThemeGrid"),
+  chatPptThemeLabel: document.querySelector("#chatPptThemeLabel"),
+  chatQuizOptions: document.querySelector("#chatQuizOptions"),
+  chatQuizTotal: document.querySelector("#chatQuizTotal"),
   apiKeyModal: document.querySelector("#apiKeyModal"),
   keyBanner: document.querySelector("#keyBanner"),
   apiKeyInput: document.querySelector("#apiKeyInput"),
@@ -313,6 +327,12 @@ const state = {
   chatSidebarResize: null,
   attachedFiles: [],
   attachedImages: [], 
+  selectedChatAgentIds: [],
+  chatPptTheme: "auto",
+  chatPptThemesRequested: false,
+  chatExerciseBlueprint: { 单选题: 2, 多选题: 1, 判断题: 1, 填空题: 2, 简答题: 2, 应用题: 2 },
+  activeChatAgentOption: "",
+  knowledgeBaseItemCount: 0,
   uiVersion: 0,
   personalProfileTab: "answers",
   personalArchiveGroup: "year",

@@ -486,6 +486,106 @@
   gap: 16px;
 }
 
+.storage-knowledge-folder {
+  margin-bottom: 16px;
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.085);
+  box-shadow: 0 20px 56px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+[data-theme="light"] .storage-knowledge-folder {
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 16px 42px rgba(76, 92, 142, 0.1);
+}
+
+.storage-knowledge-folder-btn {
+  width: 100%;
+  min-height: 96px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  border: 0;
+  color: var(--text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.storage-folder-icon {
+  width: 54px;
+  height: 46px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: #087f70;
+  background: linear-gradient(145deg, #8de2d1, #d9fff4);
+  font-size: 28px;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .8);
+}
+
+.storage-folder-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.storage-folder-copy strong {
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.storage-folder-copy small {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.storage-folder-action {
+  margin-left: auto;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #118e7b;
+  font-size: 12px;
+  font-weight: 850;
+}
+
+.storage-folder-action em {
+  color: var(--muted);
+  font-style: normal;
+  font-weight: 750;
+}
+
+.storage-folder-action b {
+  font-size: 24px;
+  transition: transform .18s ease;
+}
+
+.storage-knowledge-folder.is-open .storage-folder-action b {
+  transform: rotate(90deg);
+}
+
+.storage-knowledge-folder-body {
+  padding: 0 16px 16px;
+}
+
+.storage-knowledge-folder-body[hidden] {
+  display: none;
+}
+
+.storage-course-kb-panel {
+  margin: 0;
+}
+
+[data-theme="dark"] .storage-folder-icon {
+  color: #74dfca;
+  background: linear-gradient(145deg, #195c54, #173b38);
+}
+
 .storage-group {
   border: 1px solid var(--border);
   border-radius: 20px;

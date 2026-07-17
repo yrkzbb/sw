@@ -1,11 +1,12 @@
 @import url("./index-parts/base-navigation-profile.css?v=20260716-feed-compact-follow");
 @import url("./index-parts/learning-resources-assessment.css?v=20260716-login-alt-tooltip");
-@import url("./index-parts/storage-mindmap-chat-profile.css?v=20260716-assessment-feedback");
+@import url("./index-parts/storage-mindmap-chat-profile.css?v=20260718-favorites-storage");
 @import url("./index-parts/chat-modals-setup-responsive.css");
 @import url("./index-parts/visual-refresh.css");
 @import url("./index-parts/auth-account.css?v=20260716-face-camera-window-fix");
 @import url("./index-parts/community-feed.css?v=20260716-compose-studio");
-@import url("./index-parts/personal-wiki.css?v=20260717-resource-layout-tuning");
+@import url("./index-parts/personal-wiki.css?v=20260718-favorites-storage");
+@import url("./index-parts/chat-agent-collaboration.css?v=20260718");
 
 body {
   --app-content-gap: 9px;

@@ -354,7 +354,7 @@ function defaultFavoriteCollections() {
   return [{
     id: "default",
     name: "默认收藏夹",
-    description: "没有特别选择收藏夹时，帖子、存储文档和错题都会先放在这里。",
+    description: "没有特别选择收藏夹时，帖子、生成文档和错题都会先放在这里。",
     visibility: "private",
     postIds: [],
     fileIds: [],
@@ -732,7 +732,7 @@ function renderFavoriteFileCard(file, folderId) {
       <h4>${escapeHtml(file.title || file.filename || "未命名文档")}</h4>
       <p>${escapeHtml((file.content || "").replace(/[#*_`>\-\n]/g, " ").replace(/\s+/g, " ").trim().slice(0, 120) || "暂无预览。")}</p>
       <div><em>#${escapeHtml(file.category || "其他")}</em><em>${escapeHtml(file.filename || "文档")}</em></div>
-      <small>存储文档 · 点击或回车打开编辑</small>
+      <small>收藏夹文件 · 点击或回车打开编辑</small>
     </article>
   `;
 }
@@ -900,9 +900,12 @@ function renderFavoriteCollectionsPanel() {
   if (!el.profileContentPanel) return;
   loadFavoriteCollections();
   syncLocalItemsIntoFavoriteCollections();
-  const selected = state.favoriteCollections.find((folder) => folder.id === state.favoriteSelectedCollectionId)
-    || state.favoriteCollections[0];
-  if (selected) state.favoriteSelectedCollectionId = selected.id;
+  const knowledgeSelected = state.favoriteSelectedCollectionId === "__personal_knowledge__";
+  const selected = knowledgeSelected
+    ? null
+    : state.favoriteCollections.find((folder) => folder.id === state.favoriteSelectedCollectionId)
+      || state.favoriteCollections[0];
+  if (selected && !knowledgeSelected) state.favoriteSelectedCollectionId = selected.id;
   const posts = selected
     ? selected.postIds.map(favoritePostById).filter(Boolean)
     : [];
@@ -923,12 +926,16 @@ function renderFavoriteCollectionsPanel() {
         <div>
           <span>FAVORITES</span>
           <h3>我的收藏</h3>
-          <p>收藏夹可公开或仅自己可见；帖子、存储文档和错题都可以归档在这里。</p>
+          <p>收藏夹就是你的统一存储空间；帖子、生成文档、思维导图和错题都可以归档在这里。</p>
         </div>
         <button type="button" data-favorite-create-folder>新建收藏夹</button>
       </header>
       <div class="wiki-favorites-layout">
         <div class="wiki-favorite-folder-list">
+          <button class="${knowledgeSelected ? "active" : ""}" type="button" data-favorite-folder="__personal_knowledge__">
+            <strong>个人知识库</strong>
+            <span>${Number(state.knowledgeBaseItemCount || 0)} 个文件 · 仅自己</span>
+          </button>
           ${state.favoriteCollections.map((folder) => `
             <button class="${folder.id === selected?.id ? "active" : ""}" type="button" data-favorite-folder="${escapeHtml(folder.id)}">
               <strong>${escapeHtml(folder.name)}</strong>
@@ -937,7 +944,16 @@ function renderFavoriteCollectionsPanel() {
           `).join("")}
         </div>
         <article class="wiki-favorite-folder-detail">
-          ${selected ? `
+          ${knowledgeSelected ? `
+            <div class="wiki-favorite-folder-title">
+              <div>
+                <span>仅自己可见</span>
+                <h4>个人知识库</h4>
+                <p>课程 PDF、电子书与讲义；解析后用于对话和 Agent 检索。</p>
+              </div>
+            </div>
+            <div id="favoriteKnowledgeBaseMount" class="favorite-knowledge-base-mount"></div>
+          ` : selected ? `
             <div class="wiki-favorite-folder-title">
               <div>
                 <span>${selected.visibility === "public" ? "公开可见" : "仅自己可见"}</span>
@@ -951,13 +967,23 @@ function renderFavoriteCollectionsPanel() {
             </div>
             <div class="wiki-favorite-post-grid">
               ${state.favoriteCollectionsLoading ? profileEmptyState("收藏同步中", "正在读取你收藏过的内容。") : ""}
-              ${itemsHtml || profileEmptyState("这个收藏夹还空着", "收藏帖子、下载存储文档或加入错题后，会先进入默认收藏夹。")}
+              ${itemsHtml || profileEmptyState("这个收藏夹还空着", "收藏帖子、保存生成文档或加入错题后，可以归档到这里。")}
             </div>
           ` : profileEmptyState("还没有收藏夹", "新建一个收藏夹开始收集内容。")}
         </article>
       </div>
     </section>
   `;
+  if (knowledgeSelected && el.storageKnowledgeFolder) {
+    const mount = el.profileContentPanel.querySelector("#favoriteKnowledgeBaseMount");
+    if (mount) {
+      mount.appendChild(el.storageKnowledgeFolder);
+      if (el.storageKnowledgeFolderBody) el.storageKnowledgeFolderBody.hidden = false;
+      el.storageKnowledgeFolderBtn?.setAttribute("aria-expanded", "true");
+      el.storageKnowledgeFolder.classList.add("is-open");
+      void loadKnowledgeBaseCatalog();
+    }
+  }
 }
 
 function resizeProfileAvatar(file) {

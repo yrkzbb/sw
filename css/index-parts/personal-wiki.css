@@ -4066,3 +4066,15 @@ body.nav-hidden .top-nav {
     width: min(100%, calc(100vw - var(--app-side-nav-width) - 34px));
   }
 }
+.favorite-knowledge-base-mount .storage-knowledge-folder {
+  margin: 0;
+  box-shadow: none;
+}
+
+.favorite-knowledge-base-mount .storage-knowledge-folder-btn {
+  display: none;
+}
+
+.favorite-knowledge-base-mount .storage-knowledge-folder-body {
+  padding: 0;
+}

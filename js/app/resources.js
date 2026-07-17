@@ -161,6 +161,67 @@ function buildRetrievedEducationResource(query) {
   };
 }
 
+function buildVerifiedReadingExtension(query) {
+  const topic = String(query || "").trim() || "当前学习主题";
+  const isComputerArchitecture = /计算机组成原理|计算机组成|计算机体系结构|处理器|CPU|指令系统|流水线|存储层次|高速缓存|cache/i.test(topic);
+  if (isComputerArchitecture) {
+    return [
+      `# ${topic} · 阅读扩展`,
+      "",
+      "> 以下链接指向论文原页、大学课程页或机构页面；前沿论文限定为 2024—2025 年，处于当前日期近三年范围内。",
+      "",
+      "## 经典论文",
+      "- [Amdahl, Validity of the Single Processor Approach to Achieving Large Scale Computing Capabilities（1967）](https://doi.org/10.1145/1465482.1465560) — Amdahl 定律原始论文。",
+      "- [Hennessy & Patterson, A New Golden Age for Computer Architecture（2019）](https://doi.org/10.1145/3282307) — 领域专用架构、开放指令集与敏捷芯片设计。",
+      "- [Jouppi et al., In-Datacenter Performance Analysis of a Tensor Processing Unit（ISCA 2017）](https://doi.org/10.1145/3079856.3080246) — TPU 架构与数据中心性能分析。",
+      "",
+      "## 近三年前沿论文",
+      "- [Using the Abstract Computer Architecture Description Language to Model AI Hardware Accelerators（2024）](https://arxiv.org/abs/2402.00069) — AI 加速器建模与设计空间分析。",
+      "- [Wildcat: Educational RISC-V Microprocessors（2025）](https://arxiv.org/abs/2502.20197) — RISC-V 流水线组织及 FPGA/ASIC 对比。",
+      "- [WebRISC-V: A 64-bit RISC-V Pipeline Simulator for Computer Architecture Classes（2025）](https://arxiv.org/abs/2504.03722) — 可逐周期观察流水线的浏览器模拟器。",
+      "",
+      "## 视频链接",
+      "- [University of Wisconsin CS/ECE 552：Computer Architecture Lecture Videos](https://pages.cs.wisc.edu/~sinclair/courses/cs552/lectVideos/index.html) — 覆盖性能、ISA、ALU、流水线和存储系统。",
+      "- [IIT Bombay CS305：Computer Architecture 视频与课件](https://www.cse.iitb.ac.in/~biswa/courses/CS305/schedule.html) — 课程表中按讲次提供视频与 slides。",
+      "- [Cambridge：Introduction to Computer Architecture Recordings](https://www.cl.cam.ac.uk/teaching/2223/IntComArch/video/) — 剑桥大学课程录像入口。",
+      "",
+      "## 课程链接",
+      "- [Cornell ECE 4750：Computer Architecture](https://ocw.ece.cornell.edu/courses/ece-4750-computer-architecture/) — 处理器、存储器和片上网络，含讲义与实验。",
+      "- [Princeton / Coursera：Computer Architecture](https://www.coursera.org/learn/comparch/) — 微体系结构、流水线、缓存和多核架构。",
+      "- [Australian National University COMP2300 Lectures](https://comp.anu.edu.au/courses/comp2300/lectures/) — 数字逻辑、ISA、CPU 微体系结构和存储系统课件。",
+      "",
+      "## 科普与背景文章",
+      "- [RISC-V International：About RISC-V](https://riscv.org/about/) — RISC-V 开放指令集的官方介绍。",
+      "- [Encyclopaedia Britannica：Computer Architecture](https://www.britannica.com/technology/computer-architecture) — 计算机体系结构概览。",
+      "- [Computer History Museum：The Silicon Engine](https://www.computerhistory.org/siliconengine/) — 从晶体管到集成电路与现代处理器的技术史。",
+      "",
+      "_链接目录核验日期：2026-07-18。论文预印本与正式发表版本应分别核对。_",
+    ].join("\n");
+  }
+
+  const encoded = encodeURIComponent(topic);
+  return [
+    `# ${topic} · 阅读扩展`,
+    "",
+    "## 经典论文",
+    `- [Google Scholar：${topic} 高被引论文检索](https://scholar.google.com/scholar?q=${encoded})`,
+    `- [Semantic Scholar：${topic} 论文检索](https://www.semanticscholar.org/search?q=${encoded})`,
+    "",
+    "## 近三年前沿论文",
+    `- [arXiv：${topic} 最新论文](https://arxiv.org/search/?query=${encoded}&searchtype=all&abstracts=show&order=-announced_date_first&size=50)`,
+    "",
+    "## 视频链接",
+    `- [YouTube：${topic} 大学课程视频检索](https://www.youtube.com/results?search_query=${encoded}%20university%20course)`,
+    "",
+    "## 课程链接",
+    `- [MIT OpenCourseWare：${topic} 课程检索](https://ocw.mit.edu/search/?q=${encoded})`,
+    `- [中国大学 MOOC：${topic}](https://www.icourse163.org/search.htm?search=${encoded})`,
+    "",
+    "## 科普文章链接",
+    `- [Wikipedia：${topic} 条目检索](https://zh.wikipedia.org/w/index.php?search=${encoded})`,
+  ].join("\n");
+}
+
 function toggleResourceAgent(agentId) {
   const agent = SELECTABLE_RESOURCE_AGENTS.find((item) => item.id === agentId);
   if (!agent || state.resourcesGenerating) return;
@@ -952,8 +1013,8 @@ function renderCodePracticeResource(content) {
   return renderResourceMarkdown(normalizeCodePracticeMarkdown(content));
 }
 
-function renderMindmapResource(content, title) {
-  const data = normalizeMindmapContent(content, title);
+function renderMindmapResource(content, title, topic = "") {
+  const data = normalizeMindmapContent(content, title, topic);
   const branches = Array.isArray(data.branches) ? data.branches : [];
   const mapId = `mindmap-${Math.random().toString(16).slice(2)}`;
   const leftBranches = branches.filter((_, index) => index % 2 === 1);
@@ -1022,7 +1083,27 @@ function renderMindmapResource(content, title) {
 }
 
 function renderMindmapNode(id, label, x, y, w, h, className) {
-  return `<div class="mindmap-node ${className}" data-node-id="${id}" style="left:${x}px;top:${y}px;width:${w}px;min-height:${h}px" title="拖拽移动节点">${escapeHtml(label)}</div>`;
+  return `<div class="mindmap-node ${className}" data-node-id="${id}" style="left:${x}px;top:${y}px;width:${w}px;min-height:${h}px" title="拖拽移动节点">${escapeHtml(cleanMindmapLabel(label))}</div>`;
+}
+
+function cleanMindmapLabel(value) {
+  return String(value || "")
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^\s*(?:[-*+]|\d+[.、])\s*/, "")
+    .replace(/\*\*|__|`/g, "")
+    .replace(/\$\$?([\s\S]*?)\$\$?/g, "$1")
+    .replace(/\\frac\s*\{([^{}]+)\}\s*\{([^{}]+)\}/g, "($1)/($2)")
+    .replace(/\\(?:operatorname|mathrm|text)\s*\{([^{}]+)\}/g, "$1")
+    .replace(/\\lim_\s*\{([^{}]+)\}/g, "lim $1")
+    .replace(/\\to/g, "→")
+    .replace(/\\infty/g, "∞")
+    .replace(/\\(?:sin|cos|tan|ln|log|exp|sqrt)\b/g, (match) => match.slice(1))
+    .replace(/[{}]/g, "")
+    .replace(/\\,/g, " ")
+    .replace(/\\([A-Za-z]+)/g, "$1")
+    .replace(/\s+/g, " ")
+    .replace(/^[:：]\s*/, "")
+    .trim();
 }
 
 function parseMaybeJson(value) {
@@ -1039,19 +1120,19 @@ function parseMaybeJson(value) {
 function toMindmapData(value, fallbackTitle) {
   const data = parseMaybeJson(value);
   if (!data || typeof data !== "object" || Array.isArray(data)) return null;
-  const center = data.center || data["中心主题"] || data.root || data["根节点"] || fallbackTitle || "知识图谱";
+  const center = cleanMindmapLabel(data.center || data["中心主题"] || data.root || data["根节点"] || fallbackTitle || "知识图谱");
   const rawBranches = data.branches || data["一级分支"] || data.children || data["分支"];
   let branches = [];
   if (Array.isArray(rawBranches)) {
     branches = rawBranches.map((branch) => {
-      if (typeof branch === "string") return { title: branch, children: [] };
-      const title = branch.title || branch.name || branch["标题"] || branch["名称"] || branch["一级节点"] || "分支";
+      if (typeof branch === "string") return { title: cleanMindmapLabel(branch), children: [] };
+      const title = cleanMindmapLabel(branch.title || branch.name || branch["标题"] || branch["名称"] || branch["一级节点"] || "分支");
       const children = branch.children || branch.nodes || branch["二级节点"] || branch["子节点"] || [];
       return { title, children: normalizeMindmapChildren(children) };
     });
   } else if (rawBranches && typeof rawBranches === "object") {
     branches = Object.entries(rawBranches).map(([title, children]) => ({
-      title,
+      title: cleanMindmapLabel(title),
       children: normalizeMindmapChildren(children),
     }));
   }
@@ -1062,17 +1143,17 @@ function toMindmapData(value, fallbackTitle) {
 function normalizeMindmapChildren(children) {
   if (Array.isArray(children)) {
     return children.map((item) => {
-      if (typeof item === "string") return item;
-      if (item && typeof item === "object") return item.title || item.name || item["标题"] || item["名称"] || JSON.stringify(item);
-      return String(item);
+      if (typeof item === "string") return cleanMindmapLabel(item);
+      if (item && typeof item === "object") return cleanMindmapLabel(item.title || item.name || item["标题"] || item["名称"] || JSON.stringify(item));
+      return cleanMindmapLabel(String(item));
     }).filter(Boolean);
   }
   if (children && typeof children === "object") {
     if (Array.isArray(children["二级节点"])) return normalizeMindmapChildren(children["二级节点"]);
     if (Array.isArray(children["子节点"])) return normalizeMindmapChildren(children["子节点"]);
     return Object.entries(children).map(([key, value]) => {
-      if (Array.isArray(value)) return `${key}：${value.join("、")}`;
-      return `${key}：${String(value)}`;
+      if (Array.isArray(value)) return cleanMindmapLabel(`${key}：${value.join("、")}`);
+      return cleanMindmapLabel(`${key}：${String(value)}`);
     });
   }
   return children ? [String(children)] : [];
@@ -1109,7 +1190,25 @@ function updateMindmapLines(canvas) {
 }
 
 function initMindmapCanvases(root = document) {
-  root.querySelectorAll(".mindmap-canvas").forEach(updateMindmapLines);
+  root.querySelectorAll(".mindmap-canvas").forEach((canvas) => {
+    updateMindmapLines(canvas);
+    const wrap = canvas.closest(".mindmap-canvas-wrap");
+    if (wrap && !wrap.dataset.mindmapCentered) {
+      wrap.dataset.mindmapCentered = "pending";
+      const centerCanvas = () => {
+        const centerNode = canvas.querySelector('[data-node-id="center"]');
+        const centerX = centerNode
+          ? (parseFloat(centerNode.style.left) || 0) + (centerNode.offsetWidth || 290) / 2
+          : canvas.scrollWidth / 2;
+        if (wrap.clientWidth > 0) {
+          wrap.scrollLeft = Math.max(0, centerX - wrap.clientWidth / 2);
+          wrap.dataset.mindmapCentered = "true";
+        }
+      };
+      centerCanvas();
+      window.requestAnimationFrame(() => window.requestAnimationFrame(centerCanvas));
+    }
+  });
 }
 
 function autoLayoutMindmapCanvas(canvas, preferredWidth) {
@@ -1234,28 +1333,51 @@ async function storeAndDownloadMindmapSvg(canvas) {
   if (saved) downloadMarkdownFile(file);
 }
 
-function normalizeMindmapContent(content, title) {
+function normalizeMindmapContent(content, title, topic = "") {
   const parsed = toMindmapData(content, title);
   if (parsed) return parsed;
   const text = resourcePlainText(content);
-  const center = title || text.match(/根节点[:：]\s*(.+)/)?.[1] || "知识图谱";
-  if (!isPoorMindmap(text)) {
-    const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-    const branches = [];
-    let current = null;
-    for (const line of lines) {
-      const clean = line.replace(/^[-*#\s]+/, "").replace(/^子节点[:：]\s*/, "").replace(/^分支[:：]\s*/, "");
-      if (!clean || /^mindmap$/i.test(clean) || /^root/i.test(clean)) continue;
-      if (/^[一二三四五六七八九十\d]+[.、]|：|:$/.test(clean) || branches.length === 0) {
-        current = { title: clean.replace(/[:：]$/, ""), children: [] };
-        branches.push(current);
-      } else if (current) {
-        current.children.push(clean);
-      }
+  const headingCenter = text.match(/^#\s+(.+)$/m)?.[1];
+  const requestedTopic = cleanMindmapLabel(topic);
+  const genericTitle = /^(知识思维导图|知识图谱|思维导图)$/i.test(cleanMindmapLabel(title));
+  const center = cleanMindmapLabel(headingCenter
+    || text.match(/(?:中心主题|根节点|主题)[:：]\s*(.+)/)?.[1]
+    || (!genericTitle ? title : "")
+    || requestedTopic
+    || "知识图谱");
+  const lines = text.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  const branches = [];
+  let current = null;
+  for (const line of lines) {
+    const headingLevel = line.match(/^(#{1,6})\s+/)?.[1]?.length || 0;
+    const isBullet = /^[-*+]\s+/.test(line);
+    const isLegacyBranch = /^(?:[-*]\s*)?(?:一级)?分支\s*[:：]/.test(line);
+    const isLegacyChild = /^(?:[-*]\s*)?(?:二级)?子节点\s*[:：]/.test(line);
+    const clean = cleanMindmapLabel(line
+      .replace(/^(?:[-*]\s*)?(?:二级)?子节点\s*[:：]\s*/, "")
+      .replace(/^(?:[-*]\s*)?(?:一级)?分支\s*[:：]\s*/, ""));
+    if (!clean || headingLevel === 1 || /^mindmap$/i.test(clean) || /^root/i.test(clean) || clean === center || /^复习路径[:：]/.test(clean)) continue;
+    const isBranch = isLegacyBranch
+      || headingLevel >= 2
+      || /^[一二三四五六七八九十\d]+[.、]\s*/.test(line)
+      || (!isBullet && /[:：]$/.test(line))
+      || (/^\*\*[^*]{2,28}\*\*[:：]?$/.test(line));
+    if (isBranch) {
+      current = { title: clean.replace(/[:：]$/, ""), children: [] };
+      branches.push(current);
+    } else if ((isBullet || isLegacyChild) && current) {
+      current.children.push(clean);
     }
-    if (branches.length >= 3) return { center, branches: branches.slice(0, 6), path: "先抓主干概念，再补典型题型，最后用错题回查薄弱分支。" };
   }
-  return buildFallbackMindmap(center);
+  const usefulBranches = branches
+    .map((branch) => ({ ...branch, children: branch.children.filter(Boolean).slice(0, 4) }))
+    .filter((branch) => branch.title && branch.children.length);
+  if (usefulBranches.length >= 2) {
+    const path = cleanMindmapLabel(text.match(/复习路径[:：]\s*(.+)/)?.[1] || "")
+      || "先抓主干概念，再补典型题型，最后用错题回查薄弱分支。";
+    return { center, branches: usefulBranches.slice(0, 7), path };
+  }
+  return buildFallbackMindmap(`${requestedTopic}\n${center}\n${text}`, center);
 }
 
 function isPoorMindmap(text) {
@@ -1265,11 +1387,43 @@ function isPoorMindmap(text) {
   return repeated >= 5 && !/[├└→]|Mermaid|:::|复习路径|关联/.test(text);
 }
 
-function buildFallbackMindmap(topic) {
-  const isMath = /高等数学|高数|微积分|大学.*数学|考研数学|极限|导数|积分/.test(topic || "");
+function buildFallbackMindmap(topic, centerTitle = topic) {
+  const isComputerArchitecture = /计算机组成原理|计算机组成|计算机体系结构|处理器|CPU|指令系统|流水线|存储层次|高速缓存|cache/i.test(topic || "");
+  if (isComputerArchitecture) {
+    return {
+      center: centerTitle || "计算机组成原理",
+      branches: [
+        { title: "数据表示与运算", children: ["数制与编码", "定点数和浮点数", "ALU 与算术运算"] },
+        { title: "指令系统", children: ["指令格式与寻址方式", "CISC 与 RISC", "指令执行过程"] },
+        { title: "CPU 结构", children: ["运算器与控制器", "数据通路", "硬布线与微程序控制"] },
+        { title: "流水线", children: ["五级流水结构", "结构/数据/控制冒险", "转发、暂停与分支预测"] },
+        { title: "存储系统", children: ["Cache 映射与替换", "主存与虚拟存储", "局部性与存储层次"] },
+        { title: "总线与 I/O", children: ["总线仲裁与时序", "中断与 DMA", "外设接口"] },
+        { title: "性能评价", children: ["CPU 时间与 CPI", "Amdahl 定律", "带宽、延迟与瓶颈"] },
+      ],
+      path: "数据表示 → 指令系统 → CPU 数据通路 → 流水线 → 存储系统 → I/O → 性能分析。",
+    };
+  }
+  const isMath = /高等数学|高数|微积分|考研数学/.test(topic || "")
+    || (/(?:函数|导数|积分)/.test(topic || "") && /(?:极限|连续|级数|微分)/.test(topic || ""));
+  const isComputerNetwork = /计算机网络|网络协议|TCP|UDP|IP地址|子网掩码|DNS|HTTP|OSI/i.test(topic || "");
+  if (isComputerNetwork) {
+    return {
+      center: centerTitle || "计算机网络",
+      branches: [
+        { title: "网络体系结构", children: ["OSI 七层模型", "TCP/IP 四层模型", "封装与解封装"] },
+        { title: "数据链路层", children: ["以太网与 MAC 地址", "交换机转发", "差错检测与帧"] },
+        { title: "网络层", children: ["IPv4 与 IPv6", "子网划分与 CIDR", "路由选择与 ICMP"] },
+        { title: "传输层", children: ["TCP 可靠传输", "UDP 无连接传输", "端口与拥塞控制"] },
+        { title: "应用层", children: ["DNS 域名解析", "HTTP/HTTPS", "电子邮件与文件传输"] },
+        { title: "网络安全", children: ["加密与身份认证", "防火墙与 VPN", "常见攻击与防护"] },
+      ],
+      path: "体系结构 → 数据链路层 → 网络层 → 传输层 → 应用层 → 网络安全。",
+    };
+  }
   if (isMath) {
     return {
-      center: topic || "大学高等数学复习",
+      center: centerTitle || "大学高等数学复习",
       branches: [
         { title: "函数与极限", children: ["函数性质：单调性、奇偶性、周期性", "极限计算：等价无穷小、洛必达、夹逼", "连续性：间断点分类、闭区间性质"] },
         { title: "导数与微分", children: ["导数定义与几何意义", "求导法则：复合、隐函数、参数方程", "应用：单调性、极值、凹凸性、渐近线"] },
@@ -1282,7 +1436,7 @@ function buildFallbackMindmap(topic) {
     };
   }
   return {
-    center: topic || "知识点复习",
+    center: centerTitle || "知识点复习",
     branches: [
       { title: "核心定义", children: ["概念边界", "关键对象", "适用条件"] },
       { title: "基本规则", children: ["公式或语法", "步骤流程", "限制条件"] },
@@ -1303,6 +1457,63 @@ function resourcePlainText(markdown) {
   return "";
 }
 
+function parseMarkdownExerciseList(text, title) {
+  const cleaned = String(text || "")
+    .replace(/\s*\*\*\s*(答案|正确答案|参考答案|解析|答案解析|详解|知识点|考查知识点|来源|难度|类型|题型)\s*[:：]\s*\*\*/gi, "\n$1：")
+    .replace(/[ \t]+(?=(?:答案|正确答案|参考答案|解析|答案解析|详解|知识点|考查知识点|来源|难度|类型|题型)\s*[:：])/g, "\n")
+    .replace(/\*\*/g, "")
+    .replace(/^\s*[-*]\s+(?=(?:题目|答案|解析|详解|知识点|来源|难度|类型)[:：])/gm, "")
+    .trim();
+  const starts = [...cleaned.matchAll(/^\s*(\d+)[.、]\s*(?:题目|问题)\s*[:：]?\s*/gm)];
+  if (!starts.length) return [];
+
+  return starts.map((match, index) => {
+    const start = match.index;
+    const end = starts[index + 1]?.index ?? cleaned.length;
+    const block = cleaned.slice(start, end).trim();
+    const before = cleaned.slice(0, start);
+    const sectionTitle = [...before.matchAll(/^#{1,6}\s+(.+)$/gm)].at(-1)?.[1]?.trim() || "";
+    const questionBody = block
+      .replace(/^\s*\d+[.、]\s*(?:题目|问题)?\s*[:：]?\s*/, "")
+      .split(/\n\s*(?:(?:答案|正确答案|参考答案|解析|答案解析|详解|知识点|来源|难度|类型|题型)\s*[:：])/)[0]
+      .replace(/^\s*[-*]\s*/gm, "")
+      .trim();
+    const field = (labels) => {
+      const pattern = new RegExp(`(?:^|\\n)\\s*(?:${labels})\\s*[:：]\\s*([\\s\\S]*?)(?=\\n\\s*(?:答案|正确答案|参考答案|解析|答案解析|详解|知识点|来源|难度|类型|题型)\\s*[:：]|$)`, "i");
+      return block.match(pattern)?.[1]?.replace(/^\s*[-*]\s*/gm, "").trim() || "";
+    };
+    const answer = field("答案|正确答案|参考答案");
+    const explanation = field("解析|详解|答案解析|解题过程");
+    const knowledge = field("知识点|考查知识点");
+    const source = field("来源");
+    const difficulty = field("难度");
+    const explicitType = field("类型|题型");
+    const inferredType = /判断题/.test(sectionTitle)
+      ? "判断题"
+      : /多选题/.test(sectionTitle)
+        ? "多选题"
+        : /单选题/.test(sectionTitle) || /(?:^|\n)\s*[A-D][.、．]\s*/m.test(questionBody)
+          ? "单选题"
+          : /填空题/.test(sectionTitle)
+            ? "填空题"
+            : /简答题/.test(sectionTitle)
+              ? "简答题"
+              : /应用题/.test(sectionTitle)
+                ? "应用题"
+                : "";
+    if (!answer && !explanation) return null;
+    return normalizeExerciseItem({
+      question: questionBody,
+      answer,
+      explanation,
+      knowledge,
+      source,
+      difficulty,
+      type: explicitType || inferredType,
+    }, index, title);
+  }).filter((item) => item?.question);
+}
+
 function normalizeExerciseList(content, title) {
   const parsed = parseMaybeJson(content);
   const rawItems = Array.isArray(parsed)
@@ -1318,6 +1529,8 @@ function normalizeExerciseList(content, title) {
   if (objectMatches.length) {
     return objectMatches.map((item, index) => normalizeExerciseItem(item, index, title)).filter((item) => item.question);
   }
+  const markdownExercises = parseMarkdownExerciseList(text, title);
+  if (markdownExercises.length) return markdownExercises;
   const blocks = text.split(/\n(?=#{1,4}\s|(?:基础题|中等题|难题|易错题|迁移应用题|经典题|第\s*\d+\s*题|\d+[.、]\s))/).map((item) => item.trim()).filter(Boolean);
   return blocks.map((block, index) => {
     const lines = block.split(/\n+/).map((line) => line.trim()).filter(Boolean);
@@ -1335,16 +1548,28 @@ function normalizeExerciseList(content, title) {
 function normalizeExerciseItem(item, index, title) {
   if (typeof item === "string") return normalizeExerciseItem({ question: item }, index, title);
   if (!item || typeof item !== "object") return null;
-  const question = item.question || item["题目"] || item.prompt || item["问题"] || "";
-  const answer = item.answer || item["答案"] || item.solution || "";
-  const explanation = item.explanation || item["详解"] || item.analysis || item["解析"] || item["解题过程"] || "";
+  let question = String(item.question || item["题目"] || item.prompt || item["问题"] || "").trim();
+  let answer = String(item.answer || item["答案"] || item.solution || "").trim();
+  let explanation = String(item.explanation || item["详解"] || item.analysis || item["解析"] || item["解题过程"] || "").trim();
+  const embeddedAnswer = question.match(/^([\s\S]*?)(?:\*\*)?\s*(?:答案|正确答案|参考答案)\s*[:：]\s*(?:\*\*)?([\s\S]*)$/i);
+  if (embeddedAnswer) {
+    question = embeddedAnswer[1].trim();
+    const answerAndExplanation = embeddedAnswer[2].trim();
+    const embeddedExplanation = answerAndExplanation.match(/^([\s\S]*?)(?:\*\*)?\s*(?:解析|答案解析|详解)\s*[:：]\s*(?:\*\*)?([\s\S]*)$/i);
+    answer = answer || (embeddedExplanation ? embeddedExplanation[1] : answerAndExplanation).trim();
+    explanation = explanation || (embeddedExplanation ? embeddedExplanation[2] : "").trim();
+  }
+  question = question
+    .replace(/^\s*(?:\d+[.、]\s*)?(?:\*\*)?\s*(?:题目|问题)?\s*[:：]?\s*(?:\*\*)?\s*/, "")
+    .replace(/\s*\*\*\s*$/, "")
+    .trim();
   const difficulty = item.difficulty || item["难度"] || inferExerciseDifficulty(`${question} ${explanation}`, index);
   const type = item.type || item["类型"] || inferExerciseType(`${question} ${explanation}`, index);
   const source = item.source || item["来源"] || item.origin || "经典题型改编";
   const knowledge = item.knowledge || item["知识点"] || item.topic || title || "";
   const normalized = {
-    question: String(question || "").trim(),
-    answer: String(answer || "").trim(),
+    question,
+    answer,
     explanation: String(explanation || answer || "暂无详解，建议先尝试作答后补充推导过程。").trim(),
     difficulty: String(difficulty || "中等").trim(),
     type: String(type || "练习题").trim(),
@@ -1395,7 +1620,7 @@ function renderExerciseResource(content, title, resourceIndex) {
             <span>${result === "correct" ? "已记录正确" : result === "incorrect" ? "已记录错误" : "记录后会进入学习效果评估"}</span>
           </div>
           <div class="exercise-source">来源：${escapeHtml(exercise.source)}</div>
-          <details class="exercise-detail" open>
+          <details class="exercise-detail">
             <summary>答案与详解</summary>
             <div class="exercise-answer"><strong>答案：</strong>${renderInlineMathText(exercise.answer || "见解析")}</div>
             <div class="exercise-explanation markdown-body">${renderResourceMarkdown(exercise.explanation)}</div>

@@ -12,6 +12,7 @@ async function init() {
   initImageLightbox();
   initCopyDelegation();
   initComposer();
+  renderChatAgentSelection();
   initKnowledgeBase();
   if (state.activeUser) {
     reloadUserWorkspace();

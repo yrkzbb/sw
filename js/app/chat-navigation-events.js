@@ -78,6 +78,10 @@ function isValidChatMessage(m) {
   if (m.imageUrls != null) {
     if (!Array.isArray(m.imageUrls) || m.imageUrls.some((u) => typeof u !== "string")) return false;
   }
+  if (m.agentIds != null) {
+    if (!Array.isArray(m.agentIds) || m.agentIds.some((id) => typeof id !== "string")) return false;
+  }
+  if (m.agentConfig != null && (typeof m.agentConfig !== "object" || Array.isArray(m.agentConfig))) return false;
   return true;
 }
 
@@ -303,12 +307,19 @@ function renameChatSession(sessionId) {
 function renderMessagesFromState() {
   if (!el.messages) return;
   el.messages.innerHTML = "";
+  let latestUserTopic = "";
   for (const m of state.messages) {
     if (m.role === "user") {
+      latestUserTopic = m.content || latestUserTopic;
       const previews = (m.imageUrls || []).map((url) => ({ previewUrl: url }));
       appendUserMessage(m.content, previews);
     } else {
-      appendAssistantMessage({ restored: true, markdownText: m.content });
+      appendAssistantMessage({
+        restored: true,
+        markdownText: m.content,
+        agentIds: m.agentIds || [],
+        agentConfig: { ...(m.agentConfig || {}), topic: m.agentConfig?.topic || latestUserTopic },
+      });
     }
   }
   updateComposerPlaceholder();
@@ -449,7 +460,7 @@ function readChatText(text, button = null) {
   return true;
 }
 
-function commitAssistantTurn(assistantPlainText, newHistory, uiVersion) {
+function commitAssistantTurn(assistantPlainText, newHistory, uiVersion, agentIds = [], agentConfig = {}) {
   if (state.uiVersion !== uiVersion) {
     if (state.typingInterval) {
       clearInterval(state.typingInterval);
@@ -460,7 +471,7 @@ function commitAssistantTurn(assistantPlainText, newHistory, uiVersion) {
     return;
   }
   state.messages = newHistory.concat([
-    { role: "assistant", content: assistantPlainText },
+    { role: "assistant", content: assistantPlainText, agentIds, agentConfig },
   ]);
   const lastUser = [...newHistory].reverse().find((item) => item.role === "user");
   if (lastUser?.content) {
@@ -902,6 +913,10 @@ function showUserInfoPage(options = {}) {
 }
 
 function showResourcePage() {
+  if (!RESOURCE_PAGE_UI_ENABLED) {
+    showChatPage();
+    return;
+  }
   if (!el.resourcePage) return;
   setChatLayoutActive(false);
   setComposerVisible(false);
@@ -1066,6 +1081,10 @@ function showAssessmentPage() {
 }
 
 function showStoragePage() {
+  if (!STORAGE_PAGE_UI_ENABLED) {
+    showUserInfoPage({ mode: "archive", tab: "collections" });
+    return;
+  }
   if (!el.storagePage) return;
   setChatLayoutActive(false);
   setComposerVisible(false);
@@ -1156,6 +1175,466 @@ function createAvatarSvg() {
   `;
 }
 
+function getSelectedChatAgents() {
+  const ids = Array.isArray(state.selectedChatAgentIds) ? state.selectedChatAgentIds : [];
+  return ids
+    .map((id) => SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.id === id))
+    .filter(Boolean);
+}
+
+function chatPptThemes() {
+  const fallback = [
+    { key: "auto", name: "智能匹配模板" },
+    { key: "purple", name: "紫影幽蓝" },
+    { key: "green", name: "绿色主题" },
+    { key: "lightblue", name: "清逸天蓝" },
+    { key: "taupe", name: "质感之境" },
+    { key: "blue", name: "星光夜影" },
+    { key: "telecomRed", name: "炽热暖阳" },
+    { key: "telecomGreen", name: "幻翠奇旅" },
+  ];
+  if (!Array.isArray(state.pptThemes) || !state.pptThemes.length) return fallback;
+  return [fallback[0], ...state.pptThemes];
+}
+
+function getChatExerciseBlueprint() {
+  const blueprint = {};
+  el.chatQuizOptions?.querySelectorAll("[data-chat-exercise-type]").forEach((input) => {
+    const type = input.getAttribute("data-chat-exercise-type");
+    if (type) blueprint[type] = Math.max(0, Math.min(20, Number(input.value) || 0));
+  });
+  return Object.keys(blueprint).length ? blueprint : { ...(state.chatExerciseBlueprint || {}) };
+}
+
+function renderChatAgentOptions() {
+  const selected = new Set(state.selectedChatAgentIds || []);
+  const showPpt = selected.has("ppt") && state.activeChatAgentOption === "ppt";
+  const showQuiz = selected.has("quiz") && state.activeChatAgentOption === "quiz";
+  if (el.chatPptOptions) el.chatPptOptions.hidden = !showPpt;
+  if (el.chatQuizOptions) el.chatQuizOptions.hidden = !showQuiz;
+  if (el.chatAgentOptions) el.chatAgentOptions.hidden = !showPpt && !showQuiz;
+
+  if (showPpt && el.chatPptThemeGrid) {
+    const selectedTheme = state.chatPptTheme || "auto";
+    const themes = chatPptThemes();
+    el.chatPptThemeGrid.innerHTML = themes.map((theme) => {
+      const active = theme.key === selectedTheme;
+      const themeClass = typeof pptThemeClass === "function" ? pptThemeClass(theme.key) : `ppt-theme-${theme.key}`;
+      const thumbnail = String(theme.thumbnail || "").trim();
+      const preview = thumbnail
+        ? `<img src="${escapeHtml(thumbnail)}" alt="${escapeHtml(theme.name || theme.key)} 模板预览" loading="lazy">`
+        : `<span class="${themeClass}"><i></i><em>${theme.key === "auto" ? "AI" : "PPT"}</em></span>`;
+      return `<button class="chat-ppt-theme ${active ? "is-selected" : ""}" type="button" data-chat-ppt-theme="${escapeHtml(theme.key)}" aria-pressed="${active}">
+        ${preview}
+        <strong>${escapeHtml(theme.name || theme.key)}</strong>
+      </button>`;
+    }).join("");
+    const activeTheme = themes.find((theme) => theme.key === selectedTheme) || themes[0];
+    if (el.chatPptThemeLabel) el.chatPptThemeLabel.textContent = activeTheme.name || activeTheme.key;
+    if (!state.pptThemes?.length && !state.pptThemesLoading && !state.chatPptThemesRequested && typeof loadPptThemes === "function") {
+      state.chatPptThemesRequested = true;
+      void loadPptThemes().then(renderChatAgentOptions);
+    }
+  }
+
+  const blueprint = getChatExerciseBlueprint();
+  state.chatExerciseBlueprint = blueprint;
+  if (el.chatQuizTotal) {
+    const total = Object.values(blueprint).reduce((sum, count) => sum + count, 0);
+    el.chatQuizTotal.textContent = `共 ${total} 题`;
+  }
+}
+
+function renderChatAgentSelection() {
+  const agents = getSelectedChatAgents();
+  const selectedIds = new Set(agents.map((agent) => agent.id));
+  el.chatAgentToolbar?.querySelectorAll("[data-chat-agent]").forEach((button) => {
+    const id = button.getAttribute("data-chat-agent");
+    const active = id === "default" ? agents.length === 0 : selectedIds.has(id);
+    button.classList.toggle("is-active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (el.chatAgentSelection) {
+    el.chatAgentSelection.textContent = agents.length
+      ? `已选能力：${agents.map((agent) => agent.role.replace(" Agent", "")).join("、")} · 发送后调用`
+      : "当前：智能答疑（未调用资源 Agent）";
+  }
+  renderChatAgentOptions();
+}
+
+function toggleChatAgentSelection(agentId) {
+  if (state.isGenerating) return;
+  if (agentId === "default") {
+    state.selectedChatAgentIds = [];
+    state.activeChatAgentOption = "";
+  } else if (SELECTABLE_RESOURCE_AGENTS.some((agent) => agent.id === agentId)) {
+    const selected = new Set(state.selectedChatAgentIds || []);
+    if (selected.has(agentId)) {
+      if ((agentId === "ppt" || agentId === "quiz") && state.activeChatAgentOption !== agentId) {
+        state.activeChatAgentOption = agentId;
+      } else {
+        selected.delete(agentId);
+        if (state.activeChatAgentOption === agentId) state.activeChatAgentOption = "";
+      }
+    } else {
+      selected.add(agentId);
+      if (agentId === "ppt" || agentId === "quiz") state.activeChatAgentOption = agentId;
+    }
+    state.selectedChatAgentIds = [...selected];
+  }
+  renderChatAgentSelection();
+}
+
+function clearChatAgentSelection() {
+  state.selectedChatAgentIds = [];
+  state.activeChatAgentOption = "";
+  renderChatAgentSelection();
+}
+
+function chatAgentExecutionRule(agent, config = {}) {
+  const rules = {
+    retrieval: "立即生成阅读扩展导读：说明经典研究脉络、近三年前沿方向、适合观看的视频主题、课程重点与科普切入点。不得编造论文、作者或 URL；真实可点击链接由系统核验目录在回答后附加。",
+    doc: "必须立即生成一篇完整、可直接阅读和保存的 Markdown 知识讲解文档，不得回答“无法生成”“没有现成文档”，不得只给概述或反问用户。正文约 1300-1700 个中文字符，至少包含：标题、学习目标、核心概念、工作原理或推导过程、具体示例、易错点、总结；编程或算法主题还要包含可运行代码或执行过程说明。",
+    mindmap: "必须直接生成可视化所需的结构化思维导图，不要写开场说明。格式严格为：第一行“# 中心主题”；随后 5-7 个“## 一级分支短标题”，每个分支下用“- ”列出至少 3 个简短二级知识点；最后写“复习路径：...”。节点文字必须简洁，不使用 Markdown 粗体符号；公式要同时给出便于直接显示的中文或纯文本含义，不得把长段落作为节点。",
+    quiz: `必须立即生成完整题库，严格遵守题型与题量配置 ${JSON.stringify(config.exerciseBlueprint || {})}。每题必须包含题型、题目、答案、分步骤解析和对应知识点，不得减少题量或改为出题建议。`,
+    reading: "必须直接生成可执行的拓展阅读清单，区分已知可信来源与延伸检索关键词，并说明每项材料适合解决什么学习问题；不得伪造未验证的精确链接。",
+    code: "必须直接生成可运行的实训卡，包含任务目标、输入输出、带 TODO 的代码骨架、参考实现、运行命令、至少 3 个测试、调试清单和 2 个修改挑战。",
+    ppt: `必须直接生成完整的教学 PPT 内容方案，采用“${config.pptThemeName || "智能匹配模板"}”模板风格；共 6-10 页，每页给出标题、核心要点和讲者备注，必须包含封面、概念、过程或例题、易错点、练习和总结。不得只说明如何制作 PPT。`,
+  };
+  return rules[agent.id] || `必须立即完成“${agent.task}”，直接给出完整可用的结果，不得只给建议或反问用户。`;
+}
+
+function createChatAgentCollaboration(agentIds = [], completed = false) {
+  const agents = agentIds
+    .map((id) => SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.id === id))
+    .filter(Boolean);
+  if (!agents.length) return null;
+
+  const details = document.createElement("details");
+  details.className = "chat-agent-collaboration";
+  details.open = true;
+  const summary = document.createElement("summary");
+  summary.innerHTML = `<span class="chat-agent-summary-icon">✓</span><strong>Agent 协作过程</strong><span class="chat-agent-count">${agents.length} 个 Agent</span>`;
+  details.appendChild(summary);
+
+  const chips = document.createElement("div");
+  chips.className = "chat-agent-chips";
+  const trace = document.createElement("div");
+  trace.className = "chat-agent-trace";
+  const agentNodes = [];
+
+  agents.forEach((agent, index) => {
+    const chip = document.createElement("span");
+    chip.className = `chat-agent-chip${completed ? " is-complete" : index === 0 ? " is-running" : ""}`;
+    chip.innerHTML = `<span>${completed ? "✓" : index === 0 ? "●" : "○"}</span>${escapeHtml(agent.role)}`;
+    chips.appendChild(chip);
+
+    const line = document.createElement("div");
+    line.className = `chat-agent-line${completed ? " is-complete" : index === 0 ? " is-running" : ""}`;
+    line.innerHTML = `<span class="chat-agent-dot"></span><strong>${escapeHtml(agent.role)}</strong><span class="chat-agent-status">${completed ? escapeHtml(agent.task.replace(/[。.]$/, "")) + " · 已完成" : index === 0 ? "正在理解问题并检索依据…" : "等待协作…"}</span>`;
+    trace.appendChild(line);
+    agentNodes.push({ agent, chip, line });
+  });
+  details.appendChild(chips);
+  details.appendChild(trace);
+
+  let activeIndex = completed ? agents.length : 0;
+  const setActive = (nextIndex) => {
+    activeIndex = Math.max(0, Math.min(nextIndex, agents.length - 1));
+    agentNodes.forEach((node, index) => {
+      const done = index < activeIndex;
+      const running = index === activeIndex;
+      node.chip.className = `chat-agent-chip${done ? " is-complete" : running ? " is-running" : ""}`;
+      node.chip.querySelector("span").textContent = done ? "✓" : running ? "●" : "○";
+      node.line.className = `chat-agent-line${done ? " is-complete" : running ? " is-running" : ""}`;
+      node.line.querySelector(".chat-agent-status").textContent = done
+        ? `${node.agent.task.replace(/[。.]$/, "")} · 已完成`
+        : running ? node.agent.task : "等待协作…";
+    });
+  };
+  const complete = () => {
+    agentNodes.forEach((node) => {
+      node.chip.className = "chat-agent-chip is-complete";
+      node.chip.querySelector("span").textContent = "✓";
+      node.line.className = "chat-agent-line is-complete";
+      node.line.querySelector(".chat-agent-status").textContent = `${node.agent.task.replace(/[。.]$/, "")} · 已完成`;
+    });
+    summary.querySelector(".chat-agent-count").textContent = `${agents.length} 个 Agent · 协作完成`;
+  };
+  return { element: details, setActive, complete, get activeIndex() { return activeIndex; } };
+}
+
+function chatArtifactTitle(markdownText, fallback = "AI 学习文档") {
+  const heading = String(markdownText || "").match(/^\s*#\s+(.+)$/m)?.[1]?.trim();
+  return (heading || fallback).replace(/[*_`[\]]/g, "").slice(0, 80);
+}
+
+async function storeChatMarkdown(markdownText, agentIds, options = {}) {
+  if (typeof saveStoredMarkdownFiles !== "function" || typeof downloadMarkdownFile !== "function") return false;
+  const primaryAgent = agentIds
+    .map((id) => SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.id === id))
+    .find(Boolean);
+  const title = chatArtifactTitle(markdownText, primaryAgent?.type || "AI 学习文档");
+  const existing = (state.storedMarkdownFiles || []).find((item) => (
+    item.content === markdownText && item.agent === (primaryAgent?.role || "智能答疑")
+  ));
+  const file = existing || {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    title,
+    type: primaryAgent?.type || "对话生成文档",
+    agent: primaryAgent?.role || "智能答疑",
+    category: categorizeKnowledge(title, markdownText),
+    categoryLocked: false,
+    filename: `${typeof safeFilename === "function" ? safeFilename(title) : title.replace(/[\\/:*?"<>|]/g, "-")}.md`,
+    mimeType: "text/markdown;charset=utf-8",
+    content: markdownText,
+    createdAt: new Date().toISOString(),
+  };
+  const assignedFolder = existing
+    ? (state.favoriteCollections || []).find((folder) => (folder.fileIds || []).some((id) => String(id) === String(existing.id)))
+    : null;
+  const folderId = assignedFolder?.id || (typeof openFavoriteCollectionPicker === "function"
+    ? await openFavoriteCollectionPicker({
+      title: "保存到哪个收藏夹？",
+      detail: file.title || file.filename || "生成文档",
+      kind: "file",
+    })
+    : "default");
+  const saved = existing || saveStoredMarkdownFiles([file, ...(state.storedMarkdownFiles || [])]);
+  if (saved && typeof addItemToFavoriteCollection === "function") {
+    addItemToFavoriteCollection("file", file.id, folderId);
+  }
+  if (saved && options.download !== false) downloadMarkdownFile(file);
+  return saved;
+}
+
+function triggerPresentationDownload(url, filename = "") {
+  const link = document.createElement("a");
+  link.href = url;
+  if (filename) link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+async function pollChatPresentationTask(taskId, button) {
+  for (let attempt = 0; attempt < 96; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 5000));
+    const response = await fetch(`/api/presentations/tasks/${encodeURIComponent(taskId)}`);
+    const task = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(task?.error || "PPT 状态查询失败");
+    if (button) button.textContent = `正在生成 PPT ${Number(task?.progress || 0)}%`;
+    if (task?.downloadUrl) return task;
+    if (task?.status === "FAILED") throw new Error(task?.error || "PPT 生成失败");
+  }
+  throw new Error("PPT 生成时间较长，请稍后重试");
+}
+
+async function generateChatPresentation(markdownText, agentConfig = {}, button = null) {
+  if (button?.dataset.generating === "true") return;
+  if (button) {
+    button.dataset.generating = "true";
+    button.disabled = true;
+    button.textContent = "正在生成 PPT…";
+  }
+  const title = chatArtifactTitle(markdownText, "AI 教学演示文稿");
+  try {
+    const response = await fetch("/api/presentations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        topic: title,
+        title,
+        outline: markdownText,
+        theme: agentConfig.pptTheme || "auto",
+      }),
+    });
+    let result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(result?.error || "PPT 文件生成失败");
+    if (!result?.downloadUrl && result?.taskId) {
+      result = await pollChatPresentationTask(result.taskId, button);
+    }
+    if (!result?.downloadUrl) throw new Error("PPT 服务未返回下载文件");
+    triggerPresentationDownload(result.downloadUrl, result.filename || `${title}.pptx`);
+    if (button) {
+      button.textContent = "再次下载 PPT";
+      button.dataset.downloadUrl = result.downloadUrl;
+    }
+  } catch (error) {
+    console.error(error);
+    if (button) button.textContent = `PPT 生成失败，点击重试`;
+  } finally {
+    if (button) {
+      button.dataset.generating = "false";
+      button.disabled = false;
+    }
+  }
+}
+
+function renderChatAgentArtifacts(container, markdownText, agentIds = [], agentConfig = {}, options = {}) {
+  if (!container) return;
+  container.innerHTML = "";
+  const ids = new Set(agentIds);
+  if (!ids.size || !String(markdownText || "").trim() || /^请求出错[:：]/.test(String(markdownText || "").trim())) {
+    container.hidden = true;
+    return;
+  }
+
+  if (ids.has("mindmap") && typeof renderMindmapResource === "function") {
+    const title = chatArtifactTitle(markdownText, "知识思维导图");
+    const visual = document.createElement("div");
+    visual.className = "chat-mindmap-artifact";
+    visual.innerHTML = renderMindmapResource(markdownText, title, agentConfig.topic || "");
+    container.appendChild(visual);
+    if (typeof initMindmapCanvases === "function") initMindmapCanvases(visual);
+    visual.addEventListener("click", (event) => {
+      const exportBtn = event.target instanceof HTMLElement ? event.target.closest("[data-mindmap-export]") : null;
+      const layoutBtn = event.target instanceof HTMLElement ? event.target.closest("[data-mindmap-layout]") : null;
+      if (!exportBtn && !layoutBtn) return;
+      const canvas = (exportBtn || layoutBtn).closest(".mindmap-view")?.querySelector(".mindmap-canvas");
+      if (layoutBtn && canvas && typeof autoLayoutMindmapCanvas === "function") autoLayoutMindmapCanvas(canvas);
+      if (exportBtn && canvas && typeof storeAndDownloadMindmapSvg === "function") void storeAndDownloadMindmapSvg(canvas);
+    });
+  }
+
+  if (ids.has("retrieval") && typeof buildVerifiedReadingExtension === "function") {
+    const readingArtifact = document.createElement("section");
+    readingArtifact.className = "chat-reading-extension markdown-body";
+    readingArtifact.innerHTML = renderResourceMarkdown(buildVerifiedReadingExtension(agentConfig.topic || chatArtifactTitle(markdownText, "当前主题")));
+    readingArtifact.querySelectorAll("a[href]").forEach((link) => {
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+    });
+    container.appendChild(readingArtifact);
+  }
+
+  const actions = document.createElement("div");
+  actions.className = "chat-artifact-actions";
+  const addButton = (label, action) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = label;
+    button.addEventListener("click", action);
+    actions.appendChild(button);
+    return button;
+  };
+
+  if (["doc", "code", "reading", "retrieval"].some((id) => ids.has(id))) {
+    addButton("保存到收藏夹", async (event) => {
+      if (!await storeChatMarkdown(markdownText, agentIds, { download: false })) return;
+      const button = event.currentTarget;
+      if (button instanceof HTMLButtonElement) {
+        button.textContent = "已保存到收藏夹";
+        button.disabled = true;
+      }
+    });
+    addButton("下载 Markdown", () => void storeChatMarkdown(markdownText, agentIds, { download: true }));
+  }
+  if (ids.has("quiz")) {
+    const title = chatArtifactTitle(markdownText, "练习题库");
+    const resource = {
+      title,
+      content: markdownText,
+      type: "不同类型练习题目",
+      category: typeof categorizeKnowledge === "function"
+        ? categorizeKnowledge(title, markdownText)
+        : "综合知识",
+    };
+    const exercises = typeof normalizeExerciseList === "function"
+      ? normalizeExerciseList(markdownText, title)
+      : [];
+
+    if (exercises.length && typeof renderExerciseResource === "function") {
+      const quizArtifact = document.createElement("section");
+      quizArtifact.className = "chat-quiz-artifact";
+      quizArtifact.setAttribute("aria-label", "互动练习题库");
+      quizArtifact.innerHTML = renderExerciseResource(markdownText, title, "chat");
+      quizArtifact.addEventListener("click", async (event) => {
+        const target = event.target instanceof HTMLElement ? event.target : null;
+        if (!target) return;
+        const practiceButton = target.closest("[data-practice-result]");
+        const mistakeButton = target.closest("[data-add-mistake]");
+        if (!practiceButton && !mistakeButton) return;
+        event.stopPropagation();
+
+        if (practiceButton) {
+          const [, exerciseIndexRaw, result] = String(practiceButton.getAttribute("data-practice-result") || "").split(":");
+          const exercise = exercises[Number(exerciseIndexRaw)];
+          if (!exercise || (result !== "correct" && result !== "incorrect")) return;
+          recordLearningBehavior("practice_result", {
+            category: exercise.knowledge || resource.category,
+            topic: resource.title,
+            title: exercise.question || "",
+            meta: {
+              result,
+              fingerprint: exercise.fingerprint,
+              difficulty: exercise.difficulty || "",
+              type: exercise.type || "",
+              knowledge: exercise.knowledge || "",
+              resourceType: resource.type,
+              source: "chat_quiz",
+            },
+          });
+          const row = practiceButton.closest(".exercise-result-row");
+          row?.querySelectorAll(".exercise-result-btn").forEach((button) => button.classList.remove("active"));
+          practiceButton.classList.add("active");
+          const label = row?.querySelector("span");
+          if (label) label.textContent = result === "correct" ? "已记录正确" : "已记录错误";
+          if (typeof renderAssessmentPage === "function") renderAssessmentPage();
+          return;
+        }
+
+        const [, exerciseIndexRaw] = String(mistakeButton.getAttribute("data-add-mistake") || "").split(":");
+        const exercise = exercises[Number(exerciseIndexRaw)];
+        if (!exercise || typeof addExerciseToMistakeBook !== "function") return;
+        const added = await addExerciseToMistakeBook(exercise, resource);
+        if (!added) return;
+        recordLearningBehavior("mistake_added", {
+          category: exercise.knowledge || resource.category,
+          topic: resource.title,
+          title: exercise.question || "",
+          meta: {
+            difficulty: exercise.difficulty || "",
+            type: exercise.type || "",
+            source: "chat_quiz",
+          },
+        });
+        mistakeButton.textContent = "已加入收藏夹";
+        mistakeButton.disabled = true;
+        mistakeButton.classList.add("is-complete");
+      });
+      container.appendChild(quizArtifact);
+    }
+
+    addButton("保存整套题库到收藏夹", async (event) => {
+      if (!await storeChatMarkdown(markdownText, agentIds, { download: false })) return;
+      const button = event.currentTarget;
+      if (button instanceof HTMLButtonElement) {
+        button.textContent = "整套题库已保存";
+        button.disabled = true;
+      }
+    });
+    addButton("导出 Word", () => typeof downloadExerciseWord === "function" && downloadExerciseWord(resource));
+    addButton("导出 JSON", () => typeof downloadExerciseJson === "function" && downloadExerciseJson(resource));
+  }
+  if (ids.has("ppt")) {
+    addButton("保存 PPT 大纲", () => void storeChatMarkdown(markdownText, agentIds, { download: false }));
+    const pptButton = addButton("生成并下载 PPT", () => {
+      if (pptButton.dataset.downloadUrl) {
+        triggerPresentationDownload(pptButton.dataset.downloadUrl, `${chatArtifactTitle(markdownText, "AI 教学演示文稿")}.pptx`);
+        return;
+      }
+      void generateChatPresentation(markdownText, agentConfig, pptButton);
+    });
+    if (options.autoGeneratePpt) {
+      window.setTimeout(() => pptButton.click(), 0);
+    }
+  }
+
+  if (actions.childElementCount) container.appendChild(actions);
+  container.hidden = container.childElementCount === 0;
+}
+
 function appendUserMessage(markdownText, attachedImagesPreview) {
   const row = document.createElement("div");
   row.className = "message-row user";
@@ -1190,9 +1669,9 @@ function appendUserMessage(markdownText, attachedImagesPreview) {
   scrollMessagesToBottom();
 }
 
-/** @param {{ restored?: boolean, markdownText?: string }} [opts] */
+/** @param {{ restored?: boolean, markdownText?: string, agentIds?: string[], agentConfig?: object }} [opts] */
 function appendAssistantMessage(opts = {}) {
-  const { restored = false, markdownText = "" } = opts;
+  const { restored = false, markdownText = "", agentIds = [], agentConfig = {} } = opts;
   const row = document.createElement("div");
   row.className = "message-row";
 
@@ -1215,6 +1694,10 @@ function appendAssistantMessage(opts = {}) {
   markdownEl.className = "markdown-body";
   markdownEl.hidden = !restored;
   if (restored) renderMarkdownInto(markdownEl, markdownText || "");
+  const artifactEl = document.createElement("div");
+  artifactEl.className = "chat-agent-artifacts";
+  artifactEl.hidden = true;
+  if (restored) renderChatAgentArtifacts(artifactEl, markdownText || "", agentIds, agentConfig);
 
   const tools = document.createElement("div");
   tools.className = "chat-message-tools";
@@ -1241,6 +1724,9 @@ function appendAssistantMessage(opts = {}) {
 
   bubble.appendChild(typingEl);
   bubble.appendChild(markdownEl);
+  bubble.appendChild(artifactEl);
+  const collaboration = createChatAgentCollaboration(agentIds, restored);
+  if (collaboration) bubble.insertBefore(collaboration.element, typingEl);
   bubble.appendChild(tools);
   row.appendChild(avatar);
   row.appendChild(bubble);
@@ -1248,7 +1734,15 @@ function appendAssistantMessage(opts = {}) {
   el.messages.appendChild(row);
   scrollMessagesToBottom();
 
-  return { row, bubble, typingEl, markdownEl, setSpeechReady };
+  return {
+    row,
+    bubble,
+    typingEl,
+    markdownEl,
+    setSpeechReady,
+    collaboration,
+    renderArtifacts: (text, options = {}) => renderChatAgentArtifacts(artifactEl, text, agentIds, agentConfig, options),
+  };
 }
 
 function restorePersistedChat() {
@@ -1418,7 +1912,9 @@ function applyDashscopeSsePayload(payload) {
 async function generateAssistantFromUserText(
   userText,
   attachedFiles,
-  attachedImagesPreview = []
+  attachedImagesPreview = [],
+  requestedAgentIds = [],
+  requestedAgentConfig = {}
 ) {
   if (!state.apiKey) state.apiKey = localStorage.getItem(API_KEY_STORAGE) || "";
   if (USE_BROWSER_API_KEY && !state.apiKey) throw new Error("Missing API Key");
@@ -1429,12 +1925,21 @@ async function generateAssistantFromUserText(
   ensureChatVisible();
 
   appendUserMessage(userText, attachedImagesPreview);
-  const assistant = appendAssistantMessage();
+  const selectedChatAgents = requestedAgentIds
+    .map((id) => SELECTABLE_RESOURCE_AGENTS.find((agent) => agent.id === id))
+    .filter(Boolean);
+  const selectedChatAgentIds = selectedChatAgents.map((agent) => agent.id);
+  const assistant = appendAssistantMessage({
+    agentIds: selectedChatAgentIds,
+    agentConfig: requestedAgentConfig,
+  });
 
   state.currentAssistant = {
     typingEl: assistant.typingEl,
     markdownEl: assistant.markdownEl,
     fullText: "",
+    collaboration: assistant.collaboration,
+    renderArtifacts: assistant.renderArtifacts,
   };
 
   const prior = state.messages.slice();
@@ -1467,6 +1972,13 @@ async function generateAssistantFromUserText(
   const courseKnowledgePrompt = typeof formatCourseKnowledgeForPrompt === "function"
     ? formatCourseKnowledgeForPrompt(courseKnowledge)
     : "";
+  const chatAgentPrompt = selectedChatAgents.length
+    ? `本轮只调用用户显式选择的以下资源 Agent。用户点击能力按钮本身就是明确的生成授权，必须执行，不要退回普通答疑模式：
+${selectedChatAgents.map((agent) => `- ${agent.role}：${chatAgentExecutionRule(agent, requestedAgentConfig)}`).join("\n")}
+${selectedChatAgentIds.includes("ppt") ? `PPT 生成配置：模板 ${requestedAgentConfig.pptThemeName || "智能匹配模板"}（theme=${requestedAgentConfig.pptTheme || "auto"}）。` : ""}
+${selectedChatAgentIds.includes("quiz") ? `题库生成配置：${JSON.stringify(requestedAgentConfig.exerciseBlueprint || {})}。必须严格按各题型数量生成。` : ""}
+请融合所选 Agent 的职责形成一个连贯、完整、可直接使用的结果；没有被选择的资源 Agent 不得参与。可以在对话中生成完整 Markdown 内容，但不要声称已经创建实际下载文件，除非接口确实返回了文件。`
+    : "";
 
   state.isGenerating = true;
   el.stopBtn.hidden = false;
@@ -1477,6 +1989,13 @@ async function generateAssistantFromUserText(
   state.streamingDone = false;
 
   const typingSpeedMs = 6;
+  let collaborationTimer = null;
+  if (assistant.collaboration && selectedChatAgents.length > 1) {
+    collaborationTimer = window.setInterval(() => {
+      const current = assistant.collaboration.activeIndex;
+      if (current < selectedChatAgents.length - 1) assistant.collaboration.setActive(current + 1);
+    }, 900);
+  }
 
   function startTypingLoop() {
     if (state.typingInterval) return;
@@ -1508,7 +2027,10 @@ async function generateAssistantFromUserText(
           ca.markdownEl.appendChild(notice);
         }
         ca.setSpeechReady?.(Boolean(full.trim()));
-        commitAssistantTurn(full, newHistory, uiVersion);
+        ca.renderArtifacts?.(full, { autoGeneratePpt: selectedChatAgentIds.includes("ppt") });
+        if (collaborationTimer) window.clearInterval(collaborationTimer);
+        ca.collaboration?.complete();
+        commitAssistantTurn(full, newHistory, uiVersion, selectedChatAgentIds, requestedAgentConfig);
         state.profileUpdateInFlight = updateStudentProfileAfterTurn(
           userPersist,
           full,
@@ -1538,6 +2060,7 @@ async function generateAssistantFromUserText(
             role: "system",
             content: `以下内容来自用户本地私有课程知识库，是本轮回答的优先依据。回答时应在相关结论后标注“课程文档：文档名，PDF第N页”。不要大段复述原文，只做必要概括；知识库未覆盖的内容标注为“AI扩展”。\n\n${courseKnowledgePrompt}`,
           }] : []),
+          ...(chatAgentPrompt ? [{ role: "system", content: chatAgentPrompt }] : []),
           ...apiMessages,
         ],
         stream: true,
@@ -1590,7 +2113,10 @@ async function generateAssistantFromUserText(
         ca.markdownEl.hidden = false;
         renderMarkdownInto(ca.markdownEl, full);
         ca.setSpeechReady?.(Boolean(full.trim()));
-        commitAssistantTurn(full, newHistory, uiVersion);
+        ca.renderArtifacts?.(full);
+        if (collaborationTimer) window.clearInterval(collaborationTimer);
+        ca.collaboration?.complete();
+        commitAssistantTurn(full, newHistory, uiVersion, selectedChatAgentIds, requestedAgentConfig);
       }
     } else {
       state.streamingDone = true;
@@ -1608,10 +2134,13 @@ async function generateAssistantFromUserText(
         ca.typingEl.hidden = false;
         ca.markdownEl.hidden = true;
         ca.setSpeechReady?.(true);
-        commitAssistantTurn(errText, newHistory, uiVersion);
+        ca.renderArtifacts?.(errText);
+        if (collaborationTimer) window.clearInterval(collaborationTimer);
+        commitAssistantTurn(errText, newHistory, uiVersion, selectedChatAgentIds, requestedAgentConfig);
       }
     }
   } finally {
+    if (collaborationTimer) window.clearInterval(collaborationTimer);
     state.isGenerating = false;
     state.abortController = null;
     el.stopBtn.hidden = true;
@@ -1659,6 +2188,19 @@ async function sendCurrentInput() {
   
   const attachedFiles = state.attachedFiles.slice();
   const attachedImagesPreview = state.attachedImages.slice();
+  const requestedAgentIds = [...(state.selectedChatAgentIds || [])];
+  const requestedExerciseBlueprint = getChatExerciseBlueprint();
+  if (requestedAgentIds.includes("quiz") && Object.values(requestedExerciseBlueprint).reduce((sum, count) => sum + count, 0) < 1) {
+    alert("题库 Agent 至少需要设置 1 道题");
+    return;
+  }
+  const selectedPptTheme = chatPptThemes().find((theme) => theme.key === (state.chatPptTheme || "auto")) || chatPptThemes()[0];
+  const requestedAgentConfig = {
+    pptTheme: selectedPptTheme.key,
+    pptThemeName: selectedPptTheme.name,
+    exerciseBlueprint: requestedExerciseBlueprint,
+    topic: text,
+  };
   recordLearningBehavior("chat_question", {
     category: categorizeKnowledge(text, text),
     topic: text,
@@ -1670,13 +2212,16 @@ async function sendCurrentInput() {
   el.input.value = "";
   adjustTextareaHeight();
   resetAttachment();
+  clearChatAgentSelection();
   updateSendButton();
 
   
   await generateAssistantFromUserText(
     text || "（已上传图片，等待我处理）",
     attachedFiles,
-    attachedImagesPreview
+    attachedImagesPreview,
+    requestedAgentIds,
+    requestedAgentConfig
   );
 }
 
@@ -2659,6 +3204,34 @@ function initEventHandlers() {
 
   el.sendBtn.addEventListener("click", () => {
     void sendCurrentInput();
+  });
+
+  el.chatAgentToolbar?.addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target.closest("button") : null;
+    if (!target) return;
+    const agentId = target.getAttribute("data-chat-agent");
+    if (agentId) toggleChatAgentSelection(agentId);
+  });
+
+  el.chatAgentOptions?.addEventListener("click", (event) => {
+    const closeButton = event.target instanceof HTMLElement ? event.target.closest("[data-chat-option-close]") : null;
+    if (closeButton) {
+      state.activeChatAgentOption = "";
+      renderChatAgentOptions();
+      return;
+    }
+    const target = event.target instanceof HTMLElement ? event.target.closest("[data-chat-ppt-theme]") : null;
+    if (!target) return;
+    state.chatPptTheme = target.getAttribute("data-chat-ppt-theme") || "auto";
+    state.activeChatAgentOption = "";
+    renderChatAgentOptions();
+  });
+  el.chatAgentOptions?.addEventListener("input", (event) => {
+    const input = event.target instanceof HTMLInputElement ? event.target.closest("[data-chat-exercise-type]") : null;
+    if (!input) return;
+    input.value = String(Math.max(0, Math.min(20, Number(input.value) || 0)));
+    state.chatExerciseBlueprint = getChatExerciseBlueprint();
+    renderChatAgentOptions();
   });
 
   
