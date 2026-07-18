@@ -389,7 +389,7 @@ const PROFILE_BUILDER_QUESTIONS = [
   {
     field: "major_background",
     question: "为了让课程示例更贴近你，先说说你目前主要在学习哪个方向？",
-    choices: ["计算机与软件", "人工智能与数据", "电子与自动化", "数学与基础科学", "其他专业方向"],
+    choices: ["计算机科学与技术", "人工智能与数据", "电子与自动化", "数学与基础科学", "其他专业方向"],
   },
   {
     field: "knowledge_foundation",
@@ -400,6 +400,26 @@ const PROFILE_BUILDER_QUESTIONS = [
     field: "learning_goals",
     question: "接下来，你最希望学习计划优先帮你解决什么？",
     choices: ["通过课程考试", "完成项目或作业", "系统补齐基础", "提升实践能力", "探索新的方向"],
+  },
+  {
+    field: "cognitive_style",
+    question: "学习新知识时，哪种讲解方式最容易让你理解？",
+    choices: ["图解与可视化", "类比和生活案例", "分步推导", "代码或实操示例", "先看全局再学细节"],
+  },
+  {
+    field: "error_patterns",
+    question: "你在学习或做题时，最常遇到哪类问题？",
+    choices: ["容易混淆相近概念", "忽略条件或边界", "推导步骤容易中断", "代码调试找不到原因", "暂时还不确定"],
+  },
+  {
+    field: "interaction_preference",
+    question: "你希望问阶平时怎样陪你学习？",
+    choices: ["先给简洁结论", "给出详细步骤", "通过提问引导我", "多出练习并反馈", "最后给总结卡片"],
+  },
+  {
+    field: "motivation_emotion",
+    question: "你目前最想继续深入探索哪个方向？",
+    choices: ["人工智能与数据", "软件开发与工程", "系统、网络与安全", "算法与数学基础", "其他兴趣方向"],
   },
 ];
 
@@ -422,7 +442,7 @@ function renderProfileBuilder() {
   if (!el.profileBuilderConversation) return;
   const completed = profileBuilderState.answers.length >= PROFILE_BUILDER_QUESTIONS.length;
   const progress = profileBuilderState.answers.length;
-  el.profileBuilderProgressText.textContent = `关键画像 ${progress}/3`;
+  el.profileBuilderProgressText.textContent = `关键画像 ${progress}/${PROFILE_BUILDER_QUESTIONS.length}`;
   el.profileBuilderProgressBar.style.width = `${(progress / PROFILE_BUILDER_QUESTIONS.length) * 100}%`;
 
   const conversation = [];

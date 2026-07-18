@@ -150,81 +150,121 @@ flow/.style={-{Stealth[length=2mm]},draw=maincolor,line width=1pt}}
 \end{block}
 \end{frame}
 
-\section{框架结构}
+\section{技术路线}
 
-\begin{frame}{总体框架：画像、知识与多智能体共同驱动学习闭环}
-\begin{columns}[T,onlytextwidth]
-\column{.32\textwidth}
-\begin{block}{多智能体编排}
-\small 需求拆解、并行生成、集中审核，不同资源由不同 Agent 负责。\par\vspace{3mm}
-\tagbox{maincolor}{任务分解}\quad\tagbox{maincolor}{并行容错}
-\end{block}
-\column{.32\textwidth}
-\begin{block}{检索增强生成}
-\small 本地课程 PDF 页码级召回，相关片段注入对话与资源 Agent。\par\vspace{3mm}
-\tagbox{accentblue}{中文 OCR}\quad\tagbox{accentblue}{页码引用}
-\end{block}
-\column{.32\textwidth}
-\begin{block}{学习者建模}
-\small 从自然对话抽取 8 维画像，以行为证据持续修正难度与策略。\par\vspace{3mm}
-\tagbox{accentred}{增量画像}\quad\tagbox{accentred}{动态推荐}
-\end{block}
-\end{columns}
-\vspace{6mm}
-\begin{center}
-{\large\bfseries 技术融合的落点：\textcolor{maincolor}{更懂谁在学、依据什么、下一步做什么}}
-\end{center}
-\end{frame}
-
-\begin{frame}[shrink=15]{能力结构：五类 AI 能力分别解决关键学习问题}
-\begin{tabular}{>{\bfseries\color{maincolor}}p{2.4cm}p{3.4cm}p{4.1cm}}
-\toprule
-前沿技术 & 解决的问题 & 在问阶中的实现方法\\
-\midrule
-大语言模型 & 理解开放需求并生成教学内容 & 结构化提示、流式对话、资源生成与审核\\
-多智能体编排 & 单模型难以兼顾多种资源与质量 & 独立调用、并行执行、失败隔离、集中审核\\
-课程 RAG & 幻觉、来源不清与课程内容偏离 & PDF/OCR、页码切分、相关度检索、引用约束\\
-学习者建模 & 通用内容无法匹配个体差异 & 8 维画像、需求轨迹、行为证据增量更新\\
-反馈驱动推荐 & 资源生成后无法持续优化 & 正确率、错题、使用、路径完成共同调权\\
-\bottomrule
-\end{tabular}
-\vspace{4mm}
-\begin{block}{融合原则}
-每项技术都必须进入同一学习闭环，并对最终的内容难度、资源组合、学习顺序或推荐优先级产生可观察影响。
-\end{block}
-\end{frame}
-
-\begin{frame}[shrink=7]{智能体协作不是角色扮演，而是可追踪的独立执行}
-\begin{columns}[T,onlytextwidth]
-\column{.69\textwidth}
+\begin{frame}{总体介绍：从学习需求出发，交付个性化学习闭环}
 \centering
-\begin{tikzpicture}[scale=.70,transform shape]
-\tikzset{agent/.style={draw=maincolor!35,fill=maincolor!5,rounded corners=3pt,minimum width=2.1cm,minimum height=.7cm,align=center,font=\small},
-arr/.style={-{Stealth[length=2mm]},draw=maincolor}}
-\node[agent] (d) at (0,1.7) {需求分析 Agent};
-\node[agent] (rag) at (2.8,1.7) {课程 RAG};
-\node[agent] (doc) at (5.6,2.7) {知识文档};
-\node[agent] (map) at (5.6,1.8) {思维导图};
-\node[agent] (quiz) at (5.6,.9) {题库 / 代码};
-\node[agent] (ppt) at (5.6,0) {阅读 / PPT};
-\node[agent,fill=maincolor!12] (review) at (8.6,1.35) {审核整合 Agent};
-\draw[arr](d)--(rag);
-\foreach \n in {doc,map,quiz,ppt}{\draw[arr](rag.east)--++(.3,0)|-(\n.west);}
-\foreach \n in {doc,map,quiz,ppt}{\draw[arr](\n.east)--++(.3,0)|-(review.west);}
+\begin{tikzpicture}[node distance=5mm and 5mm]
+\tikzset{
+source/.style={draw=accentblue!35,fill=accentblue!7,rounded corners=3pt,minimum width=2.35cm,minimum height=.78cm,align=center,font=\scriptsize},
+engine/.style={draw=maincolor!45,fill=maincolor!9,rounded corners=4pt,minimum width=3.25cm,minimum height=2.55cm,align=center,font=\small},
+result/.style={draw=accentorange!45,fill=accentorange!8,rounded corners=3pt,minimum width=2.45cm,minimum height=.72cm,align=center,font=\scriptsize},
+arr/.style={-{Stealth[length=2mm]},draw=maincolor,line width=1pt}}
+\node[source] (course) at (0,1.05) {\bfseries 完整课程文档\\PDF 文本 / 中文 OCR};
+\node[source] (student) at (0,-.15) {\bfseries 学习者与学习证据\\画像·需求·错题·进度};
+\node[engine] (core) at (4.05,.45) {\large\bfseries 问阶 AI 学习引擎\\[2mm]
+\scriptsize 课程 RAG 提供可溯源依据\\[1mm]
+\scriptsize 多智能体分工生成与审核\\[1mm]
+\scriptsize 动态画像调整难度与策略};
+\node[result] (answer) at (8.35,1.75) {\bfseries 可依据的辅导\\对话与实时答疑};
+\node[result] (resource) at (8.35,.7) {\bfseries 可组合的资源\\7 类学习资源};
+\node[result] (action) at (8.35,-.35) {\bfseries 可执行的路径\\阶段·Todo·推送};
+\node[result] (feedback) at (8.35,-1.4) {\bfseries 可持续的优化\\评估·复盘·再推荐};
+\draw[arr](course.east)--(core.west);
+\draw[arr](student.east)--(core.west);
+\foreach \n in {answer,resource,action,feedback}{\draw[arr](core.east)--++(.35,0)|-(\n.west);}
+\draw[arr,accentred,rounded corners=5pt](feedback.south)--++(0,-.42)-|(student.south);
 \end{tikzpicture}
-\column{.27\textwidth}
-\begin{block}{每一步都有证据}
-\small
-\begin{itemize}\setlength\itemsep{2mm}
-  \item 独立模型请求
-  \item 开始 / 完成时间
-  \item 尝试次数与状态
-  \item 中间产物摘要
-  \item 审核意见与反馈
-\end{itemize}
+\vspace{3mm}
+\begin{beamercolorbox}[wd=.94\textwidth,sep=2.5mm,center,rounded=true]{block body}
+{\small\bfseries 一套系统同时回答三个问题：
+\textcolor{maincolor}{谁在学}、\textcolor{accentblue}{依据什么}、\textcolor{accentred}{下一步做什么}}
+\end{beamercolorbox}
+\end{frame}
+
+\begin{frame}[shrink=5]{总体框架：五层架构连接用户、学习服务与 AI 能力}
+\centering
+\begin{tikzpicture}[scale=.94,transform shape]
+\tikzset{
+layer/.style={draw=maincolor!30,rounded corners=3pt,minimum width=10.0cm,minimum height=.88cm,align=center},
+label/.style={fill=maincolor,text=white,rounded corners=2pt,minimum width=1.4cm,minimum height=.56cm,font=\scriptsize\bfseries},
+cell/.style={draw=maincolor!22,fill=white,rounded corners=2pt,minimum height=.48cm,align=center,font=\tiny},
+arr/.style={-{Stealth[length=1.7mm]},draw=maincolor,line width=.85pt}}
+
+\node[layer,fill=accentblue!5] (user) at (0,2.25) {};
+\node[label] at (-4.35,2.25) {用户层};
+\node[cell,minimum width=2.0cm] at (-1.25,2.25) {学习者};
+\node[cell,minimum width=2.0cm] at (1.25,2.25) {管理员};
+
+\node[layer,fill=maincolor!5] (app) at (0,1.15) {};
+\node[label] at (-4.35,1.15) {应用层};
+\node[cell,minimum width=1.25cm] at (-2.75,1.15) {智能答疑};
+\node[cell,minimum width=1.25cm] at (-1.3,1.15) {资源生成};
+\node[cell,minimum width=1.25cm] at (.15,1.15) {学习路径};
+\node[cell,minimum width=1.25cm] at (1.6,1.15) {画像评估};
+\node[cell,minimum width=1.25cm] at (3.05,1.15) {社区 / 后台};
+
+\node[layer,fill=accentorange!7] (agent) at (0,.05) {};
+\node[label,fill=accentorange] at (-4.35,.05) {智能服务层};
+\node[cell,minimum width=1.48cm] at (-2.55,.05) {需求分析 Agent};
+\node[cell,minimum width=1.48cm] at (-.75,.05) {资源 Agent 并行};
+\node[cell,minimum width=1.48cm] at (1.05,.05) {审核整合 Agent};
+\node[cell,minimum width=1.32cm] at (2.75,.05) {路径与推送};
+
+\node[layer,fill=accentgreen!7] (platform) at (0,-1.05) {};
+\node[label,fill=accentgreen] at (-4.35,-1.05) {平台数据层};
+\node[cell,minimum width=1.45cm] at (-2.6,-1.05) {Node.js 统一 API};
+\node[cell,minimum width=1.25cm] at (-1.0,-1.05) {MySQL};
+\node[cell,minimum width=1.55cm] at (.55,-1.05) {本地课程知识库};
+\node[cell,minimum width=1.7cm] at (2.45,-1.05) {画像·路径·错题·资源};
+
+\node[layer,fill=accentred!5] (external) at (0,-2.15) {};
+\node[label,fill=accentred] at (-4.35,-2.15) {外部能力层};
+\node[cell,minimum width=1.35cm] at (-2.65,-2.15) {大模型服务};
+\node[cell,minimum width=1.35cm] at (-1.05,-2.15) {PDF 解析 / OCR};
+\node[cell,minimum width=1.55cm] at (.7,-2.15) {可信教育资源};
+\node[cell,minimum width=1.45cm] at (2.55,-2.15) {视频 / PPT 服务};
+
+\draw[arr](user.south)--(app.north);
+\draw[arr](app.south)--(agent.north);
+\draw[arr](agent.south)--(platform.north);
+\draw[arr](platform.south)--(external.north);
+\draw[-{Stealth[length=1.7mm]},draw=accentred,line width=.9pt,rounded corners=4pt]
+  (app.east)--++(.32,0)|-(platform.east);
+\node[font=\tiny\bfseries,text=accentred,rotate=90] at (5.27,.05) {学习证据驱动画像与路径更新};
+\end{tikzpicture}
+\vspace{2mm}
+\begin{beamercolorbox}[wd=.94\textwidth,sep=1.8mm,center,rounded=true]{block body}
+{\scriptsize\bfseries 主链路：用户需求 → 多智能体协作 → 知识与数据支撑 → 学习结果反馈}
+\end{beamercolorbox}
+\end{frame}
+
+\begin{frame}[shrink=5]{功能结构：围绕学生“学—练—评—调”组织八类核心功能}
+\centering
+\includegraphics[width=.94\linewidth]{function-modes-crop.png}
+\vspace{2mm}
+\begin{columns}[T,onlytextwidth]
+\column{.235\textwidth}
+\begin{block}{\centering 01 懂我}
+\centering\scriptsize 动态画像\\需求轨迹
 \end{block}
-\tagbox{maincolor}{45 秒超时}\par\vspace{2mm}\tagbox{maincolor}{重试 1 次}
+\column{.235\textwidth}
+\begin{block}{\centering 02 助学}
+\centering\scriptsize 智能答疑\\课程知识库
+\end{block}
+\column{.235\textwidth}
+\begin{block}{\centering 03 给资源}
+\centering\scriptsize 6 类内容 Agent\\可溯源检索
+\end{block}
+\column{.235\textwidth}
+\begin{block}{\centering 04 推行动}
+\centering\scriptsize 学习路径\\阶段资源推送
+\end{block}
 \end{columns}
+\vspace{2mm}
+\begin{beamercolorbox}[wd=.94\textwidth,sep=2mm,center,rounded=true]{block body}
+{\small 八个功能入口不是孤立工具：资源进入路径，学习证据再反向更新画像与推荐。}
+\end{beamercolorbox}
 \end{frame}
 
 \section{产品介绍}
@@ -235,10 +275,13 @@ arr/.style={-{Stealth[length=2mm]},draw=maincolor}}
 \includegraphics[width=\linewidth]{profile.png}
 \column{.34\textwidth}
 \begin{block}{8 维动态画像}
-\small 专业背景、学习目标、知识基础、认知风格、学习习惯、易错点、互动偏好、情绪动力。
+\scriptsize 专业背景、学习目标、知识基础、认知风格、学习习惯、易错点、互动偏好、情绪动力。
+\end{block}
+\begin{block}{主动完善}
+\scriptsize 新增 4 个画像完善问题，补充认知风格、易错点、学习偏好与兴趣方向；也可暂时跳过。
 \end{block}
 \begin{block}{随学随新}
-\small 对话、错题、资源使用和路径完成触发更新；信息区分“确定、推测、待补充”。
+\scriptsize 对话、错题、资源使用和路径完成继续更新画像，并区分“确定、推测、待补充”。
 \end{block}
 \end{columns}
 \end{frame}

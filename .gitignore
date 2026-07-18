@@ -10,3 +10,14 @@ build/
 tmp/
 uploads/
 work/
+
+# LaTeX build artifacts
+*.aux
+*.fdb_latexmk
+*.fls
+*.nav
+*.out
+*.snm
+*.toc
+*.xdv
+软件杯/slide*.pdf
