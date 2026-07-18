@@ -3448,7 +3448,7 @@ body.chat-sidebar-resizing:is(.chat-layout-active, :has(#chat:not([hidden]))) .c
 
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-item strong {
   width: 100%;
-  padding-right: 26px;
+  padding-right: 54px;
   overflow: hidden;
   color: inherit;
   font-size: 14px;
@@ -3461,7 +3461,7 @@ body.chat-sidebar-resizing:is(.chat-layout-active, :has(#chat:not([hidden]))) .c
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-rename {
   position: absolute;
   top: 12px;
-  right: 12px;
+  right: 40px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -3476,14 +3476,39 @@ body.chat-sidebar-resizing:is(.chat-layout-active, :has(#chat:not([hidden]))) .c
   transition: opacity 160ms ease, background 160ms ease, color 160ms ease;
 }
 
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-delete {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 9px;
+  color: rgba(154, 91, 91, 0.72);
+  background: rgba(255, 255, 255, 0.34);
+  font-size: 18px;
+  line-height: 1;
+  opacity: 0;
+  transition: opacity 160ms ease, background 160ms ease, color 160ms ease;
+}
+
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-item:hover .chat-session-rename,
-:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-item.active .chat-session-rename {
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-item.active .chat-session-rename,
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-item:hover .chat-session-delete,
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-item.active .chat-session-delete {
   opacity: 1;
 }
 
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-rename:hover {
   color: #fff;
   background: rgba(95, 197, 178, 0.88);
+}
+
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-delete:hover {
+  color: #fff;
+  background: rgba(218, 91, 91, 0.9);
 }
 
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-item span,
@@ -3539,6 +3564,11 @@ body.chat-sidebar-resizing:is(.chat-layout-active, :has(#chat:not([hidden]))) .c
   background: rgba(255, 255, 255, 0.06);
 }
 
+[data-theme="dark"] :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-delete {
+  color: rgba(255, 178, 178, 0.78);
+  background: rgba(255, 255, 255, 0.06);
+}
+
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .messages {
   min-height: calc(100vh - 430px);
   max-height: calc(100vh - 360px);
@@ -3583,7 +3613,8 @@ body.chat-sidebar-resizing:is(.chat-layout-active, :has(#chat:not([hidden]))) .c
 }
 
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .message-row:not(.user) .bubble {
-  width: min(100%, 760px);
+  width: min(100%, 1040px);
+  max-width: calc(100% - 56px);
   background: rgba(255, 255, 255, 0.82);
 }
 

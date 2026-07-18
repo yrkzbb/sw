@@ -1639,19 +1639,6 @@ function renderAssessmentPage() {
     assessment.resource_strategy,
     weakDimensions.map((item) => item.action)
   ).slice(0, 3);
-  if (state.assessmentGenerating) {
-    el.assessmentGrid.innerHTML = `
-      <section class="assessment-hero">
-        <div>
-          <div class="resource-type">学习复盘</div>
-          <h2>正在整理你的学习线索...</h2>
-          <p>我在把最近的提问、练习、资料使用和路径待办整理成更清楚的下一步建议。</p>
-        </div>
-        <div class="assessment-pulse" aria-hidden="true"><span></span><span></span><span></span></div>
-      </section>
-    `;
-    return;
-  }
   el.assessmentGrid.innerHTML = `
     ${renderAssessmentVisualizationBoard(evidence, dimensions)}
   `;

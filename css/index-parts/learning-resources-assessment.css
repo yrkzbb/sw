@@ -1488,6 +1488,12 @@ button.agent-card:hover {
   gap: 16px;
 }
 
+.assessment-toolbar {
+  display: flex;
+  justify-content: flex-end;
+  margin: 0 0 22px;
+}
+
 .assessment-wiki-page {
   width: min(100%, 1680px);
   max-width: none;

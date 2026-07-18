@@ -126,15 +126,39 @@ function loadLegacyMessagesPersist() {
 function chatMessagesFingerprint(messages) {
   const list = sanitizeChatMessages(messages);
   if (!list.length) return "";
-  const first = list[0];
-  const last = list[list.length - 1];
-  return [
-    list.length,
-    first?.role || "",
-    String(first?.content || "").slice(0, 80),
-    last?.role || "",
-    String(last?.content || "").slice(0, 80),
-  ].join("|");
+  return JSON.stringify(list);
+}
+
+function chatSessionDuplicateFingerprint(session) {
+  const messagesFingerprint = chatMessagesFingerprint(session?.messages);
+  if (!messagesFingerprint) {
+    return session?.customTitle
+      ? `empty|custom|${String(session.title || "").trim()}`
+      : "empty|default";
+  }
+  const titleIdentity = session?.customTitle
+    ? `custom|${String(session.title || "").trim()}`
+    : "automatic";
+  return `${titleIdentity}|${messagesFingerprint}`;
+}
+
+function dedupeChatSessions(sessions) {
+  const ordered = [...(Array.isArray(sessions) ? sessions : [])]
+    .sort((a, b) => Number(b?.updatedAt || 0) - Number(a?.updatedAt || 0));
+  const seenIds = new Set();
+  const seenContent = new Set();
+  const unique = [];
+
+  for (const session of ordered) {
+    if (!session) continue;
+    const id = String(session.id || "");
+    const contentKey = chatSessionDuplicateFingerprint(session);
+    if ((id && seenIds.has(id)) || seenContent.has(contentKey)) continue;
+    if (id) seenIds.add(id);
+    seenContent.add(contentKey);
+    unique.push(session);
+  }
+  return unique;
 }
 
 function importLegacyMessagesIfNeeded() {
@@ -170,6 +194,10 @@ function importLegacyMessagesIfNeeded() {
 
 function saveChatSessionsPersist() {
   try {
+    state.chatSessions = dedupeChatSessions(state.chatSessions);
+    if (!state.chatSessions.some((session) => session.id === state.activeChatId)) {
+      state.activeChatId = state.chatSessions[0]?.id || "";
+    }
     localStorage.setItem(CHAT_SESSIONS_STORAGE, JSON.stringify({
       activeChatId: state.activeChatId,
       sessions: state.chatSessions,
@@ -179,6 +207,8 @@ function saveChatSessionsPersist() {
   }
 }
 
+let chatSessionsCleanupNeeded = false;
+
 function loadChatSessionsPersist() {
   try {
     const raw = localStorage.getItem(CHAT_SESSIONS_STORAGE);
@@ -187,8 +217,11 @@ function loadChatSessionsPersist() {
     const sessionsRaw = Array.isArray(parsed) ? parsed : parsed?.sessions;
     const sessions = Array.isArray(sessionsRaw) ? sessionsRaw.map(normalizeChatSession).filter(Boolean) : [];
     state.activeChatId = typeof parsed?.activeChatId === "string" ? parsed.activeChatId : "";
-    return sessions.sort((a, b) => b.updatedAt - a.updatedAt);
+    const uniqueSessions = dedupeChatSessions(sessions);
+    chatSessionsCleanupNeeded = uniqueSessions.length < sessions.length;
+    return uniqueSessions;
   } catch {
+    chatSessionsCleanupNeeded = false;
     return [];
   }
 }
@@ -202,6 +235,10 @@ function ensureChatSessionsLoaded() {
   importLegacyMessagesIfNeeded();
   if (!state.chatSessions.some((session) => session.id === state.activeChatId)) {
     state.activeChatId = state.chatSessions[0]?.id || "";
+  }
+  if (chatSessionsCleanupNeeded) {
+    chatSessionsCleanupNeeded = false;
+    saveChatSessionsPersist();
   }
 }
 
@@ -279,12 +316,22 @@ function renderChatSessionList() {
     const rename = document.createElement("span");
     rename.className = "chat-session-rename";
     rename.setAttribute("data-chat-session-rename", session.id);
+    rename.setAttribute("role", "button");
+    rename.setAttribute("tabindex", "0");
     rename.setAttribute("aria-label", "重命名对话");
     rename.textContent = "✎";
+    const remove = document.createElement("span");
+    remove.className = "chat-session-delete";
+    remove.setAttribute("data-chat-session-delete", session.id);
+    remove.setAttribute("role", "button");
+    remove.setAttribute("tabindex", "0");
+    remove.setAttribute("aria-label", `删除对话：${session.title || "新对话"}`);
+    remove.textContent = "×";
 
     btn.appendChild(title);
     btn.appendChild(meta);
     btn.appendChild(rename);
+    btn.appendChild(remove);
     el.chatSessionList.appendChild(btn);
   }
 }
@@ -302,6 +349,40 @@ function renameChatSession(sessionId) {
   session.updatedAt = Date.now();
   saveChatSessionsPersist();
   renderChatSessionList();
+}
+
+function deleteChatSession(sessionId) {
+  ensureChatSessionsLoaded();
+  const session = state.chatSessions.find((item) => item.id === sessionId);
+  if (!session) return;
+  if (state.isGenerating && session.id === state.activeChatId) {
+    alert("当前回复还在生成中，请稍后再删除这个对话。");
+    return;
+  }
+  if (!window.confirm(`确定删除对话“${session.title || "新对话"}”吗？此操作无法撤销。`)) return;
+
+  const deletingActiveSession = session.id === state.activeChatId;
+  state.chatSessions = state.chatSessions.filter((item) => item.id !== session.id);
+
+  if (deletingActiveSession) {
+    const nextSession = state.chatSessions[0] || null;
+    state.activeChatId = nextSession?.id || "";
+    state.messages = nextSession ? sanitizeChatMessages(nextSession.messages).slice() : [];
+  }
+
+  if (!state.chatSessions.length) {
+    createChatSession([], { title: "新对话" });
+  } else {
+    saveChatSessionsPersist();
+    renderChatSessionList();
+  }
+
+  try {
+    localStorage.setItem(MESSAGES_STORAGE, JSON.stringify(state.messages));
+  } catch (e) {
+    console.warn("更新当前对话快照失败", e);
+  }
+  if (deletingActiveSession) renderMessagesFromState();
 }
 
 function renderMessagesFromState() {
@@ -2832,6 +2913,12 @@ function initEventHandlers() {
   el.newChatBtn?.addEventListener("click", startNewChatSession);
   el.chatSessionList?.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
+    const remove = target?.closest("[data-chat-session-delete]");
+    if (remove) {
+      event.stopPropagation();
+      deleteChatSession(remove.getAttribute("data-chat-session-delete") || "");
+      return;
+    }
     const rename = target?.closest("[data-chat-session-rename]");
     if (rename) {
       event.stopPropagation();
@@ -2841,6 +2928,14 @@ function initEventHandlers() {
     const btn = target?.closest("[data-chat-session-id]");
     if (!btn) return;
     switchChatSession(btn.getAttribute("data-chat-session-id") || "");
+  });
+  el.chatSessionList?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    const action = target?.closest("[data-chat-session-delete], [data-chat-session-rename]");
+    if (!action) return;
+    event.preventDefault();
+    action.click();
   });
   el.chatSessionList?.addEventListener("dblclick", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
