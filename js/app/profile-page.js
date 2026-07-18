@@ -1,6 +1,7 @@
 function profileIconSvg(icon) {
   const attrs = 'viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"';
   const paths = {
+    user: '<circle cx="12" cy="8" r="4" /><path d="M4 22v-2a8 8 0 0 1 16 0v2" />',
     book: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" /><path d="M4 4.5A2.5 2.5 0 0 1 6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5z" />',
     target: '<circle cx="12" cy="12" r="9" /><circle cx="12" cy="12" r="5" /><circle cx="12" cy="12" r="1" />',
     layers: '<path d="m12 2 9 5-9 5-9-5 9-5Z" /><path d="m3 12 9 5 9-5" /><path d="m3 17 9 5 9-5" />',
@@ -870,15 +871,70 @@ function renderWikiPortraitNarrative(fieldData) {
   `;
 }
 
+const WIKI_PORTRAIT_CARD_META = {
+  major_background: { label: "专业", icon: "user" },
+  knowledge_foundation: { label: "知识基础", icon: "book" },
+  cognitive_style: { label: "认知风格", icon: "spark" },
+  learning_goals: { label: "学习目标", icon: "target" },
+  error_patterns: { label: "易错点", icon: "alert" },
+  interaction_preference: { label: "学习偏好", icon: "chat" },
+  learning_habits: { label: "学习节奏", icon: "clock" },
+  motivation_emotion: { label: "兴趣方向", icon: "heart" },
+};
+
+function renderWikiPortraitCards(profile) {
+  const completedCount = PROFILE_FIELDS.filter((key) => String(profile[key]?.value || "").trim()).length;
+  const cardOrder = [
+    "major_background",
+    "knowledge_foundation",
+    "cognitive_style",
+    "learning_goals",
+    "error_patterns",
+    "interaction_preference",
+    "learning_habits",
+    "motivation_emotion",
+  ];
+  const renderCard = (key) => {
+    const meta = WIKI_PORTRAIT_CARD_META[key] || PROFILE_FIELD_META[key];
+    const item = profile[key] || {};
+    const value = String(item.value || "").trim();
+    const values = value.split(/[；;\n]/).map((part) => part.trim()).filter(Boolean);
+    const useChips = key === "error_patterns" && values.length > 1;
+    const useExpandableValue = value.length > 90;
+    const valueMarkup = useChips
+      ? `<div class="wiki-portrait-value-chips">${values.map((part) => `<b>${escapeHtml(part)}</b>`).join("")}</div>`
+      : useExpandableValue
+        ? `<details class="wiki-portrait-long-value"><summary><span>${escapeHtml(value)}</span></summary><p>${escapeHtml(value)}</p></details>`
+        : `<strong>${escapeHtml(value || "待补充")}</strong>`;
+    return `
+      <article class="wiki-portrait-dimension ${value ? "is-filled" : "is-empty"}" style="--portrait-order: ${cardOrder.indexOf(key)}">
+        <div class="wiki-portrait-dimension-icon" aria-hidden="true">${profileIconSvg(meta.icon)}</div>
+        <div class="wiki-portrait-dimension-copy">
+          <span>${escapeHtml(meta.label)}</span>
+          ${valueMarkup}
+        </div>
+      </article>
+    `;
+  };
+  const leftCards = cardOrder.filter((_, index) => index % 2 === 0).map(renderCard).join("");
+  const rightCards = cardOrder.filter((_, index) => index % 2 === 1).map(renderCard).join("");
+  return `
+    <article class="wiki-portrait-board wiki-glass">
+      <div class="wiki-portrait-board-head">
+        <h4>我的学习画像</h4>
+        <strong>${completedCount}/8 <span>维</span></strong>
+      </div>
+      <div class="wiki-portrait-dimension-grid">
+        <div class="wiki-portrait-dimension-column">${leftCards}</div>
+        <div class="wiki-portrait-dimension-column">${rightCards}</div>
+      </div>
+    </article>
+  `;
+}
+
 function renderWikiPortraitPanel() {
   if (!el.profileContentPanel) return;
   const profile = state.studentProfile || createEmptyProfile();
-  const fieldData = PROFILE_FIELDS.map((key) => {
-    const meta = PROFILE_FIELD_META[key];
-    const item = profile[key] || {};
-    const score = profileScore(item);
-    return { key, meta, item, score };
-  });
   el.profileContentPanel.innerHTML = `
     <section class="wiki-portrait-shell">
       <header class="wiki-portrait-head wiki-favorites-head">
@@ -888,10 +944,7 @@ function renderWikiPortraitPanel() {
         </div>
         <button type="button" data-profile-refresh-portrait ${state.profileUpdating ? "disabled" : ""}>${state.profileUpdating ? "刷新中" : "刷新画像"}</button>
       </header>
-      <article class="wiki-portrait-radar-card wiki-glass">
-        ${renderWikiPortraitRadar(fieldData)}
-        ${renderWikiPortraitNarrative(fieldData)}
-      </article>
+      ${renderWikiPortraitCards(profile)}
     </section>
   `;
 }

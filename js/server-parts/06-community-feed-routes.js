@@ -48,7 +48,10 @@ const FEED_DEMO_AUTHORS = [
   { username: "Lin Chen", email: "lin.chen.feed@example.local" },
   { username: "Kai Ming", email: "kai.ming.feed@example.local" },
   { username: "Nora Xu", email: "nora.xu.feed@example.local" },
+  { username: "Zoe Wang", email: "zoe.wang.feed@example.local" },
+  { username: "Ethan Li", email: "ethan.li.feed@example.local" },
 ];
+const FEED_DEMO_PASSWORD = process.env.FEED_DEMO_PASSWORD || "Computer@2026";
 const FEED_DEMO_POSTS = [
   {
     author: "Lin Chen",
@@ -162,6 +165,44 @@ const FEED_DEMO_POSTS = [
     favorite_count: 9,
     view_count: 168,
   },
+  ...[
+    ["Zoe Wang", "article", "从一次慢查询定位到合适索引的完整过程", "用 EXPLAIN、基数和回表次数逐步定位问题，并验证组合索引是否真正生效。", "先记录稳定复现的 SQL 与数据规模，再查看执行计划中的 type、rows 和 Extra。对 WHERE 与 ORDER BY 同时出现的场景，组合索引字段顺序应由等值条件、范围条件和排序需求共同决定。最后用冷缓存与热缓存分别压测，避免只凭一次执行时间下结论。", "数据库", ["MySQL", "索引", "性能优化"]],
+    ["Ethan Li", "question", "为什么 Redis 缓存穿透不能只靠延长过期时间解决？", "不存在的键不会进入缓存，延长已有键的 TTL 并不能挡住持续打向数据库的无效请求。", "在商品详情接口中，攻击者随机请求不存在的商品 ID，导致每次都落到数据库。除了缓存空值，布隆过滤器、参数校验和限流分别适合在哪一层使用？如何处理布隆过滤器的误判？", "后端开发", ["Redis", "缓存穿透", "系统设计"]],
+    ["Lin Chen", "answer", "答：布隆过滤器负责快速拒绝，空值缓存兜住短期漏网请求", "布隆过滤器适合放在缓存查询之前，空值缓存则能处理新增数据同步延迟和误判后的数据库查询。", "完整链路可以是：先做 ID 格式校验与限流，再查布隆过滤器；判定可能存在时查 Redis，未命中才访问数据库，并对不存在结果写入较短 TTL 的空值。数据新增时同步更新过滤器，删除时依赖版本重建或使用可删除结构。", "后端开发", ["Redis", "布隆过滤器", "高并发"]],
+    ["Kai Ming", "document", "Git 团队协作规范速查表", "覆盖分支命名、提交粒度、变基边界、合并请求检查项和冲突处理原则。", "建议功能分支保持短生命周期；提交信息说明动机而非复述文件名；共享分支不要强制变基；合并前先同步目标分支并跑测试。处理冲突时逐块理解双方意图，解决后重新执行格式检查与测试，再提交合并结果。", "软件工程", ["Git", "团队协作", "代码审查"]],
+    ["Nora Xu", "video", "Docker 入门：从镜像构建到容器运行", "通过实际操作理解 Dockerfile、镜像层、端口映射与容器生命周期。", "[[video:/uploads/feed-videos/docker-basics.mp4]]\n\n本视频演示如何编写基础 Dockerfile、构建镜像、启动容器并查看日志。建议边看边执行 docker build、docker run、docker ps 和 docker logs。", "云原生", ["Docker", "容器", "视频教程"]],
+    ["Zoe Wang", "video", "Git 合并分支与解决冲突实战", "演示合并功能分支、识别冲突标记、保留正确改动并验证最终结果。", "[[video:/uploads/feed-videos/git-merge-conflicts.mp4]]\n\n本视频从 git merge 开始，逐步解释 HEAD 与传入分支的冲突标记，展示手工合并、git add、提交合并结果以及最后运行测试的完整流程。", "软件工程", ["Git", "合并冲突", "视频教程"]],
+    ["Ethan Li", "thought", "写单元测试时，边界值往往比平均值更有信息量", "空集合、单元素、最大长度和非法输入更容易暴露实现假设。", "测试正常路径只能说明代码在熟悉输入下可运行。把输入域按等价类划分，再选择边界两侧的值，常常能用更少用例发现越界、溢出、空指针和状态遗漏。", "工程实践", ["单元测试", "边界条件", "测试设计"]],
+    ["Lin Chen", "article", "HTTP 缓存协商：ETag 与 Last-Modified 怎么选", "强校验与时间校验各有适用场景，关键是资源变化语义和生成成本。", "Last-Modified 简单且便宜，但精度通常到秒，也无法识别内容回滚到相同时间的情况。ETag 可以基于内容哈希或版本号生成，更准确但需要计算成本。浏览器携带 If-None-Match 或 If-Modified-Since，服务端未变化时返回 304。", "计算机网络", ["HTTP", "缓存", "Web"]],
+    ["Kai Ming", "question", "微服务一定比单体应用更适合高并发吗？", "拆分服务会带来独立扩缩容能力，也会引入网络、事务和观测复杂度。", "如果业务仍处于快速验证阶段，单体通过无状态部署、缓存和数据库优化也能支撑较高流量。判断是否拆分时，你们更看重团队规模、领域边界、故障隔离还是具体性能瓶颈？", "系统设计", ["微服务", "架构", "高并发"]],
+    ["Nora Xu", "answer", "答：先用模块化单体建立边界，再让真实瓶颈决定拆分", "并发能力取决于可扩展设计和瓶颈位置，服务数量本身不是性能指标。", "可以先在单体内按领域隔离代码和数据访问，通过压测确认 CPU、数据库锁、热点缓存或外部依赖瓶颈。当某个模块确实需要独立发布、扩容或故障隔离时再拆出服务，同时补齐调用链、超时、重试、幂等和分布式事务治理。", "系统设计", ["微服务", "模块化", "性能测试"]],
+    ["Zoe Wang", "article", "从进程到协程：并发模型的选择思路", "不同并发单元在隔离性、调度成本和编程复杂度之间做权衡。", "进程隔离强，适合故障边界明确或 CPU 密集任务；线程共享地址空间，通信方便但要处理同步；协程由运行时调度，适合大量 I/O 等待。选择时要先区分 CPU 密集与 I/O 密集，再看语言运行时和部署环境。", "操作系统", ["进程", "线程", "协程"]],
+    ["Ethan Li", "document", "REST API 设计检查清单", "从资源命名、状态码、幂等性、分页、错误结构到版本兼容逐项检查。", "资源路径优先使用名词复数；GET 不产生副作用；PUT 与 DELETE 应具备幂等语义；创建成功返回 201 和资源位置；列表接口明确分页上限；错误响应包含稳定错误码与可读信息；破坏性变更通过新版本或兼容窗口发布。", "后端开发", ["REST", "API设计", "后端"]],
+    ["Lin Chen", "thought", "代码注释最该解释的是被否决的简单方案", "复杂实现通常有历史原因，若不记录约束，后来的人很可能把 bug 优化回来。", "注释不必逐行翻译代码，而应说明看似多余的分支为何存在、依赖了什么外部约束、有哪些方案曾尝试但失败。配合测试用例，能让维护者放心修改。", "工程实践", ["代码质量", "注释", "可维护性"]],
+    ["Kai Ming", "article", "B 树与 B+ 树为什么适合磁盘索引", "高分支因子降低树高，连续叶子链表又支持高效范围扫描。", "磁盘和页式存储的访问成本远高于内存比较。B+ 树内部节点只保存键和子指针，同一页能容纳更多分支；数据集中在叶子节点并按序相连，因此点查与范围查询都能保持较少 I/O。", "数据结构", ["B+树", "数据库", "数据结构"]],
+    ["Nora Xu", "question", "JWT 过期前如何安全地撤销用户会话？", "纯无状态令牌难以即时失效，黑名单与短令牌加刷新令牌各有代价。", "用户修改密码、账号被禁用或设备丢失时，需要立即撤销访问权限。你们会选择 Redis 黑名单、用户令牌版本号，还是短期 access token 配合可撤销 refresh token？", "Web安全", ["JWT", "会话安全", "认证"]],
+    ["Zoe Wang", "answer", "答：短期访问令牌配合服务端可撤销的刷新令牌更易治理", "让 access token 生命周期足够短，把设备、撤销和轮换状态放到 refresh token 记录中。", "刷新令牌建议只保存哈希，并绑定设备信息与过期时间；每次刷新执行轮换，旧令牌立即作废。高风险操作仍应实时查询用户状态或令牌版本号，这样能在无状态性能与即时撤销之间取得平衡。", "Web安全", ["JWT", "Refresh Token", "安全"]],
+    ["Ethan Li", "article", "消息队列里的重复消费该如何正确处理", "可靠投递往往意味着至少一次，消费者必须以业务幂等保证最终结果。", "可以用业务唯一键、去重表或状态机约束重复写入。消费流程要考虑数据库提交成功但 ACK 失败的窗口；若同时更新数据库和发送新消息，可采用本地消息表或事务性 Outbox，再由后台任务可靠转发。", "分布式系统", ["消息队列", "幂等", "Outbox"]],
+    ["Lin Chen", "document", "Linux 服务故障排查的五层路径", "从系统资源、进程状态、端口连接、应用日志到依赖服务逐层缩小范围。", "先用 uptime、free、df 确认机器是否健康；再检查进程和打开文件；随后查看端口监听、连接数量与 DNS；对照请求时间查应用日志；最后验证数据库、缓存和第三方接口。每一步都记录时间点，便于关联指标。", "运维", ["Linux", "故障排查", "可观测性"]],
+    ["Kai Ming", "thought", "算法题复盘不要只抄最优解", "先写出自己在哪个决策点走偏，才能把答案转化为下次可调用的策略。", "我会记录暴力解的复杂度、导致超时的数据规模、最优解使用的关键性质，以及一个能区分两种思路的反例。隔几天只看题目重新实现，比阅读答案更能检验是否真正掌握。", "学习方法", ["算法", "错题复盘", "学习方法"]],
+    ["Nora Xu", "article", "二分查找最容易忽略的循环不变量", "区间定义决定更新方式，闭区间与半开区间不能混用。", "若搜索区间定义为 [left, right]，循环条件使用 left <= right，排除 mid 后更新为 mid-1 或 mid+1；若定义为 [left, right)，循环使用 left < right。写代码前先写下目标值始终位于哪个区间，边界就不容易错。", "算法", ["二分查找", "循环不变量", "算法"]],
+    ["Zoe Wang", "question", "Kubernetes Pod 一直 CrashLoopBackOff 应先看什么？", "重启退避只是现象，根因可能是启动命令、配置、探针、权限或依赖不可用。", "面对一个持续重启的 Pod，你会如何安排 kubectl get、describe、logs --previous 和临时调试容器的顺序？如果容器启动太快就退出，怎样保留现场？", "云原生", ["Kubernetes", "Pod", "故障排查"]],
+    ["Ethan Li", "answer", "答：先看退出原因和上一次容器日志，再核对事件与探针", "describe 能给出退出码和事件，logs --previous 通常能保留崩溃前的关键输出。", "先 kubectl describe pod 查看 Last State、Exit Code 与 Events，再读取 --previous 日志。退出码 137 常见于 OOM 或强制终止；配置缺失则检查 ConfigMap、Secret 与挂载；若进程实际正常但探针失败，应核对端口、路径和初始延迟。", "云原生", ["Kubernetes", "日志", "排障"]],
+    ["Lin Chen", "document", "机器学习实验可复现性清单", "固定随机性、保存数据版本、环境依赖、训练配置与评估脚本。", "记录数据集版本和划分哈希；为 Python、NumPy 与训练框架设置随机种子；锁定依赖与硬件信息；保存完整超参数、代码提交号和模型权重；评估时使用独立脚本并报告多次运行均值与方差。", "机器学习", ["机器学习", "可复现", "实验"]],
+    ["Kai Ming", "article", "Transformer 自注意力的复杂度从哪里来", "序列长度的平方项来自每个 token 与所有 token 计算相关性。", "设序列长度为 n、特征维度为 d，QK 转置乘法和注意力权重乘 V 都包含 n×n 的中间矩阵，时间与显存随 n² 增长。长序列方案通常通过稀疏注意力、分块、低秩近似或线性化来降低开销。", "人工智能", ["Transformer", "注意力", "深度学习"]],
+    ["Nora Xu", "thought", "前端性能优化先量化交互，再决定拆包还是缓存", "没有指标的优化容易把构建体积变小，却没有改善用户真正感受到的等待。", "先用真实设备测 LCP、INP 与 CLS，并在性能面板定位主线程长任务。首屏慢可能需要图片和关键资源优化，交互慢可能要减少同步计算或组件重渲染；代码分割只是工具之一。", "前端开发", ["Web性能", "Core Web Vitals", "前端"]],
+    ["Zoe Wang", "article", "数据库事务隔离级别与常见并发现象", "理解脏读、不可重复读和幻读后，再结合数据库实现选择隔离级别。", "Read Committed 能避免脏读，但同一事务两次读取可能看到不同已提交值；Repeatable Read 通常通过 MVCC 保持快照一致。范围更新仍需关注间隙锁和死锁，隔离级别越高不等于业务就自动正确。", "数据库", ["事务", "MVCC", "MySQL"]],
+    ["Ethan Li", "document", "代码评审提交前自检模板", "帮助作者在请求评审前确认范围、测试、兼容性、安全和回滚方案。", "说明变更目标和非目标；将大改动拆成可理解提交；附测试证据与关键截图；标出数据库迁移、配置和权限变化；检查日志是否泄露敏感信息；准备发布监控指标与回滚步骤。", "软件工程", ["代码评审", "工程规范", "质量保障"]],
+    ["Lin Chen", "article", "一致性哈希如何减少节点扩缩容时的数据迁移", "把节点和键映射到同一哈希环，节点变化只影响相邻区间。", "普通取模在节点数变化后会让大多数键重新映射。一致性哈希让键沿环顺时针找到第一个节点，新增或删除节点主要迁移局部数据。虚拟节点能改善分布不均，并让不同容量节点配置不同权重。", "分布式系统", ["一致性哈希", "负载均衡", "分布式"]],
+    ["Kai Ming", "question", "什么时候应该用 WebSocket，而不是轮询或 SSE？", "选择取决于通信方向、实时性、连接规模和基础设施支持。", "通知流通常只需要服务端推送，SSE 更简单；在线协作、游戏或双向控制需要 WebSocket。大家在代理超时、断线重连、消息顺序和水平扩展方面有哪些实践建议？", "计算机网络", ["WebSocket", "SSE", "实时通信"]],
+    ["Nora Xu", "answer", "答：单向事件优先 SSE，真正高频双向交互再用 WebSocket", "SSE 基于 HTTP，自动重连和文本事件模型对通知、进度流很友好。", "WebSocket 适合客户端与服务端都频繁发消息的场景，但要自己处理心跳、重连、背压和跨节点广播。无论选择哪种，都应为消息增加递增 ID，让客户端重连后能够补齐或去重。", "计算机网络", ["WebSocket", "SSE", "架构选择"]],
+  ].map(([author, content_type, title, summary, body, category, tags], index) => ({
+    author, content_type, title, summary, body, category, tags,
+    like_count: 8 + (index * 7) % 31,
+    comment_count: 2 + (index * 3) % 8,
+    favorite_count: 5 + (index * 5) % 19,
+    view_count: 96 + index * 23,
+  })),
 ];
 
 function normalizeFeedTags(value) {
@@ -280,12 +321,12 @@ async function ensureFeedDemoComments(pool, postId, post, authors = []) {
 }
 
 async function bootstrapFeedDemo(pool) {
-  const passwordData = hashPassword(crypto.randomBytes(16).toString("hex"));
+  const passwordData = hashPassword(FEED_DEMO_PASSWORD);
   for (const author of FEED_DEMO_AUTHORS) {
     await pool.query(
       `INSERT INTO ${tableName("users")} (username, email, password_salt, password_hash)
        VALUES (?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE username = VALUES(username)`,
+       ON DUPLICATE KEY UPDATE username = VALUES(username), password_salt = VALUES(password_salt), password_hash = VALUES(password_hash), status = 'active'`,
       [author.username, author.email, passwordData.salt, passwordData.hash]
     );
   }
@@ -323,6 +364,13 @@ async function bootstrapFeedDemo(pool) {
         ]
       );
       postId = result.insertId;
+    } else {
+      await pool.query(
+        `UPDATE ${tableName("feed_posts")}
+            SET author_id = ?, content_type = ?, summary = ?, body = ?, category = ?, tags = CAST(? AS JSON), status = 'published'
+          WHERE id = ?`,
+        [authorId, post.content_type, post.summary, post.body, post.category, JSON.stringify(post.tags), postId]
+      );
     }
     await ensureFeedDemoComments(pool, postId, post, authors);
     await updateFeedPostHeat(pool, postId);
@@ -543,7 +591,7 @@ async function fetchFeedRows(pool, userId, whereSql, params, orderBy, limit, rec
   return rows;
 }
 
-async function recallFeedCandidates(pool, userId, signals, targetCount) {
+async function recallFeedCandidates(pool, userId, signals, targetCount, contentType = "all") {
   const rowsById = new Map();
   const addRows = (rows) => {
     for (const row of rows) {
@@ -551,6 +599,8 @@ async function recallFeedCandidates(pool, userId, signals, targetCount) {
     }
   };
   const candidateLimit = Math.max(30, targetCount * 4);
+  const typeSql = FEED_TYPES.has(contentType) ? "AND p.content_type = ?" : "";
+  const typeParams = FEED_TYPES.has(contentType) ? [contentType] : [];
 
   const recallTags = signals.recallTags || [];
   if (recallTags.length) {
@@ -561,37 +611,39 @@ async function recallFeedCandidates(pool, userId, signals, targetCount) {
       const like = `%${tag}%`;
       params.push(like, like, like, like);
     }
-    addRows(await fetchFeedRows(pool, userId, `AND (${parts.join(" OR ")})`, params, "p.heat_score DESC, p.created_at DESC", candidateLimit, "interest"));
+    addRows(await fetchFeedRows(pool, userId, `${typeSql} AND (${parts.join(" OR ")})`, [...typeParams, ...params], "p.heat_score DESC, p.created_at DESC", candidateLimit, "interest"));
   }
 
   addRows(await fetchFeedRows(
     pool,
     userId,
-    `AND EXISTS (SELECT 1 FROM ${tableName("feed_author_follows")} f WHERE f.follower_id = ? AND f.followee_id = p.author_id)`,
-    [userId],
+    `${typeSql} AND EXISTS (SELECT 1 FROM ${tableName("feed_author_follows")} f WHERE f.follower_id = ? AND f.followee_id = p.author_id)`,
+    [...typeParams, userId],
     "p.created_at DESC",
     candidateLimit,
     "follow"
   ));
-  addRows(await fetchFeedRows(pool, userId, "", [], "p.heat_score DESC, p.created_at DESC", candidateLimit, "hot"));
-  addRows(await fetchFeedRows(pool, userId, "", [], "p.created_at DESC", Math.max(20, targetCount * 2), "fresh"));
+  addRows(await fetchFeedRows(pool, userId, typeSql, typeParams, "p.heat_score DESC, p.created_at DESC", candidateLimit, "hot"));
+  addRows(await fetchFeedRows(pool, userId, typeSql, typeParams, "p.created_at DESC", Math.max(20, targetCount * 2), "fresh"));
 
   return Array.from(rowsById.values());
 }
 
-async function queryFeedPosts(pool, userId, sort, page, limit) {
+async function queryFeedPosts(pool, userId, sort, page, limit, contentType = "all") {
   const offset = (page - 1) * limit;
   const signals = await loadFeedUserSignals(pool, userId);
+  const typeSql = FEED_TYPES.has(contentType) ? "AND p.content_type = ?" : "";
+  const typeParams = FEED_TYPES.has(contentType) ? [contentType] : [];
   if (sort === "recommended") {
-    const candidates = await recallFeedCandidates(pool, userId, signals, offset + limit + 8);
+    const candidates = await recallFeedCandidates(pool, userId, signals, offset + limit + 8, contentType);
     return rankFeedPosts(candidates.map((row) => publicFeedPost(row, signals)), sort).slice(offset, offset + limit);
   }
   if (sort === "follow") {
     const rows = await fetchFeedRows(
       pool,
       userId,
-      `AND EXISTS (SELECT 1 FROM ${tableName("feed_author_follows")} f WHERE f.follower_id = ? AND f.followee_id = p.author_id)`,
-      [userId],
+      `${typeSql} AND EXISTS (SELECT 1 FROM ${tableName("feed_author_follows")} f WHERE f.follower_id = ? AND f.followee_id = p.author_id)`,
+      [...typeParams, userId],
       "p.created_at DESC",
       offset + limit,
       "follow"
@@ -599,7 +651,7 @@ async function queryFeedPosts(pool, userId, sort, page, limit) {
     return rankFeedPosts(rows.map((row) => publicFeedPost(row, signals)), sort).slice(offset, offset + limit);
   }
   const orderBy = sort === "latest" ? "p.created_at DESC" : "p.heat_score DESC, p.created_at DESC";
-  const rows = await fetchFeedRows(pool, userId, "", [], orderBy, offset + limit, sort);
+  const rows = await fetchFeedRows(pool, userId, typeSql, typeParams, orderBy, offset + limit, sort);
   return rankFeedPosts(rows.map((row) => publicFeedPost(row, signals)), sort).slice(offset, offset + limit);
 }
 
@@ -610,15 +662,17 @@ async function getFeedList(req, res, url) {
     const pool = await getMysql();
     await bootstrapFeedDemo(pool);
     const sort = FEED_SORTS.has(url.searchParams.get("sort")) ? url.searchParams.get("sort") : "recommended";
+    const contentType = FEED_TYPES.has(url.searchParams.get("type")) ? url.searchParams.get("type") : "all";
     const page = Math.max(1, Number(url.searchParams.get("page") || 1));
     const limit = Math.min(30, Math.max(5, Number(url.searchParams.get("limit") || 10)));
-    const posts = await queryFeedPosts(pool, user.id, sort, page, limit);
+    const posts = await queryFeedPosts(pool, user.id, sort, page, limit, contentType);
     const [interestRows] = await pool.query(
       `SELECT tag, weight FROM ${tableName("feed_user_interests")} WHERE user_id = ? ORDER BY weight DESC, updated_at DESC LIMIT 12`,
       [user.id]
     );
     sendJson(res, 200, {
       sort,
+      type: contentType,
       page,
       limit,
       hasMore: posts.length === limit,

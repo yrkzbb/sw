@@ -132,7 +132,7 @@ async function loadFeed({ append = false } = {}) {
   renderFeedLoading();
   try {
     const page = append ? state.feedPage + 1 : 1;
-    const query = new URLSearchParams({ sort: state.feedSort, page: String(page), limit: "10" });
+    const query = new URLSearchParams({ sort: state.feedSort, type: state.feedType, page: String(page), limit: "10" });
     const payload = await apiJson(`${FEED_ENDPOINT}?${query.toString()}`, { method: "GET" });
     state.feedPage = payload.page || page;
     state.feedPosts = append ? state.feedPosts.concat(payload.posts || []) : (payload.posts || []);
@@ -196,6 +196,11 @@ function updateFeedTabs() {
     btn.classList.toggle("active", active);
     btn.setAttribute("aria-selected", String(active));
   });
+  document.querySelectorAll("[data-feed-type]").forEach((btn) => {
+    const active = btn.getAttribute("data-feed-type") === state.feedType;
+    btn.classList.toggle("active", active);
+    btn.setAttribute("aria-pressed", String(active));
+  });
 }
 
 function feedAssessmentPriority(post = {}) {
@@ -238,7 +243,10 @@ function renderFeedPage() {
   updateFeedTabs();
   const notificationHtml = renderFeedNotificationsHtml();
   if (!state.feedPosts.length) {
-    const emptyMessage = state.feedSort === "follow"
+    const selectedTypeLabel = state.feedType === "all" ? "" : (FEED_TYPE_LABELS[state.feedType] || "此类型");
+    const emptyMessage = selectedTypeLabel
+      ? `还没有${selectedTypeLabel}内容，试试其他类型。`
+      : state.feedSort === "follow"
       ? "还没有关注作者的动态。去推荐或最新里关注喜欢的作者后，这里会汇总他们的新帖子。"
       : "还没有动态。发布第一条内容后会显示在这里。";
     el.pushGrid.innerHTML = `
@@ -982,6 +990,17 @@ function initFeedEventHandlers() {
       state.feedSort = sort;
       state.feedPage = 1;
       state.feedPosts = [];
+      void loadFeed();
+    });
+  });
+  document.querySelectorAll("[data-feed-type]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const type = btn.getAttribute("data-feed-type") || "all";
+      if (type === state.feedType) return;
+      state.feedType = type;
+      state.feedPage = 1;
+      state.feedPosts = [];
+      updateFeedTabs();
       void loadFeed();
     });
   });

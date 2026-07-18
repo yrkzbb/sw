@@ -1373,6 +1373,210 @@ function renderAssessmentActionBoard(assessment) {
   `;
 }
 
+function assessmentFavoriteCount() {
+  if (!state.favoriteCollections?.length && typeof loadFavoriteCollections === "function") {
+    loadFavoriteCollections();
+  }
+  const collected = new Set();
+  (state.favoriteCollections || []).forEach((folder) => {
+    (folder.postIds || []).forEach((id) => collected.add(`post:${id}`));
+    (folder.fileIds || []).forEach((id) => collected.add(`file:${id}`));
+    (folder.mistakeIds || []).forEach((id) => collected.add(`mistake:${id}`));
+  });
+  return collected.size;
+}
+
+function buildAssessmentDisplayScores(evidence, assessment) {
+  const foundation = String(state.studentProfile?.knowledge_foundation?.value || "").trim();
+  const errorProfile = String(state.studentProfile?.error_patterns?.value || "").trim();
+  const favoriteCount = assessmentFavoriteCount();
+  const knowledgeScore = clampScore(
+    48
+    + (foundation ? 14 : 0)
+    + Math.min(14, evidence.resources.generated_count * 2)
+    + Math.min(10, evidence.path_progress.done * 2)
+    + (evidence.practice_performance.total
+      ? Math.round(evidence.practice_performance.accuracy * 0.16)
+      : 0)
+  );
+  const activityScore = clampScore(
+    42
+    + Math.min(20, evidence.chat.user_question_count * 4)
+    + Math.min(22, evidence.resource_usage.total * 3)
+    + Math.min(12, evidence.resources.generated_count * 3)
+    + Math.min(10, evidence.recent_behavior.length)
+    + Math.min(8, favoriteCount * 2)
+  );
+  const weaknessScore = clampScore(
+    48
+    + (errorProfile ? 12 : 0)
+    + Math.min(16, evidence.mistake_performance.total * 4)
+    + Math.min(12, evidence.practice_performance.total * 2)
+    + Math.min(12, evidence.resource_usage.completed_count * 3)
+  );
+  const overall = clampScore(knowledgeScore * 0.4 + activityScore * 0.35 + weaknessScore * 0.25);
+  const level = overall >= 82 ? "学习状态稳定" : overall >= 68 ? "整体表现良好" : overall >= 52 ? "正在稳步提升" : "学习画像正在形成";
+  const weaknessHint = firstAssessmentText(assessment.risks, "继续记录错题和易混淆知识点后，薄弱环节会更清晰");
+  return {
+    overall,
+    level,
+    summary: "评分综合知识掌握、近期学习活跃度与薄弱环节改善情况生成；路径待办和测验记录仅作为辅助线索，不会因暂时没有记录而直接扣低分。",
+    dimensions: [
+      {
+        name: "知识掌握度",
+        score: knowledgeScore,
+        evidence: foundation
+          ? `结合当前画像中的知识基础“${foundation}”以及已生成资源和学习产出综合判断。`
+          : "结合已生成资源、学习内容和已有练习线索判断，后续可通过练习继续校准。",
+      },
+      {
+        name: "学习活跃度",
+        score: activityScore,
+        evidence: `近期有 ${evidence.chat.user_question_count} 次学习提问、${evidence.resource_usage.total} 次资源使用、${favoriteCount} 次收藏和 ${evidence.recent_behavior.length} 条学习行为。`,
+      },
+      {
+        name: "薄弱环节",
+        score: weaknessScore,
+        evidence: weaknessHint,
+      },
+    ],
+  };
+}
+
+function renderAssessmentMetrics(evidence) {
+  const metrics = [
+    { value: evidence.chat.user_question_count, label: "学习提问" },
+    { value: assessmentFavoriteCount(), label: "收藏次数" },
+    { value: evidence.resources.generated_count, label: "生成资源" },
+    { value: evidence.resource_usage.total, label: "资源使用" },
+  ];
+  return `
+    <section class="assessment-overview-metrics" aria-label="学习评估指标">
+      ${metrics.map((metric) => `
+        <article>
+          <strong>${escapeHtml(metric.value)}</strong>
+          <span>${escapeHtml(metric.label)}</span>
+        </article>
+      `).join("")}
+    </section>
+  `;
+}
+
+function renderAssessmentOverview(evidence, assessment) {
+  const displayAssessment = buildAssessmentDisplayScores(evidence, assessment);
+  const coreDimensions = displayAssessment.dimensions;
+  const generatedTime = formatAssessmentTime(assessment.generated_at);
+  return `
+      <article class="assessment-score-summary assessment-panel" aria-label="综合评分与核心维度">
+        <div class="assessment-score-badge">
+          <strong>${displayAssessment.overall}</strong>
+          <span>综合评分</span>
+        </div>
+        <div class="assessment-score-content">
+          <div class="assessment-score-copy">
+            <span>${escapeHtml(displayAssessment.level)}</span>
+            <p>${escapeHtml(displayAssessment.summary)}</p>
+            <small>${generatedTime ? `更新时间：${escapeHtml(generatedTime)}` : ""}</small>
+          </div>
+          <div class="assessment-core-dimensions">
+            ${coreDimensions.map((item) => `
+              <div class="assessment-core-row">
+                <div><strong>${escapeHtml(item.name)}</strong><b>${clampScore(item.score)}</b></div>
+                <i aria-hidden="true"><span style="width:${clampScore(item.score)}%"></span></i>
+                <p>${escapeHtml(studentFriendlyAssessmentText(item.evidence))}</p>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      </article>
+  `;
+}
+
+function renderAssessmentMasteryRadar(evidence, assessment) {
+  const displayAssessment = buildAssessmentDisplayScores(evidence, assessment);
+  const items = displayAssessment.dimensions;
+  const width = 520;
+  const height = 340;
+  const centerX = width / 2;
+  const centerY = 168;
+  const radius = 112;
+  const pointFor = (index, score = 100) => {
+    const angle = (-90 + index * 120) * Math.PI / 180;
+    const scaledRadius = radius * (score / 100);
+    return {
+      x: centerX + Math.cos(angle) * scaledRadius,
+      y: centerY + Math.sin(angle) * scaledRadius,
+    };
+  };
+  const polygonPoints = (scoreProvider) => items.map((item, index) => {
+    const point = pointFor(index, scoreProvider(item));
+    return `${point.x.toFixed(1)},${point.y.toFixed(1)}`;
+  }).join(" ");
+  return `
+    <section class="assessment-mastery-radar assessment-panel" aria-label="多维掌握度">
+      <div class="assessment-mastery-head">
+        <div><span>MULTI-DIMENSION</span><h3>多维掌握度</h3></div>
+        <em>三项评分共同决定综合结果</em>
+      </div>
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="知识掌握度、学习活跃度、薄弱环节三维雷达图">
+        <g class="assessment-mastery-grid">
+          ${[25, 50, 75, 100].map((level) => `<polygon points="${polygonPoints(() => level)}"></polygon>`).join("")}
+          ${items.map((_, index) => {
+            const point = pointFor(index, 100);
+            return `<line x1="${centerX}" y1="${centerY}" x2="${point.x}" y2="${point.y}"></line>`;
+          }).join("")}
+        </g>
+        <polygon class="assessment-mastery-shape" points="${polygonPoints((item) => item.score)}"></polygon>
+        ${items.map((item, index) => {
+          const point = pointFor(index, item.score);
+          const label = pointFor(index, 126);
+          return `
+            <g class="assessment-mastery-node" tabindex="0" aria-label="${escapeHtml(item.name)}，${item.score} 分">
+              <circle cx="${point.x}" cy="${point.y}" r="5"></circle>
+              <title>${escapeHtml(`${item.name}：${item.score}`)}</title>
+            </g>
+            <text class="assessment-mastery-label" x="${label.x}" y="${label.y}" text-anchor="middle" dominant-baseline="middle">${escapeHtml(item.name)}</text>
+          `;
+        }).join("")}
+      </svg>
+    </section>
+  `;
+}
+
+function renderAssessmentGuidance(assessment) {
+  const advice = firstAssessmentItems(assessment.plan_adjustments, assessment.next_checkpoints).slice(0, 5);
+  const recommendations = firstAssessmentItems(assessment.resource_strategy).slice(0, 4);
+  const tags = ["优先补强", "专项讲解", "练习巩固", "迁移应用"];
+  return `
+    <section class="assessment-guidance" aria-label="学习建议与资源推荐">
+      <article class="assessment-guidance-advice assessment-panel">
+        <div class="assessment-guidance-title">
+          <span aria-hidden="true">✦</span>
+          <div><strong>本轮学习建议</strong><small>根据当前掌握线索和学习行为生成</small></div>
+        </div>
+        <ul>
+          ${(advice.length ? advice : ["先完成一个可检查的学习任务，再刷新评估查看变化。"]).map((item) => `<li>${escapeHtml(studentFriendlyAssessmentText(item))}</li>`).join("")}
+        </ul>
+      </article>
+      <article class="assessment-guidance-resources assessment-panel">
+        <div class="assessment-guidance-title">
+          <span aria-hidden="true">⌁</span>
+          <div><strong>下一轮资源推荐</strong><small>资源顺序会随评估结果动态调整</small></div>
+        </div>
+        <div class="assessment-recommendation-list">
+          ${(recommendations.length ? recommendations : ["先生成一组诊断题和核心讲解，建立掌握基线。"]).map((item, index) => `
+            <div>
+              <b>${tags[index] || "个性推荐"}</b>
+              <span>${escapeHtml(studentFriendlyAssessmentText(item))}</span>
+              <i aria-hidden="true">→</i>
+            </div>
+          `).join("")}
+        </div>
+      </article>
+    </section>
+  `;
+}
+
 function studentFriendlyAssessmentText(text) {
   return String(text || "")
     .replace(/急需/g, "建议")
@@ -1467,7 +1671,6 @@ function renderKnowledgeMasteryChart(evidence, dimensions) {
   const items = [
     { label: "知识掌握", score: assessmentDimensionScore(dimensions, "知识掌握", 42) },
     { label: "练习正确率", score: evidence.practice_performance.total ? evidence.practice_performance.accuracy : 0 },
-    { label: "路径完成", score: evidence.path_progress.percent || 0 },
     { label: "错题复盘", score: clampScore(evidence.mistake_performance.total ? 42 + Math.min(42, evidence.mistake_performance.total * 7) : 18) },
     { label: "资源利用", score: assessmentDimensionScore(dimensions, "资源利用", 35) },
     { label: "动态调整", score: assessmentDimensionScore(dimensions, "动态优化", 35) },
@@ -1495,7 +1698,7 @@ function renderKnowledgeMasteryChart(evidence, dimensions) {
         </div>
         <em>${evidence.practice_performance.total ? `${evidence.practice_performance.total} 道练习记录` : "待补练习记录"}</em>
       </div>
-      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="知识掌握、练习正确率、路径完成、错题复盘、资源利用、动态调整趋势">
+      <svg viewBox="0 0 ${width} ${height}" role="img" aria-label="知识掌握、练习正确率、错题复盘、资源利用、动态调整趋势">
         <g class="assessment-chart-grid">
           ${[0, 25, 50, 75, 100].map((tick) => {
             const y = chartTop + chartHeight - (tick / 100) * chartHeight;
@@ -1523,13 +1726,17 @@ function resourceDimensionStats(evidence) {
   const dimensions = [
     { label: "ppt生成", match: /ppt|PPT|幻灯|课件|演示/ },
     { label: "试题生成", match: /题|练习|测验|quiz/i },
-    { label: "视频生成", match: /视频|动画/ },
+    { label: "路径生成", match: /路径|规划|learning.?path/i, path: true },
     { label: "图片生成", match: /图片|图像|图解|导图|思维/ },
     { label: "word生成", match: /word|Word|文档|讲解|PDF|资料/ },
   ];
   return dimensions.map((item) => {
-    const generated = generatedTypes.filter((type) => item.match.test(type)).length;
-    const used = Object.entries(usageCounts).reduce((sum, [type, count]) => sum + (item.match.test(type) ? Number(count || 0) : 0), 0);
+    const generated = item.path
+      ? (evidence.resources.path_categories || []).length
+      : generatedTypes.filter((type) => item.match.test(type)).length;
+    const used = item.path
+      ? Number(evidence.path_progress?.done || 0)
+      : Object.entries(usageCounts).reduce((sum, [type, count]) => sum + (item.match.test(type) ? Number(count || 0) : 0), 0);
     const score = clampScore(18 + generated * 34 + used * 12 + (generated && evidence.resource_usage.completed_count ? 8 : 0));
     return { ...item, generated, used, score };
   });
@@ -1580,10 +1787,10 @@ function renderResourceDimensionChart(evidence) {
             const point = pointFor(index, item.score);
             const label = pointFor(index, 126);
             return `
-              <g class="assessment-radar-node" tabindex="0" aria-label="${escapeHtml(item.label)}，${item.generated} 个生成，${item.used} 次使用，维度值 ${item.score}">
+              <g class="assessment-radar-node" tabindex="0" aria-label="${escapeHtml(item.label)}，维度值 ${item.score}">
                 <circle class="assessment-radar-dot" cx="${point.x}" cy="${point.y}" r="5"></circle>
-                <text class="assessment-radar-tip" x="${point.x}" y="${point.y - 16}" text-anchor="middle">${escapeHtml(`${item.generated} 生成 · ${item.used} 使用 · ${item.score}`)}</text>
-                <title>${escapeHtml(`${item.label}：${item.generated} 个生成，${item.used} 次使用，维度值 ${item.score}`)}</title>
+                <text class="assessment-radar-tip" x="${point.x}" y="${point.y - 16}" text-anchor="middle">${escapeHtml(`维度值 ${item.score}`)}</text>
+                <title>${escapeHtml(`${item.label}：维度值 ${item.score}`)}</title>
               </g>
               <text x="${label.x}" y="${label.y}" text-anchor="middle">${escapeHtml(item.label)}</text>
             `;
@@ -1640,6 +1847,12 @@ function renderAssessmentPage() {
     weakDimensions.map((item) => item.action)
   ).slice(0, 3);
   el.assessmentGrid.innerHTML = `
+    ${renderAssessmentMetrics(evidence)}
     ${renderAssessmentVisualizationBoard(evidence, dimensions)}
+    <section class="assessment-evaluation-report" aria-label="完整学习评估报告">
+      ${renderAssessmentOverview(evidence, assessment)}
+      ${renderAssessmentMasteryRadar(evidence, assessment)}
+      ${renderAssessmentGuidance(assessment)}
+    </section>
   `;
 }

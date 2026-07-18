@@ -622,6 +622,184 @@
   padding: 30px 34px;
 }
 
+.wiki-portrait-board {
+  border-radius: 24px;
+  padding: 24px 26px 26px;
+}
+
+.wiki-portrait-board-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 18px;
+  padding-left: 14px;
+  border-left: 5px solid #2b60d6;
+}
+
+.wiki-portrait-board-head h4 {
+  margin: 0;
+  color: #263437;
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.wiki-portrait-board-head > strong {
+  color: #2455c3;
+  font-size: 18px;
+  font-weight: 950;
+}
+
+.wiki-portrait-board-head > strong span {
+  font-size: 14px;
+}
+
+.wiki-portrait-dimension-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.wiki-portrait-dimension-column {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+
+.wiki-portrait-dimension {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  align-items: start;
+  gap: 12px;
+  border: 1px solid rgba(108, 130, 135, 0.22);
+  border-radius: 8px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.38);
+}
+
+.wiki-portrait-dimension.is-empty {
+  align-items: center;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.wiki-portrait-dimension-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  color: #184dbd;
+  background: rgba(49, 91, 205, 0.11);
+}
+
+.wiki-portrait-dimension-icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.wiki-portrait-dimension-copy {
+  min-width: 0;
+}
+
+.wiki-portrait-dimension-copy > span {
+  display: block;
+  margin-bottom: 3px;
+  color: #718083;
+  font-size: 13px;
+  font-weight: 850;
+}
+
+.wiki-portrait-dimension-copy > strong {
+  display: block;
+  color: #263437;
+  font-size: 15px;
+  font-weight: 900;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.wiki-portrait-long-value summary {
+  position: relative;
+  padding-bottom: 22px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.wiki-portrait-long-value summary::-webkit-details-marker {
+  display: none;
+}
+
+.wiki-portrait-long-value summary > span {
+  display: -webkit-box;
+  overflow: hidden;
+  color: #263437;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.55;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.wiki-portrait-long-value summary::after {
+  content: "展开全部";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  color: #2455c3;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.wiki-portrait-long-value[open] summary > span {
+  display: none;
+}
+
+.wiki-portrait-long-value[open] summary::after {
+  content: "收起";
+}
+
+.wiki-portrait-long-value p {
+  margin: 4px 0 0;
+  color: #263437;
+  font-size: 15px;
+  font-weight: 850;
+  line-height: 1.6;
+}
+
+.wiki-portrait-dimension.is-empty .wiki-portrait-dimension-copy > strong {
+  color: #9aa6a7;
+  font-weight: 750;
+}
+
+.wiki-portrait-value-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.wiki-portrait-value-chips b {
+  border: 1px solid rgba(49, 91, 205, 0.28);
+  border-radius: 999px;
+  padding: 3px 10px;
+  color: #2455c3;
+  background: rgba(49, 91, 205, 0.08);
+  font-size: 13px;
+  font-weight: 850;
+}
+
+[data-theme="dark"] .wiki-portrait-board-head h4,
+[data-theme="dark"] .wiki-portrait-dimension-copy > strong,
+[data-theme="dark"] .wiki-portrait-long-value summary > span,
+[data-theme="dark"] .wiki-portrait-long-value p {
+  color: #e6f0ef;
+}
+
+[data-theme="dark"] .wiki-portrait-dimension {
+  border-color: rgba(255, 255, 255, 0.11);
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .wiki-portrait-text span {
   color: #64c8b7;
   font-size: 12px;
@@ -3402,6 +3580,356 @@ body.chat-sidebar-resizing:is(.chat-layout-active, :has(#chat:not([hidden]))) .c
   line-height: 1;
   cursor: pointer;
   box-shadow: 0 14px 28px rgba(89, 188, 171, 0.22);
+}
+
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-profile-builder-btn {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 0 10px;
+  align-items: center;
+  width: 100%;
+  border: 1px solid rgba(81, 179, 163, 0.3);
+  border-radius: 16px;
+  padding: 10px 12px;
+  color: #316c67;
+  background: linear-gradient(135deg, rgba(220, 246, 239, 0.76), rgba(239, 248, 224, 0.72));
+  text-align: left;
+  cursor: pointer;
+}
+
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-profile-builder-btn > span {
+  grid-row: 1 / 3;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  color: #fff;
+  background: #65c6b3;
+  font-size: 19px;
+}
+
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-profile-builder-btn strong {
+  font-size: 13px;
+  font-weight: 950;
+}
+
+:is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-profile-builder-btn small {
+  color: #7d9290;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.profile-builder-modal[hidden] {
+  display: none;
+}
+
+body.profile-builder-open {
+  overflow: hidden;
+}
+
+.profile-builder-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.profile-builder-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(21, 29, 31, 0.58);
+  backdrop-filter: blur(4px);
+}
+
+.profile-builder-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: min(920px, calc(100vw - 40px));
+  max-height: min(820px, calc(100vh - 40px));
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  border-radius: 18px;
+  padding: 28px 30px 24px;
+  color: #283437;
+  background: #fff;
+  box-shadow: 0 36px 110px rgba(15, 25, 29, 0.28);
+}
+
+.profile-builder-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+}
+
+.profile-builder-head h2 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 950;
+}
+
+.profile-builder-head button {
+  border: 0;
+  padding: 0;
+  color: #90999c;
+  background: transparent;
+  font-size: 32px;
+  font-weight: 300;
+  cursor: pointer;
+}
+
+.profile-builder-progress {
+  display: grid;
+  grid-template-columns: auto minmax(160px, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.profile-builder-progress > strong {
+  color: #1648bd;
+  font-size: 17px;
+  font-weight: 950;
+}
+
+.profile-builder-progress > span {
+  color: #98a4a2;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.profile-builder-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e3e9e7;
+}
+
+.profile-builder-progress-track i {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: #1648bd;
+  transition: width 220ms ease;
+}
+
+.profile-builder-conversation {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 220px;
+  max-height: 430px;
+  overflow: auto;
+  padding: 4px 6px 14px;
+}
+
+.profile-builder-message {
+  width: fit-content;
+  max-width: 78%;
+  border-radius: 18px;
+  padding: 15px 20px;
+  font-size: 18px;
+  font-weight: 800;
+  line-height: 1.6;
+}
+
+.profile-builder-message.assistant {
+  align-self: flex-start;
+  background: #f3f5f6;
+}
+
+.profile-builder-message.user {
+  align-self: flex-end;
+  color: #fff;
+  background: #1648bd;
+}
+
+.profile-builder-success {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 12px;
+  color: #35a870;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.profile-builder-success span {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 12px;
+}
+
+.profile-builder-choices {
+  padding: 10px 0 0;
+}
+
+.profile-builder-choice-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+}
+
+.profile-builder-choice-grid button,
+.profile-builder-manual-open {
+  border: 1px solid #d3dcda;
+  border-radius: 999px;
+  padding: 11px 20px;
+  color: #334345;
+  background: #fff;
+  font-size: 16px;
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.profile-builder-choice-grid button:hover {
+  border-color: #1648bd;
+  color: #1648bd;
+  background: #f4f7ff;
+}
+
+.profile-builder-manual-open {
+  margin-top: 14px;
+  border: 0;
+  padding-left: 0;
+  color: #71807f;
+}
+
+.profile-builder-manual {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.profile-builder-manual[hidden],
+.profile-builder-choices[hidden] {
+  display: none;
+}
+
+.profile-builder-manual input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: 1px solid #cfd8d6;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font: inherit;
+}
+
+.profile-builder-manual button,
+.profile-builder-done {
+  border: 0;
+  border-radius: 12px;
+  padding: 10px 20px;
+  color: #fff;
+  background: #1648bd;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.profile-builder-footer {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18px;
+}
+
+.profile-builder-later {
+  border: 1px solid #d8dddf;
+  border-radius: 8px;
+  padding: 10px 18px;
+  color: #687174;
+  background: #fff;
+  font-size: 15px;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+[data-theme="dark"] .profile-builder-panel {
+  color: #e8f1f0;
+  border-color: rgba(255, 255, 255, 0.12);
+  background: #1b2728;
+}
+
+[data-theme="dark"] .profile-builder-message.assistant,
+[data-theme="dark"] .profile-builder-choice-grid button,
+[data-theme="dark"] .profile-builder-later {
+  color: #e8f1f0;
+  border-color: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.07);
+}
+
+@media (max-width: 760px) {
+  .profile-builder-modal {
+    padding: 10px;
+  }
+
+  .profile-builder-panel {
+    width: calc(100vw - 20px);
+    max-height: calc(100vh - 20px);
+    border-radius: 16px;
+    padding: 20px 18px 18px;
+  }
+
+  .profile-builder-head {
+    margin-bottom: 18px;
+  }
+
+  .profile-builder-head h2 {
+    font-size: 23px;
+  }
+
+  .profile-builder-progress {
+    grid-template-columns: auto minmax(90px, 1fr);
+    gap: 10px;
+  }
+
+  .profile-builder-progress > span {
+    grid-column: 1 / -1;
+    font-size: 13px;
+  }
+
+  .profile-builder-conversation {
+    min-height: 180px;
+  }
+
+  .profile-builder-message {
+    max-width: 90%;
+    padding: 12px 15px;
+    font-size: 16px;
+  }
+
+  .profile-builder-choice-grid {
+    gap: 8px;
+  }
+
+  .profile-builder-choice-grid button {
+    padding: 9px 14px;
+    font-size: 14px;
+  }
+
+  .wiki-portrait-board {
+    padding: 20px 16px;
+  }
+
+  .wiki-portrait-dimension-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .wiki-portrait-dimension-column {
+    display: contents;
+  }
+
+  .wiki-portrait-dimension {
+    order: var(--portrait-order);
+  }
 }
 
 :is(body.chat-layout-active, body:has(#chat:not([hidden]))) .chat-session-list {

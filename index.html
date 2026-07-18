@@ -201,6 +201,11 @@
               </div>
               <button id="newChatBtn" class="chat-new-btn" type="button" aria-label="新建对话">+</button>
             </div>
+            <button id="profileBuilderBtn" class="chat-profile-builder-btn" type="button">
+              <span aria-hidden="true">◇</span>
+              <strong>画像构建</strong>
+              <small>3 步完善学习档案</small>
+            </button>
             <div id="chatSessionList" class="chat-session-list" role="list"></div>
           </aside>
           <button id="chatSidebarResizeHandle" class="chat-sidebar-resize" type="button" aria-label="调整对话列表宽度" title="拖拽调整宽度，双击恢复默认"></button>
@@ -385,11 +390,23 @@
 
         <section id="pushPage" class="push-page" hidden>
           <div class="feed-toolbar" aria-label="动态筛选">
-            <div class="feed-tabs" role="tablist" aria-label="动态排序">
-              <button class="feed-tab active" type="button" data-feed-sort="recommended" role="tab" aria-selected="true">推荐</button>
-              <button class="feed-tab" type="button" data-feed-sort="latest" role="tab" aria-selected="false">最新</button>
-              <button class="feed-tab" type="button" data-feed-sort="hot" role="tab" aria-selected="false">最热</button>
-              <button class="feed-tab" type="button" data-feed-sort="follow" role="tab" aria-selected="false">关注</button>
+            <div class="feed-filter-area">
+              <div class="feed-tabs" role="tablist" aria-label="动态排序">
+                <button class="feed-tab active" type="button" data-feed-sort="recommended" role="tab" aria-selected="true">推荐</button>
+                <button class="feed-tab" type="button" data-feed-sort="latest" role="tab" aria-selected="false">最新</button>
+                <button class="feed-tab" type="button" data-feed-sort="hot" role="tab" aria-selected="false">最热</button>
+                <button class="feed-tab" type="button" data-feed-sort="follow" role="tab" aria-selected="false">关注</button>
+              </div>
+              <div class="feed-type-filters" role="group" aria-label="内容类型">
+                <button class="feed-type-filter active" type="button" data-feed-type="all" aria-pressed="true">全部</button>
+                <button class="feed-type-filter" type="button" data-feed-type="article" aria-pressed="false">文章</button>
+                <button class="feed-type-filter" type="button" data-feed-type="video" aria-pressed="false">视频</button>
+                <button class="feed-type-filter" type="button" data-feed-type="question" aria-pressed="false">问题</button>
+                <button class="feed-type-filter" type="button" data-feed-type="answer" aria-pressed="false">回答</button>
+                <button class="feed-type-filter" type="button" data-feed-type="document" aria-pressed="false">文档</button>
+                <button class="feed-type-filter" type="button" data-feed-type="quiz" aria-pressed="false">题库</button>
+                <button class="feed-type-filter" type="button" data-feed-type="thought" aria-pressed="false">想法</button>
+              </div>
             </div>
             <button id="pushGenerateResourcesBtn" class="primary-btn resource-generate-btn" type="button">发布内容</button>
           </div>
@@ -719,6 +736,31 @@
           <button id="closeApiKeyBtn" class="ghost-btn" type="button">稍后</button>
         </div>
       </div>
+    </div>
+
+    <div id="profileBuilderModal" class="profile-builder-modal" hidden>
+      <div class="profile-builder-backdrop" data-profile-builder-close></div>
+      <section class="profile-builder-panel" role="dialog" aria-modal="true" aria-labelledby="profileBuilderTitle">
+        <header class="profile-builder-head">
+          <h2 id="profileBuilderTitle">快速完善学习画像</h2>
+          <button id="profileBuilderCloseBtn" type="button" aria-label="关闭画像构建">×</button>
+        </header>
+        <div class="profile-builder-progress">
+          <strong id="profileBuilderProgressText">关键画像 0/3</strong>
+          <div class="profile-builder-progress-track" aria-hidden="true"><i id="profileBuilderProgressBar"></i></div>
+          <span>用三个小问题，让后续讲解更贴合你</span>
+        </div>
+        <div id="profileBuilderConversation" class="profile-builder-conversation" aria-live="polite"></div>
+        <div id="profileBuilderChoices" class="profile-builder-choices"></div>
+        <form id="profileBuilderManualForm" class="profile-builder-manual" hidden>
+          <input id="profileBuilderManualInput" type="text" maxlength="80" placeholder="请输入你的答案" />
+          <button type="submit">确认</button>
+        </form>
+        <footer class="profile-builder-footer">
+          <button id="profileBuilderLaterBtn" class="profile-builder-later" type="button">暂时跳过</button>
+          <button id="profileBuilderDoneBtn" class="profile-builder-done" type="button" hidden>开始学习</button>
+        </footer>
+      </section>
     </div>
 
     <div id="accountModal" class="account-modal" hidden>

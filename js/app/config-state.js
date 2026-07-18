@@ -54,24 +54,24 @@ const DEFAULT_MODEL = "gpt-4o-mini";
 
 const PROFILE_FIELDS = [
   "major_background",
-  "learning_goals",
   "knowledge_foundation",
   "cognitive_style",
-  "learning_habits",
+  "learning_goals",
   "error_patterns",
   "interaction_preference",
+  "learning_habits",
   "motivation_emotion",
 ];
 
 const PROFILE_FIELD_META = {
-  major_background: { title: "专业背景", icon: "book" },
+  major_background: { title: "专业", icon: "book" },
   learning_goals: { title: "学习目标", icon: "target" },
   knowledge_foundation: { title: "知识基础", icon: "layers" },
   cognitive_style: { title: "认知风格", icon: "spark" },
-  learning_habits: { title: "学习习惯", icon: "clock" },
-  error_patterns: { title: "易错点偏好", icon: "alert" },
-  interaction_preference: { title: "互动偏好", icon: "chat" },
-  motivation_emotion: { title: "情绪与动力", icon: "heart" },
+  error_patterns: { title: "易错点", icon: "alert" },
+  interaction_preference: { title: "学习偏好", icon: "chat" },
+  learning_habits: { title: "学习节奏", icon: "clock" },
+  motivation_emotion: { title: "兴趣方向", icon: "heart" },
 };
 
 const RESOURCE_AGENTS = [
@@ -92,14 +92,14 @@ const SELECTABLE_RESOURCE_AGENTS = RESOURCE_AGENTS.filter((agent) => agent.selec
 const LEARNING_PROFILE_SYSTEM_PROMPT = `你是一个“对话式学习画像构建助手”。你的任务不是让学生填写表单，而是在自然对话中自然地了解学生，并持续维护一个动态学习画像。
 
 你需要从学生的发言中抽取、推断并更新学习画像。画像至少包含以下 8 个维度：
-1. 专业背景：学生的专业、年级、相关课程基础。
-2. 学习目标：短期目标、长期目标、考试/项目/竞赛/就业需求。
-3. 知识基础：已掌握内容、薄弱知识点、先修知识缺口。
-4. 认知风格：偏好图解、类比、步骤推导、代码示例、案例驱动、先总后分等。
-5. 学习习惯：学习频率、时间安排、复习方式、是否容易拖延。
-6. 易错点与困难偏好：常见错误、容易混淆的概念、卡住的原因、畏难点。
-7. 互动偏好：希望回答简洁还是详细，是否需要提问引导、练习题、总结卡片。
-8. 情绪与动力状态：自信程度、焦虑点、兴趣点、成就感来源。
+1. 专业：学生的专业、年级与主修方向。
+2. 知识基础：已掌握内容、薄弱知识点与先修知识缺口。
+3. 认知风格：偏好图解、类比、步骤推导、代码示例、案例驱动、先总后分等。
+4. 学习目标：短期目标、长期目标、考试、项目、竞赛或就业需求。
+5. 易错点：常见错误、容易混淆的概念、卡住的原因与畏难点。
+6. 学习偏好：希望回答简洁还是详细，是否需要提问引导、练习题、总结卡片。
+7. 学习节奏：学习频率、时间安排、复习方式与是否容易拖延。
+8. 兴趣方向：感兴趣的主题、愿意深入的领域与持续学习的动力来源。
 
 工作规则：
 - 不要一次性问长表单。每轮最多自然追问 1 个关键问题。
@@ -204,6 +204,17 @@ const el = {
   messages: document.querySelector("#messages"),
   chatSessionList: document.querySelector("#chatSessionList"),
   newChatBtn: document.querySelector("#newChatBtn"),
+  profileBuilderBtn: document.querySelector("#profileBuilderBtn"),
+  profileBuilderModal: document.querySelector("#profileBuilderModal"),
+  profileBuilderCloseBtn: document.querySelector("#profileBuilderCloseBtn"),
+  profileBuilderProgressText: document.querySelector("#profileBuilderProgressText"),
+  profileBuilderProgressBar: document.querySelector("#profileBuilderProgressBar"),
+  profileBuilderConversation: document.querySelector("#profileBuilderConversation"),
+  profileBuilderChoices: document.querySelector("#profileBuilderChoices"),
+  profileBuilderManualForm: document.querySelector("#profileBuilderManualForm"),
+  profileBuilderManualInput: document.querySelector("#profileBuilderManualInput"),
+  profileBuilderLaterBtn: document.querySelector("#profileBuilderLaterBtn"),
+  profileBuilderDoneBtn: document.querySelector("#profileBuilderDoneBtn"),
   chatSidebarResizeHandle: document.querySelector("#chatSidebarResizeHandle"),
   input: document.querySelector("#input"),
   sendBtn: document.querySelector("#sendBtn"),
@@ -309,6 +320,7 @@ const state = {
   activeUser: null,
   announcements: [],
   feedSort: "recommended",
+  feedType: "all",
   feedPage: 1,
   feedPosts: [],
   feedInterests: [],

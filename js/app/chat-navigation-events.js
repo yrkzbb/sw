@@ -385,6 +385,102 @@ function deleteChatSession(sessionId) {
   if (deletingActiveSession) renderMessagesFromState();
 }
 
+const PROFILE_BUILDER_QUESTIONS = [
+  {
+    field: "major_background",
+    question: "为了让课程示例更贴近你，先说说你目前主要在学习哪个方向？",
+    choices: ["计算机与软件", "人工智能与数据", "电子与自动化", "数学与基础科学", "其他专业方向"],
+  },
+  {
+    field: "knowledge_foundation",
+    question: "面对现在的学习内容，你觉得自己大致处在哪个阶段？",
+    choices: ["刚开始接触", "理解了一些概念", "能够独立应用", "正在查漏补缺"],
+  },
+  {
+    field: "learning_goals",
+    question: "接下来，你最希望学习计划优先帮你解决什么？",
+    choices: ["通过课程考试", "完成项目或作业", "系统补齐基础", "提升实践能力", "探索新的方向"],
+  },
+];
+
+const profileBuilderState = {
+  answers: [],
+};
+
+function updateProfileFromBuilder(question, answer) {
+  const profile = normalizeProfile(state.studentProfile || createEmptyProfile());
+  profile[question.field] = {
+    value: answer,
+    confidence: "确定",
+    evidence: `对话式画像构建中由用户主动确认：${answer}`,
+  };
+  profile.last_updated_reason = `画像构建已更新“${PROFILE_FIELD_META[question.field]?.title || "核心信息"}”`;
+  saveStudentProfile(profile);
+}
+
+function renderProfileBuilder() {
+  if (!el.profileBuilderConversation) return;
+  const completed = profileBuilderState.answers.length >= PROFILE_BUILDER_QUESTIONS.length;
+  const progress = profileBuilderState.answers.length;
+  el.profileBuilderProgressText.textContent = `关键画像 ${progress}/3`;
+  el.profileBuilderProgressBar.style.width = `${(progress / PROFILE_BUILDER_QUESTIONS.length) * 100}%`;
+
+  const conversation = [];
+  PROFILE_BUILDER_QUESTIONS.forEach((question, index) => {
+    if (index > progress) return;
+    conversation.push(`<div class="profile-builder-message assistant">${escapeHtml(question.question)}</div>`);
+    if (profileBuilderState.answers[index]) {
+      conversation.push(`<div class="profile-builder-message user">${escapeHtml(profileBuilderState.answers[index])}</div>`);
+    }
+  });
+  if (completed) {
+    conversation.push('<div class="profile-builder-success"><span>✓</span>已根据这次回答更新画像，后续内容会随学习过程继续调整</div>');
+  }
+  el.profileBuilderConversation.innerHTML = conversation.join("");
+
+  el.profileBuilderChoices.hidden = completed;
+  el.profileBuilderManualForm.hidden = true;
+  el.profileBuilderDoneBtn.hidden = !completed;
+  el.profileBuilderLaterBtn.hidden = completed;
+  if (!completed) {
+    const question = PROFILE_BUILDER_QUESTIONS[progress];
+    el.profileBuilderChoices.innerHTML = `
+      <div class="profile-builder-choice-grid">
+        ${question.choices.map((choice) => `<button type="button" data-profile-builder-answer="${escapeHtml(choice)}">${escapeHtml(choice)}</button>`).join("")}
+      </div>
+      <button class="profile-builder-manual-open" type="button" data-profile-builder-manual>自己描述一下 <span>→</span></button>
+    `;
+  } else {
+    el.profileBuilderChoices.innerHTML = "";
+  }
+  window.requestAnimationFrame(() => {
+    el.profileBuilderConversation.scrollTop = el.profileBuilderConversation.scrollHeight;
+  });
+}
+
+function openProfileBuilder() {
+  profileBuilderState.answers = [];
+  el.profileBuilderModal.hidden = false;
+  document.body.classList.add("profile-builder-open");
+  renderProfileBuilder();
+}
+
+function closeProfileBuilder() {
+  el.profileBuilderModal.hidden = true;
+  document.body.classList.remove("profile-builder-open");
+  el.profileBuilderManualForm.hidden = true;
+  el.profileBuilderManualInput.value = "";
+}
+
+function answerProfileBuilder(value) {
+  const answer = String(value || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const question = PROFILE_BUILDER_QUESTIONS[profileBuilderState.answers.length];
+  if (!answer || !question) return;
+  profileBuilderState.answers.push(answer);
+  updateProfileFromBuilder(question, answer);
+  renderProfileBuilder();
+}
+
 function renderMessagesFromState() {
   if (!el.messages) return;
   el.messages.innerHTML = "";
@@ -2911,6 +3007,34 @@ function initEventHandlers() {
   });
   el.chatPageBtn?.addEventListener("click", showChatPage);
   el.newChatBtn?.addEventListener("click", startNewChatSession);
+  el.profileBuilderBtn?.addEventListener("click", openProfileBuilder);
+  el.profileBuilderCloseBtn?.addEventListener("click", closeProfileBuilder);
+  el.profileBuilderLaterBtn?.addEventListener("click", closeProfileBuilder);
+  el.profileBuilderDoneBtn?.addEventListener("click", closeProfileBuilder);
+  el.profileBuilderModal?.addEventListener("click", (event) => {
+    const target = event.target instanceof HTMLElement ? event.target : null;
+    if (target?.closest("[data-profile-builder-close]")) {
+      closeProfileBuilder();
+      return;
+    }
+    const answer = target?.closest("[data-profile-builder-answer]");
+    if (answer) {
+      answerProfileBuilder(answer.getAttribute("data-profile-builder-answer") || "");
+      return;
+    }
+    if (target?.closest("[data-profile-builder-manual]")) {
+      el.profileBuilderManualForm.hidden = false;
+      el.profileBuilderManualInput.focus();
+    }
+  });
+  el.profileBuilderManualForm?.addEventListener("submit", (event) => {
+    event.preventDefault();
+    answerProfileBuilder(el.profileBuilderManualInput.value);
+    el.profileBuilderManualInput.value = "";
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && el.profileBuilderModal?.hidden === false) closeProfileBuilder();
+  });
   el.chatSessionList?.addEventListener("click", (event) => {
     const target = event.target instanceof HTMLElement ? event.target : null;
     const remove = target?.closest("[data-chat-session-delete]");
