@@ -524,6 +524,68 @@ function renderMessagesFromState() {
   scrollMessagesToBottom();
 }
 
+function shouldRecommendLearningVideos(topic) {
+  const text = String(topic || "").trim();
+  if (text.length < 2) return false;
+  return !/^(你好|您好|谢谢|感谢|再见|在吗|hello|hi)[！!。,.，\s]*$/i.test(text);
+}
+
+function videoRecommendationThumb(item = {}) {
+  const title = item.title || "学习视频";
+  const cover = String(item.cover || "").trim();
+  if (cover) {
+    return `
+      <div class="chat-video-thumb chat-video-thumb-image">
+        <img src="${escapeHtml(cover)}" alt="${escapeHtml(title)} 视频封面" loading="lazy" referrerpolicy="no-referrer">
+        <span class="chat-video-play" aria-hidden="true">▶</span>
+        ${item.duration ? `<em class="chat-video-duration">${escapeHtml(item.duration)}</em>` : ""}
+      </div>`;
+  }
+  const initials = String(title || "学习视频").replace(/[：:·]/g, " ").trim().slice(0, 16);
+  return `
+    <div class="chat-video-thumb" style="--video-accent:#155eef">
+      <span class="chat-video-play" aria-hidden="true">▶</span>
+      <strong>${escapeHtml(initials)}</strong>
+      <em>打开哔哩哔哩视频</em>
+    </div>`;
+}
+
+async function renderRelatedVideoRecommendations(container, topic) {
+  if (!container || !shouldRecommendLearningVideos(topic)) return;
+  container.hidden = false;
+  container.innerHTML = `
+    <div class="chat-video-head"><div><strong>相关视频推荐</strong><span>来自哔哩哔哩 · 实时检索</span></div><em>正在匹配…</em></div>
+    <div class="chat-video-loading"><i></i><i></i><i></i></div>`;
+  try {
+    const response = await fetch(`/api/resources/bilibili/search?q=${encodeURIComponent(String(topic).slice(0, 120))}`);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const data = await response.json();
+    const items = Array.isArray(data.results) ? data.results : [];
+    if (!items.length) throw new Error("暂无匹配结果");
+    container.innerHTML = `
+      <div class="chat-video-head">
+        <div><strong>相关视频推荐</strong><span>来自哔哩哔哩 · ${data.realtime ? "实时检索" : "具体视频"}</span></div>
+        <a href="https://search.bilibili.com/all?keyword=${encodeURIComponent(String(topic).slice(0, 120))}" target="_blank" rel="noreferrer">查看全部</a>
+      </div>
+      <div class="chat-video-grid">
+        ${items.map((item) => `
+          <a class="chat-video-card" href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer" data-video-bvid="${escapeHtml(item.bvid || item.id || "")}">
+            ${videoRecommendationThumb(item)}
+            <div class="chat-video-copy">
+              <strong>${escapeHtml(item.title)}</strong>
+              <span>${escapeHtml(item.author || item.source || "哔哩哔哩")}</span>
+              <small>${escapeHtml(item.views || "播放量暂无")} ${item.duration ? `· ${escapeHtml(item.duration)}` : ""}</small>
+            </div>
+          </a>`).join("")}
+      </div>
+      <p class="chat-video-notice">${escapeHtml(data.notice || "点击卡片前往哔哩哔哩查看实时结果。")}</p>`;
+  } catch (error) {
+    container.innerHTML = `
+      <div class="chat-video-head"><div><strong>相关视频推荐</strong><span>哔哩哔哩检索暂不可用</span></div></div>
+      <a class="chat-video-fallback" href="https://search.bilibili.com/all?keyword=${encodeURIComponent(String(topic).slice(0, 120))}" target="_blank" rel="noreferrer">直接前往哔哩哔哩搜索“${escapeHtml(String(topic).slice(0, 36))}”</a>`;
+  }
+}
+
 function switchChatSession(sessionId) {
   if (state.isGenerating) {
     alert("当前回复还在生成中，请稍后再切换对话。");
@@ -1868,10 +1930,13 @@ function renderChatAgentArtifacts(container, markdownText, agentIds = [], agentC
     visual.addEventListener("click", (event) => {
       const exportBtn = event.target instanceof HTMLElement ? event.target.closest("[data-mindmap-export]") : null;
       const layoutBtn = event.target instanceof HTMLElement ? event.target.closest("[data-mindmap-layout]") : null;
-      if (!exportBtn && !layoutBtn) return;
-      const canvas = (exportBtn || layoutBtn).closest(".mindmap-view")?.querySelector(".mindmap-canvas");
+      const fullscreenBtn = event.target instanceof HTMLElement ? event.target.closest("[data-mindmap-fullscreen]") : null;
+      if (!exportBtn && !layoutBtn && !fullscreenBtn) return;
+      const view = (exportBtn || layoutBtn || fullscreenBtn).closest(".mindmap-view");
+      const canvas = view?.querySelector(".mindmap-canvas");
       if (layoutBtn && canvas && typeof autoLayoutMindmapCanvas === "function") autoLayoutMindmapCanvas(canvas);
       if (exportBtn && canvas && typeof storeAndDownloadMindmapSvg === "function") void storeAndDownloadMindmapSvg(canvas);
+      if (fullscreenBtn && typeof toggleMindmapFullscreen === "function") void toggleMindmapFullscreen(view);
     });
   }
 
@@ -2173,6 +2238,9 @@ function appendAssistantMessage(opts = {}) {
   artifactEl.className = "chat-agent-artifacts";
   artifactEl.hidden = true;
   if (restored) renderChatAgentArtifacts(artifactEl, markdownText || "", agentIds, agentConfig);
+  const relatedVideosEl = document.createElement("section");
+  relatedVideosEl.className = "chat-video-recommendations";
+  relatedVideosEl.hidden = true;
 
   const tools = document.createElement("div");
   tools.className = "chat-message-tools";
@@ -2200,6 +2268,7 @@ function appendAssistantMessage(opts = {}) {
   bubble.appendChild(typingEl);
   bubble.appendChild(markdownEl);
   bubble.appendChild(artifactEl);
+  bubble.appendChild(relatedVideosEl);
   const collaboration = createChatAgentCollaboration(agentIds, restored);
   if (collaboration) bubble.insertBefore(collaboration.element, typingEl);
   bubble.appendChild(tools);
@@ -2207,6 +2276,7 @@ function appendAssistantMessage(opts = {}) {
   row.appendChild(bubble);
 
   el.messages.appendChild(row);
+  if (restored) void renderRelatedVideoRecommendations(relatedVideosEl, agentConfig.topic || "");
   scrollMessagesToBottom();
 
   return {
@@ -2217,6 +2287,7 @@ function appendAssistantMessage(opts = {}) {
     setSpeechReady,
     collaboration,
     renderArtifacts: (text, options = {}) => renderChatAgentArtifacts(artifactEl, text, agentIds, agentConfig, options),
+    renderRelatedVideos: (topic) => renderRelatedVideoRecommendations(relatedVideosEl, topic),
   };
 }
 
@@ -2415,6 +2486,7 @@ async function generateAssistantFromUserText(
     fullText: "",
     collaboration: assistant.collaboration,
     renderArtifacts: assistant.renderArtifacts,
+    renderRelatedVideos: assistant.renderRelatedVideos,
   };
 
   const prior = state.messages.slice();
@@ -2513,6 +2585,7 @@ ${selectedChatAgentIds.includes("quiz") ? `题库生成配置：${JSON.stringify
         }
         ca.setSpeechReady?.(Boolean(full.trim()));
         ca.renderArtifacts?.(full, { autoGeneratePpt: selectedChatAgentIds.includes("ppt") });
+        ca.renderRelatedVideos?.(userText);
         if (collaborationTimer) window.clearInterval(collaborationTimer);
         ca.collaboration?.complete();
         commitAssistantTurn(full, newHistory, uiVersion, selectedChatAgentIds, requestedAgentConfig);
@@ -3386,7 +3459,7 @@ function initEventHandlers() {
     toggleResourceAgent(id);
   });
   el.resourceGrid?.addEventListener("click", async (e) => {
-    if (e.target instanceof HTMLElement && e.target.closest("[data-mindmap-export], [data-mindmap-layout]")) return;
+    if (e.target instanceof HTMLElement && e.target.closest("[data-mindmap-export], [data-mindmap-layout], [data-mindmap-fullscreen]")) return;
     const exerciseWordBtn = e.target instanceof HTMLElement ? e.target.closest("[data-exercise-export-word]") : null;
     if (exerciseWordBtn) {
       const index = Number(exerciseWordBtn.getAttribute("data-exercise-export-word"));
@@ -3573,8 +3646,14 @@ function initEventHandlers() {
   el.resourceGrid?.addEventListener("click", (e) => {
     const exportBtn = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-export]") : null;
     const layoutBtn = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-layout]") : null;
-    if (!exportBtn && !layoutBtn) return;
-    const canvas = (exportBtn || layoutBtn).closest(".mindmap-view")?.querySelector(".mindmap-canvas");
+    const fullscreenBtn = e.target instanceof HTMLElement ? e.target.closest("[data-mindmap-fullscreen]") : null;
+    if (!exportBtn && !layoutBtn && !fullscreenBtn) return;
+    const view = (exportBtn || layoutBtn || fullscreenBtn).closest(".mindmap-view");
+    const canvas = view?.querySelector(".mindmap-canvas");
+    if (fullscreenBtn) {
+      toggleMindmapFullscreen(view);
+      return;
+    }
     if (layoutBtn && canvas) {
       autoLayoutMindmapCanvas(canvas);
       return;

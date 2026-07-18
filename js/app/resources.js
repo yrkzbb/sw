@@ -1067,6 +1067,7 @@ function renderMindmapResource(content, title, topic = "") {
           <input type="range" min="1320" max="1900" value="${width}" step="20" data-mindmap-width />
         </label>
         <button class="resource-toggle" type="button" data-mindmap-layout>整理布局</button>
+        <button class="resource-toggle" type="button" data-mindmap-fullscreen aria-label="全屏查看思维导图">全屏查看</button>
         <button class="resource-toggle" type="button" data-mindmap-export>导出 SVG</button>
       </div>
       <div class="mindmap-canvas-wrap">
@@ -1081,6 +1082,28 @@ function renderMindmapResource(content, title, topic = "") {
     </div>
   `;
 }
+
+async function toggleMindmapFullscreen(view) {
+  if (!view) return;
+  try {
+    if (document.fullscreenElement === view) {
+      await document.exitFullscreen();
+    } else {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      await view.requestFullscreen();
+    }
+  } catch (error) {
+    console.error("思维导图全屏切换失败", error);
+  }
+}
+
+document.addEventListener("fullscreenchange", () => {
+  document.querySelectorAll("[data-mindmap-fullscreen]").forEach((button) => {
+    const active = document.fullscreenElement === button.closest(".mindmap-view");
+    button.textContent = active ? "退出全屏" : "全屏查看";
+    button.setAttribute("aria-label", active ? "退出思维导图全屏" : "全屏查看思维导图");
+  });
+});
 
 function renderMindmapNode(id, label, x, y, w, h, className) {
   return `<div class="mindmap-node ${className}" data-node-id="${id}" style="left:${x}px;top:${y}px;width:${w}px;min-height:${h}px" title="拖拽移动节点">${escapeHtml(cleanMindmapLabel(label))}</div>`;

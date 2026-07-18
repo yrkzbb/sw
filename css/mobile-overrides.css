@@ -1,8 +1,9 @@
 /* Mobile-first shell overrides. Loaded after all desktop styles. */
 @media (max-width: 620px) {
   :root {
-    --mobile-nav-height: 72px;
-    --mobile-page-gap: 14px;
+    --mobile-nav-height: 60px;
+    --mobile-composer-height: 98px;
+    --mobile-page-gap: 10px;
   }
 
   html,
@@ -10,6 +11,7 @@
     width: 100%;
     min-width: 0;
     overflow-x: clip;
+    scroll-padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-composer-height) + 28px);
   }
 
   body:not(.chat-layout-active) .main:not(:has(#chat:not([hidden]))),
@@ -20,18 +22,18 @@
   }
 
   .top-nav {
-    inset: auto 8px max(8px, env(safe-area-inset-bottom)) 8px !important;
+    inset: auto 8px max(6px, env(safe-area-inset-bottom)) 8px !important;
     width: auto !important;
     max-width: none !important;
     height: var(--mobile-nav-height);
     transform: none !important;
     display: grid !important;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 2px !important;
     overflow: visible !important;
     contain: none !important;
-    padding: 6px !important;
-    border-radius: 22px !important;
+    padding: 4px !important;
+    border-radius: 19px !important;
     background: rgba(13, 29, 39, 0.88) !important;
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.24), inset 0 1px rgba(255, 255, 255, 0.12) !important;
     backdrop-filter: blur(22px) saturate(1.35) !important;
@@ -56,11 +58,11 @@
   .nav-btn {
     min-width: 0 !important;
     width: 100% !important;
-    height: 60px !important;
+    height: 50px !important;
     flex-direction: column;
     gap: 3px !important;
     padding: 6px 2px !important;
-    border-radius: 17px !important;
+    border-radius: 15px !important;
     font-size: 10px !important;
     line-height: 1;
   }
@@ -122,45 +124,82 @@
   }
 
   .composer {
-    bottom: calc(var(--mobile-nav-height) + max(12px, env(safe-area-inset-bottom))) !important;
+    bottom: calc(var(--mobile-nav-height) + max(9px, env(safe-area-inset-bottom))) !important;
     z-index: 38 !important;
-    padding: 8px 10px !important;
-    background: linear-gradient(180deg, transparent, rgba(7, 19, 26, 0.82)) !important;
+    padding: 0 10px !important;
+    background: transparent !important;
   }
 
   .composer-inner {
     max-width: none !important;
+    padding: 5px 7px 6px !important;
+    border-radius: 19px !important;
   }
 
   .composer-row {
-    min-height: 58px;
-    border-radius: 20px !important;
-    padding: 7px !important;
+    min-height: 46px !important;
+    border-radius: 14px !important;
+    padding: 3px !important;
     gap: 5px !important;
   }
 
   .composer .icon-btn,
   .composer .send-btn,
   .composer .stop-btn {
-    flex: 0 0 44px;
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
+    flex: 0 0 38px;
+    width: 38px;
+    min-width: 38px;
+    height: 38px;
     padding: 0;
   }
 
   .input {
     min-width: 0;
+    min-height: 38px !important;
+    max-height: 80px !important;
     padding-inline: 6px;
+    font-size: 16px !important;
+  }
+
+  .chat-agent-toolbar {
+    margin-top: 3px;
+    padding: 3px 0 0 !important;
+    flex-wrap: nowrap !important;
+    gap: 6px !important;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    overscroll-behavior-inline: contain;
+  }
+
+  .chat-agent-toolbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-agent-tool {
+    flex: 0 0 auto;
+    min-height: 31px !important;
+    padding: 0 10px !important;
+    font-size: 12px !important;
+  }
+
+  .chat-agent-selection {
+    display: none !important;
   }
 
   body.chat-layout-active .main,
   body:has(#chat:not([hidden])) .main {
-    padding-bottom: 176px !important;
+    padding-bottom: calc(var(--mobile-nav-height) + var(--mobile-composer-height) + 34px) !important;
   }
 
   .chat {
     max-width: none !important;
+    width: 100% !important;
+    padding: 4px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    box-shadow: none !important;
   }
 
   .chat-sidebar {
@@ -169,9 +208,51 @@
     width: 100% !important;
     max-width: none !important;
     min-width: 0 !important;
-    max-height: 170px;
-    margin: 58px 0 12px;
-    border-radius: 22px !important;
+    max-height: none;
+    margin: 54px 0 8px;
+    padding: 9px !important;
+    border-radius: 18px !important;
+  }
+
+  .chat-sidebar-head {
+    min-height: 42px;
+  }
+
+  .chat-sidebar-head span,
+  .chat-profile-builder-btn {
+    display: none !important;
+  }
+
+  .chat-new-btn {
+    width: 40px !important;
+    height: 40px !important;
+    border-radius: 13px !important;
+  }
+
+  .chat-session-list {
+    margin-top: 5px;
+    padding: 0 0 1px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 6px !important;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    scrollbar-width: none;
+  }
+
+  .chat-session-list::-webkit-scrollbar {
+    display: none;
+  }
+
+  .chat-session-item {
+    flex: 0 0 150px !important;
+    min-height: 42px !important;
+    padding: 7px 32px 7px 10px !important;
+    border-radius: 12px !important;
+  }
+
+  .chat-session-item span {
+    display: none !important;
   }
 
   .chat-sidebar-resize {
@@ -181,7 +262,49 @@
   .messages {
     width: 100% !important;
     min-width: 0 !important;
-    padding: 14px 10px !important;
+    padding: 12px 5px !important;
+    max-height: none !important;
+    overflow: visible !important;
+    border-radius: 20px !important;
+  }
+
+  .message-row {
+    min-width: 0;
+    gap: 6px !important;
+  }
+
+  .avatar {
+    width: 28px !important;
+    height: 28px !important;
+  }
+
+  .bubble,
+  .message-row:not(.user) .bubble {
+    width: auto !important;
+    max-width: calc(100% - 34px) !important;
+    min-width: 0 !important;
+    padding: 13px 14px !important;
+    overflow-wrap: anywhere;
+  }
+
+  .message-row.user .bubble {
+    max-width: 92% !important;
+  }
+
+  .messages > :last-child {
+    margin-bottom: 12px;
+    scroll-margin-bottom: calc(var(--mobile-nav-height) + var(--mobile-composer-height) + 28px);
+  }
+
+  .markdown-body {
+    overflow-x: hidden !important;
+    font-size: 14px !important;
+    line-height: 1.7 !important;
+  }
+
+  .markdown-body :where(pre, table) {
+    max-width: 100%;
+    overflow-x: auto;
   }
 
   .auth-overlay {

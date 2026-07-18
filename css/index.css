@@ -7,6 +7,7 @@
 @import url("./index-parts/community-feed.css?v=20260716-compose-studio");
 @import url("./index-parts/personal-wiki.css?v=20260718-favorites-storage");
 @import url("./index-parts/chat-agent-collaboration.css?v=20260718");
+@import url("./index-parts/chat-video-recommendations.css?v=20260718");
 
 body {
   --app-content-gap: 9px;

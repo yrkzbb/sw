@@ -100,6 +100,159 @@ async function proxyChat(req, res) {
   await pipeline(Readable.fromWeb(webBody), res).catch(() => {});
 }
 
+const BILIBILI_EDUCATION_CATALOG = [
+  { bvid: "BV1otokBpENn", keywords: "知识库 RAG 检索增强 向量数据库 大模型 AI" },
+  { bvid: "BV1FUQ7YREDE", keywords: "知识库 RAG DeepSeek Ollama 本地部署 AI" },
+  { bvid: "BV1AVfZY4Evf", keywords: "知识库 Coze 扣子 智能体 教程 AI" },
+  { bvid: "BV1Fsd8YeExh", keywords: "RAG 知识库 LangChain 索引 工作原理 AI" },
+  { bvid: "BV1jW411K7yg", keywords: "数据结构 算法 C 语言 链表 树 图 排序" },
+  { bvid: "BV15E411V7S2", keywords: "数据结构 算法 大学 公开课 考研 408" },
+  { bvid: "BV1tU411U7SF", keywords: "Java 数据结构 算法 编程 实战" },
+  { bvid: "BV1iJ41137Vd", keywords: "数据库 SQL MySQL 关系型数据库 教程" },
+  { bvid: "BV1hccSeJEUD", keywords: "RAG LangChain LlamaIndex 企业知识库 项目实战" },
+  { bvid: "BV1rsSiYKEun", keywords: "AnythingLLM Ollama 本地 AI 知识库 零代码" },
+];
+
+function videoSearchTerms(value) {
+  const normalized = String(value || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}+#]+/gu, " ");
+  const words = normalized
+    .split(/\s+/)
+    .filter((item) => item.length > 1)
+    .slice(0, 16);
+  const compactChinese = normalized.replace(/[^\p{Script=Han}]/gu, "");
+  const bigrams = [];
+  for (let index = 0; index < compactChinese.length - 1 && bigrams.length < 40; index += 1) {
+    bigrams.push(compactChinese.slice(index, index + 2));
+  }
+  return Array.from(new Set([...words, ...bigrams]));
+}
+
+function bilibiliSearchUrl(query) {
+  return `https://search.bilibili.com/all?keyword=${encodeURIComponent(query)}`;
+}
+
+function bilibiliApiHeaders() {
+  return {
+    "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126 Safari/537.36",
+    Referer: "https://search.bilibili.com/",
+    Accept: "application/json,text/plain,*/*",
+  };
+}
+
+function formatVideoDuration(seconds) {
+  const value = Math.max(0, Number(seconds) || 0);
+  const hours = Math.floor(value / 3600);
+  const minutes = Math.floor((value % 3600) / 60);
+  const secs = Math.floor(value % 60);
+  return hours
+    ? `${hours}:${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`
+    : `${minutes}:${String(secs).padStart(2, "0")}`;
+}
+
+function normalizeVideoDurationText(value) {
+  const parts = String(value || "").trim().split(":");
+  if (parts.length < 2 || parts.some((part) => !/^\d+$/.test(part))) return String(value || "").trim();
+  return parts.map((part, index) => index === 0 ? String(Number(part)) : part.padStart(2, "0")).join(":");
+}
+
+function formatVideoViews(value) {
+  const count = Math.max(0, Number(value) || 0);
+  if (count >= 10000) return `${(count / 10000).toFixed(count >= 100000 ? 1 : 2).replace(/\.0$/, "")} 万播放`;
+  return `${count} 播放`;
+}
+
+function normalizeBilibiliImage(value) {
+  const image = String(value || "").replace(/^\/\//, "https://").replace(/^http:\/\//, "https://");
+  return image;
+}
+
+function stripBilibiliTitle(value) {
+  return String(value || "").replace(/<[^>]+>/g, "").replace(/&quot;/g, '"').replace(/&amp;/g, "&").trim();
+}
+
+function normalizeBilibiliSearchItem(item) {
+  const bvid = String(item?.bvid || "").trim();
+  if (!bvid) return null;
+  return {
+    id: bvid,
+    bvid,
+    title: stripBilibiliTitle(item.title),
+    author: String(item.author || item.up_name || "哔哩哔哩 UP 主"),
+    duration: normalizeVideoDurationText(item.duration),
+    views: formatVideoViews(item.play),
+    url: `https://www.bilibili.com/video/${bvid}/`,
+    cover: normalizeBilibiliImage(item.pic),
+    source: "哔哩哔哩",
+  };
+}
+
+async function fetchBilibiliSearchResults(query) {
+  const endpoint = new URL("https://api.bilibili.com/x/web-interface/wbi/search/type");
+  endpoint.searchParams.set("search_type", "video");
+  endpoint.searchParams.set("keyword", query);
+  endpoint.searchParams.set("page", "1");
+  endpoint.searchParams.set("page_size", "8");
+  const response = await fetch(endpoint, { headers: bilibiliApiHeaders(), signal: AbortSignal.timeout(6500) });
+  if (!response.ok) return [];
+  const payload = await response.json().catch(() => null);
+  const rows = payload?.data?.result;
+  return Array.isArray(rows) ? rows.map(normalizeBilibiliSearchItem).filter(Boolean).slice(0, 4) : [];
+}
+
+async function fetchBilibiliVideoDetail(entry) {
+  const response = await fetch(`https://api.bilibili.com/x/web-interface/view?bvid=${encodeURIComponent(entry.bvid)}`, {
+    headers: bilibiliApiHeaders(),
+    signal: AbortSignal.timeout(6500),
+  });
+  if (!response.ok) return null;
+  const payload = await response.json().catch(() => null);
+  const item = payload?.data;
+  if (!item?.bvid || Number(item.state) < 0) return null;
+  return {
+    id: item.bvid,
+    bvid: item.bvid,
+    title: stripBilibiliTitle(item.title),
+    author: String(item.owner?.name || "哔哩哔哩 UP 主"),
+    duration: formatVideoDuration(item.duration),
+    views: formatVideoViews(item.stat?.view),
+    url: `https://www.bilibili.com/video/${item.bvid}/`,
+    cover: normalizeBilibiliImage(item.pic),
+    source: "哔哩哔哩",
+  };
+}
+
+async function curatedBilibiliResults(query) {
+  const terms = videoSearchTerms(query);
+  const ranked = BILIBILI_EDUCATION_CATALOG.map((item, index) => ({
+    ...item,
+    score: terms.reduce((sum, term) => sum + (item.keywords.toLowerCase().includes(term) ? (term.length > 2 ? 8 : 3) : 0), 0) - index * 0.01,
+  })).sort((a, b) => b.score - a.score).slice(0, 4);
+  const details = await Promise.all(ranked.map((item) => fetchBilibiliVideoDetail(item).catch(() => null)));
+  return details.filter(Boolean);
+}
+
+async function searchBilibiliEducation(req, res, url) {
+  setCors(res);
+  const query = String(url.searchParams.get("q") || "").replace(/\s+/g, " ").trim().slice(0, 120);
+  if (!query) {
+    sendJson(res, 400, { error: "缺少搜索关键词" });
+    return;
+  }
+  const liveResults = await fetchBilibiliSearchResults(query).catch(() => []);
+  const results = liveResults.length ? liveResults : await curatedBilibiliResults(query);
+  sendJson(res, 200, {
+    query,
+    provider: liveResults.length ? "bilibili-live-search" : "bilibili-verified-catalog",
+    realtime: Boolean(liveResults.length),
+    notice: liveResults.length
+      ? "已获取哔哩哔哩实时视频结果，点击卡片可直接播放。"
+      : "实时搜索受平台访问限制，已返回经核验的具体视频；播放量与封面来自视频详情接口。",
+    results,
+  });
+}
+
 async function proxyVideo(req, res) {
   setCors(res);
 
@@ -747,6 +900,10 @@ const server = http.createServer((req, res) => {
     }
     if (url.pathname === "/api/chat" && (req.method === "POST" || req.method === "OPTIONS")) {
       void proxyChat(req, res);
+      return;
+    }
+    if (url.pathname === "/api/resources/bilibili/search" && req.method === "GET") {
+      void searchBilibiliEducation(req, res, url);
       return;
     }
     if (url.pathname === "/api/knowledge-base/upload" && req.method === "POST") {

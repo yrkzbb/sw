@@ -1,0 +1,53 @@
+.chat-video-recommendations {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.chat-video-head {
+  margin-bottom: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.chat-video-head > div { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.chat-video-head strong { color: var(--text); font-size: 17px; }
+.chat-video-head span { padding: 4px 9px; border: 1px solid rgba(21, 94, 239, .22); border-radius: 7px; color: #155eef; background: rgba(21, 94, 239, .08); font-size: 12px; }
+.chat-video-head a, .chat-video-head em { color: var(--muted); font-size: 12px; font-style: normal; text-decoration: none; }
+.chat-video-head a:hover { color: #155eef; }
+
+.chat-video-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.chat-video-card { min-width: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 13px; color: inherit; background: rgba(255,255,255,.045); text-decoration: none; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+.chat-video-card:hover { transform: translateY(-2px); border-color: rgba(21,94,239,.45); box-shadow: 0 12px 30px rgba(16,40,90,.13); }
+[data-theme="light"] .chat-video-card { background: #fff; }
+
+.chat-video-thumb { position: relative; aspect-ratio: 16 / 9; padding: 18px; display: flex; flex-direction: column; justify-content: flex-end; overflow: hidden; color: #fff; background: linear-gradient(135deg, color-mix(in srgb, var(--video-accent) 80%, #081229), var(--video-accent)); }
+.chat-video-thumb::before, .chat-video-thumb::after { content: ""; position: absolute; border-radius: 999px; background: rgba(255,255,255,.13); }
+.chat-video-thumb::before { width: 150px; height: 150px; right: -35px; top: -50px; }
+.chat-video-thumb::after { width: 80px; height: 80px; left: -20px; bottom: -30px; }
+.chat-video-thumb strong, .chat-video-thumb em { position: relative; z-index: 1; }
+.chat-video-thumb strong { max-width: 86%; font-size: 20px; line-height: 1.25; text-shadow: 0 2px 8px rgba(0,0,0,.28); }
+.chat-video-thumb em { margin-top: 5px; font-size: 11px; font-style: normal; opacity: .78; }
+.chat-video-play { position: absolute; z-index: 1; top: 14px; right: 14px; width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: rgba(0,0,0,.34); font-size: 13px; }
+.chat-video-thumb-image { padding: 0; background: #10131a; }
+.chat-video-thumb-image::before, .chat-video-thumb-image::after { display: none; }
+.chat-video-thumb-image img { width: 100%; height: 100%; display: block; object-fit: cover; transition: transform .22s ease; }
+.chat-video-card:hover .chat-video-thumb-image img { transform: scale(1.025); }
+.chat-video-thumb-image::after { content: ""; position: absolute; inset: 0; display: block; border-radius: 0; background: linear-gradient(180deg, transparent 55%, rgba(0,0,0,.5)); pointer-events: none; }
+.chat-video-duration { position: absolute !important; z-index: 2 !important; right: 9px; bottom: 8px; margin: 0 !important; padding: 2px 5px; border-radius: 4px; color: #fff; background: rgba(0,0,0,.72); font-size: 11px !important; line-height: 1.25; opacity: 1 !important; }
+
+.chat-video-copy { padding: 12px 14px 14px; display: grid; gap: 5px; }
+.chat-video-copy strong { min-height: 42px; display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; color: var(--text); font-size: 14px; line-height: 1.5; }
+.chat-video-copy span, .chat-video-copy small { overflow: hidden; color: var(--muted); text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
+.chat-video-notice { margin: 10px 0 0; color: var(--muted); font-size: 11px; line-height: 1.55; }
+.chat-video-fallback { display: block; padding: 14px; border: 1px dashed rgba(21,94,239,.35); border-radius: 10px; color: #155eef; text-decoration: none; background: rgba(21,94,239,.06); }
+.chat-video-loading { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.chat-video-loading i { height: 110px; border-radius: 12px; background: linear-gradient(100deg, rgba(127,127,127,.08) 20%, rgba(127,127,127,.18) 40%, rgba(127,127,127,.08) 60%); background-size: 220% 100%; animation: chat-video-shimmer 1.2s infinite linear; }
+@keyframes chat-video-shimmer { to { background-position-x: -220%; } }
+
+@media (max-width: 720px) {
+  .chat-video-grid { grid-template-columns: 1fr; }
+  .chat-video-thumb strong { font-size: 18px; }
+}

@@ -1015,6 +1015,24 @@
   padding: 10px 0 4px;
 }
 
+.mindmap-view:fullscreen {
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: 100vw;
+  height: 100vh;
+  padding: 16px;
+  overflow: hidden;
+  background: var(--bg, #f7fbfa);
+}
+
+.mindmap-view:fullscreen .mindmap-canvas-wrap {
+  height: 100%;
+  overflow: auto;
+}
+
+.mindmap-view:fullscreen .mindmap-toolbar {
+  flex-wrap: nowrap;
+}
+
 .mindmap-toolbar {
   display: flex;
   align-items: center;
