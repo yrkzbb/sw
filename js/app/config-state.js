@@ -50,7 +50,7 @@ const USE_BROWSER_API_KEY = /^https?:\/\//i.test(CHAT_ENDPOINT);
 const RESOURCE_PAGE_UI_ENABLED = false;
 const STORAGE_PAGE_UI_ENABLED = false;
 
-const DEFAULT_MODEL = "gpt-4o-mini";
+const DEFAULT_MODEL = "4.0Ultra";
 
 const PROFILE_FIELDS = [
   "major_background",

@@ -22,7 +22,7 @@
 | 前端 | 原生 HTML、CSS、JavaScript，Marked、Prism、HLS.js |
 | 服务端 | Node.js 原生 HTTP 服务 |
 | 数据库 | MySQL 8.x / 兼容版本，`mysql2` |
-| AI 接口 | OpenAI Chat Completions 兼容接口 |
+| AI 接口 | 讯飞星火 HTTP API |
 | 文档处理 | `pdf-parse`、Poppler、Tesseract OCR、PptxGenJS |
 | 可选服务 | 讯飞智能 PPT、讯飞虚拟人、阿里云百炼视频生成 |
 
@@ -33,7 +33,7 @@
 - Node.js 18+（需要原生 `fetch`）
 - npm
 - MySQL 8.x 或兼容数据库
-- 可用的 OpenAI 兼容 API
+- 已开通讯飞星火大模型服务并取得 API Password
 
 扫描版 PDF 的 OCR 功能还需要安装 Poppler（提供 `pdftoppm`）和 Tesseract，以及 `chi_sim`、`eng` 语言包。视频转码功能需要 FFmpeg。这些依赖不影响基本对话和文本型 PDF 的使用。
 
@@ -62,8 +62,9 @@ cp .env.example .env
 至少填写以下配置：
 
 ```dotenv
-OPENAI_PROXY_API_KEY=your_api_key
-OPENAI_PROXY_BASE_URL=https://your-provider.example/v1
+XFYUN_SPARK_API_PASSWORD=your_xfyun_api_password
+XFYUN_SPARK_BASE_URL=https://spark-api-open.xf-yun.com/v1
+XFYUN_SPARK_MODEL=4.0Ultra
 
 MYSQL_HOST=127.0.0.1
 MYSQL_PORT=3306
@@ -109,7 +110,7 @@ npm run test:knowledge-base # 运行课程知识库检索评估
 
 | 配置组 | 关键变量 | 用途 |
 | --- | --- | --- |
-| AI 对话 | `OPENAI_PROXY_API_KEY`、`OPENAI_PROXY_BASE_URL` | 必需，连接 OpenAI 兼容接口；当前前端默认模型为 `gpt-4o-mini` |
+| AI 对话 | `XFYUN_SPARK_API_PASSWORD`、`XFYUN_SPARK_BASE_URL`、`XFYUN_SPARK_MODEL` | 必需，连接讯飞星火 HTTP API；默认模型为 `4.0Ultra` |
 | MySQL | `DATABASE_URL` 或 `MYSQL_*` | 必需，账号、社区和学习数据持久化 |
 | 会话 | `SESSION_TTL_DAYS`、`MYSQL_TABLE_PREFIX` | Cookie 有效期与数据表前缀 |
 | 管理员 | `ADMIN_BOOTSTRAP_*` | 初始化首个管理员 |

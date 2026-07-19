@@ -43,10 +43,10 @@ async function proxyChat(req, res) {
     return;
   }
 
-  if (!LINGXI_API_KEY) {
+  if (!XFYUN_SPARK_API_PASSWORD) {
     sendJson(res, 500, {
       error:
-        "Missing OPENAI_PROXY_API_KEY. Set it in .env or as an environment variable.",
+        "Missing XFYUN_SPARK_API_PASSWORD. Set it in .env or as an environment variable.",
     });
     return;
   }
@@ -70,13 +70,13 @@ async function proxyChat(req, res) {
 
   let upstream;
   try {
-    upstream = await fetch(OPENAI_PROXY_CHAT_ENDPOINT, {
+    upstream = await fetch(XFYUN_SPARK_CHAT_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${LINGXI_API_KEY}`,
+        Authorization: `Bearer ${XFYUN_SPARK_API_PASSWORD}`,
       },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ ...body, model: XFYUN_SPARK_MODEL }),
       signal: controller.signal,
     });
   } catch (e) {
@@ -965,6 +965,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`[lingxi] Server listening on http://localhost:${PORT}`);
-  console.log(`[lingxi] Proxy base URL: ${OPENAI_PROXY_BASE_URL}`);
+  console.log(`[lingxi] XFYUN Spark base URL: ${XFYUN_SPARK_BASE_URL}`);
+  console.log(`[lingxi] XFYUN Spark model: ${XFYUN_SPARK_MODEL}`);
   console.log(`[lingxi] Run from lingxi folder: node js/server.js`);
 });

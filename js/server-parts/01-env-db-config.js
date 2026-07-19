@@ -30,11 +30,12 @@ const USER_DATA_KEYS = {
   accountProfile: "LINGXI_ACCOUNT_PROFILE",
   favoriteCollections: "LINGXI_FAVORITE_COLLECTIONS",
 };
-const OPENAI_PROXY_BASE_URL = (
-  process.env.OPENAI_PROXY_BASE_URL ||
-  "https://api.openai-proxy.org/v1"
+const XFYUN_SPARK_BASE_URL = (
+  process.env.XFYUN_SPARK_BASE_URL ||
+  "https://spark-api-open.xf-yun.com/v1"
 ).replace(/\/+$/, "");
-const OPENAI_PROXY_CHAT_ENDPOINT = `${OPENAI_PROXY_BASE_URL}/chat/completions`;
+const XFYUN_SPARK_CHAT_ENDPOINT = `${XFYUN_SPARK_BASE_URL}/chat/completions`;
+const XFYUN_SPARK_MODEL = (process.env.XFYUN_SPARK_MODEL || "4.0Ultra").trim();
 const FELO_API_BASE_URL = (process.env.FELO_API_BASE_URL || "https://openapi.felo.ai").replace(/\/+$/, "");
 const FELO_API_KEY = (process.env.FELO_API_KEY || "").trim();
 const XFYUN_PPT_APP_ID = (process.env.XFYUN_PPT_APP_ID || process.env.XUNFEI_VMS_APP_ID || "").trim();
@@ -426,10 +427,8 @@ async function bootstrapAdminUser(pool) {
 }
 
 function loadApiKey() {
-  const fromOpenAiEnv = process.env.OPENAI_PROXY_API_KEY?.trim();
-  if (fromOpenAiEnv) return fromOpenAiEnv;
-  const fromEnv = process.env.LINGXI_API_KEY?.trim();
-  if (fromEnv) return fromEnv;
+  const fromXfyunEnv = process.env.XFYUN_SPARK_API_PASSWORD?.trim();
+  if (fromXfyunEnv) return fromXfyunEnv;
   try {
     const keyPath = path.join(ROOT_DIR, "lingxi-key.txt");
     if (fs.existsSync(keyPath)) return fs.readFileSync(keyPath, "utf-8").trim();
@@ -439,4 +438,4 @@ function loadApiKey() {
   return "";
 }
 
-const LINGXI_API_KEY = loadApiKey();
+const XFYUN_SPARK_API_PASSWORD = loadApiKey();

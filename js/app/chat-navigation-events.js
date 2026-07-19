@@ -2483,7 +2483,7 @@ function updateTopNavVisibility() {
   state.lastScrollY = currentY;
 }
 
-/** 将 DashScope/OpenAI 兼容流式 data 行解析进 typingBuffer */
+/** 将讯飞星火兼容接口的流式 data 行解析进 typingBuffer */
 function applyDashscopeSsePayload(payload) {
   if (payload === "[DONE]") {
     state.streamingDone = true;
