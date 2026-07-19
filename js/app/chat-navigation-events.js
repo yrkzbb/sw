@@ -1736,7 +1736,7 @@ function chatAgentExecutionRule(agent, config = {}) {
     doc: "必须立即生成一篇完整、可直接阅读和保存的 Markdown 知识讲解文档，不得回答“无法生成”“没有现成文档”，不得只给概述或反问用户。正文约 1300-1700 个中文字符，至少包含：标题、学习目标、核心概念、工作原理或推导过程、具体示例、易错点、总结；编程或算法主题还要包含可运行代码或执行过程说明。",
     mindmap: "必须直接生成可视化所需的结构化思维导图，不要写开场说明。格式严格为：第一行“# 中心主题”；随后 5-7 个“## 一级分支短标题”，每个分支下用“- ”列出至少 3 个简短二级知识点；最后写“复习路径：...”。节点文字必须简洁，不使用 Markdown 粗体符号；公式要同时给出便于直接显示的中文或纯文本含义，不得把长段落作为节点。",
     "learning-path": "必须结合当前问题、对话历史和实时学习历史生成个性化学习路径。如果用户问“我当前/现在的学习路径是什么”“我的学习计划/进度”等未指定课程的总览问题，必须先输出“# 我的学习路径总览”，逐一列出历史中所有 existing_paths，包含每个知识大类的主题、完成进度、当前掌握依据、下一项未完成任务和最近更新时间，禁止只挑一个类别；随后选择最需要推进的一类输出详细路径。如果用户明确指定某门课程或知识类别，才只回答该类别。详细路径格式为：第一行“# 学习路径：主题”；第二行用一句话说明总体目标；随后输出 4-6 个“## 第 N 步 · 约 X 分钟/小时”。每一步依次包含“### 具体学习内容标题”（标题中禁止出现“步骤标题”四个字）、“说明：用一句 25-50 字说明本步骤学什么、解决什么问题”、“任务：具体可执行任务”和“完成标志：可验证的学习成果”。步骤必须由基础到应用，不得省略说明、任务或完成标志。",
-    quiz: `必须立即生成完整题库，严格遵守题型与题量配置 ${JSON.stringify(config.exerciseBlueprint || {})}。每题必须包含题型、题目、答案、分步骤解析和对应知识点，不得减少题量或改为出题建议。`,
+    quiz: `必须立即生成完整题库，严格遵守题型与题量配置 ${JSON.stringify(config.exerciseBlueprint || {})}。每道题必须紧邻输出以下字段，禁止把答案集中放到文末，禁止只输出章节名或知识点名：\n## 题目 N\n类型：题型\n难度：基础/中等/难题\n知识点：具体知识点\n来源：课程常见题型/经典教材题型改编\n题目：完整题干（选择题必须含 A-D 选项）\n答案：明确、可直接判分的标准答案\n解析：不少于 80 个中文字符的分步骤解析。\n不得省略“答案”和“解析”，不得用“见解析”“略”“待补充”代替。`,
     reading: "必须直接生成可执行的拓展阅读清单，区分已知可信来源与延伸检索关键词，并说明每项材料适合解决什么学习问题；不得伪造未验证的精确链接。",
     code: "必须直接生成可运行的实训卡，包含任务目标、输入输出、带 TODO 的代码骨架、参考实现、运行命令、至少 3 个测试、调试清单和 2 个修改挑战。",
     ppt: `必须直接生成完整的教学 PPT 内容方案，采用“${config.pptThemeName || "智能匹配模板"}”模板风格；共 6-10 页，每页给出标题、核心要点和讲者备注，必须包含封面、概念、过程或例题、易错点、练习和总结。不得只说明如何制作 PPT。`,
@@ -1953,7 +1953,7 @@ function renderChatAgentArtifacts(container, markdownText, agentIds = [], agentC
 
   if (ids.has("learning-path")) {
     const source = String(markdownText || "");
-    const title = (source.match(/^\s*#\s+(?:学习路径[:：]\s*)?(.+)$/m)?.[1] || agentConfig.topic || "本次学习主题").trim();
+    const title = (source.match(/^\s*#\s+学习路径[:：]\s*(.+)$/m)?.[1] || agentConfig.topic || "本次学习主题").trim();
     const stepPattern = /^##\s+第\s*(\d+)\s*步\s*[·・-]?\s*([^\n]*)\n([\s\S]*?)(?=^##\s+第\s*\d+\s*步|(?![\s\S]))/gm;
     const steps = [];
     let match;
@@ -1984,6 +1984,43 @@ function renderChatAgentArtifacts(container, markdownText, agentIds = [], agentC
         task: field(["任务", "学习任务"]),
         evidence: field(["完成标志", "完成证据"]),
       });
+    }
+    if (!steps.length) {
+      const sectionPattern = /^#{1,3}\s+(?:第?\s*(\d+)\s*[.、步]\s*)?([^\n]+)\n([\s\S]*?)(?=^#{1,3}\s+|(?![\s\S]))/gm;
+      let sectionMatch;
+      while ((sectionMatch = sectionPattern.exec(source)) && steps.length < 6) {
+        const sectionTitle = String(sectionMatch[2] || "").replace(/[*_`]/g, "").trim();
+        if (!sectionTitle || /^(?:我的)?学习路径(?:总览)?$|总结|下一步/.test(sectionTitle)) continue;
+        const lines = String(sectionMatch[3] || "")
+          .split("\n")
+          .map((line) => line.trim().replace(/^[-*]\s+/, "").replace(/\*\*/g, ""))
+          .filter(Boolean);
+        steps.push({
+          index: sectionMatch[1] || String(steps.length + 1),
+          duration: "约 1 小时",
+          title: sectionTitle,
+          description: lines[0] || `掌握${sectionTitle}的核心概念与基本方法。`,
+          task: lines[0] || `阅读并整理${sectionTitle}的核心要点。`,
+          evidence: `能够用自己的话说明${sectionTitle}，并完成一道相关练习。`,
+        });
+      }
+    }
+    if (!steps.length) {
+      const fallbackStages = [
+        ["基础诊断", `完成一组关于${title}的基础自测，记录不会或不确定的知识点。`, "形成一份薄弱点清单。"],
+        ["核心概念", `阅读${title}的核心概念、组成结构和基本原理。`, `能够独立画出${title}的知识框架。`],
+        ["原理与例题", `跟随典型例题梳理关键过程，并解释每一步的依据。`, "能够不看答案复述完整解题过程。"],
+        ["专项练习", `完成基础、中等和易错题，针对错题回查对应概念。`, "专项练习正确率达到 80%。"],
+        ["综合应用与复盘", `完成一个综合任务，把${title}应用到真实问题并总结错因。`, "提交综合成果和一页复盘记录。"],
+      ];
+      fallbackStages.forEach(([stageTitle, task, evidence], index) => steps.push({
+        index: String(index + 1),
+        duration: index === 4 ? "约 2 小时" : "约 1 小时",
+        title: stageTitle,
+        description: task,
+        task,
+        evidence,
+      }));
     }
     if (steps.length) {
       const pathArtifact = document.createElement("section");
@@ -2072,23 +2109,37 @@ function renderChatAgentArtifacts(container, markdownText, agentIds = [], agentC
   }
   if (ids.has("quiz")) {
     const title = chatArtifactTitle(markdownText, "练习题库");
+    let exerciseSource = markdownText;
+    let exercises = typeof normalizeExerciseList === "function"
+      ? normalizeExerciseList(exerciseSource, title)
+      : [];
+    const missingAnswer = !exercises.length || exercises.some((exercise) => {
+      const answer = String(exercise?.answer || "").trim();
+      return !answer || /^(?:见解析|详见解析|略|待补充|暂无|无)$/.test(answer);
+    });
+    if (missingAnswer && typeof buildFallbackExercises === "function") {
+      exerciseSource = buildFallbackExercises(agentConfig.topic || title || "当前知识点");
+      exercises = normalizeExerciseList(exerciseSource, title);
+    } else if (exercises.some((exercise) => !String(exercise?.explanation || "").trim())) {
+      exercises = exercises.map((exercise) => ({
+        ...exercise,
+        explanation: exercise.explanation || `参考答案为：${exercise.answer}。本题主要考查“${exercise.knowledge || title}”。作答时应先明确题目所问的对象和条件，再按参考答案中的要点逐项展开，并结合题干检查是否遗漏关键组成、作用或边界条件。`,
+      }));
+      exerciseSource = { questions: exercises };
+    }
     const resource = {
       title,
-      content: markdownText,
+      content: exerciseSource,
       type: "不同类型练习题目",
       category: typeof categorizeKnowledge === "function"
         ? categorizeKnowledge(title, markdownText)
         : "综合知识",
     };
-    const exercises = typeof normalizeExerciseList === "function"
-      ? normalizeExerciseList(markdownText, title)
-      : [];
-
     if (exercises.length && typeof renderExerciseResource === "function") {
       const quizArtifact = document.createElement("section");
       quizArtifact.className = "chat-quiz-artifact";
       quizArtifact.setAttribute("aria-label", "互动练习题库");
-      quizArtifact.innerHTML = renderExerciseResource(markdownText, title, "chat");
+      quizArtifact.innerHTML = renderExerciseResource(exerciseSource, title, "chat");
       quizArtifact.addEventListener("click", async (event) => {
         const target = event.target instanceof HTMLElement ? event.target : null;
         if (!target) return;
@@ -2634,7 +2685,9 @@ ${selectedChatAgentIds.includes("quiz") ? `题库生成配置：${JSON.stringify
           ...apiMessages,
         ],
         stream: true,
-        temperature: 0.7,
+        temperature: selectedChatAgentIds.includes("quiz")
+          ? 0.25
+          : selectedChatAgentIds.includes("learning-path") ? 0.3 : 0.7,
       }),
     });
 

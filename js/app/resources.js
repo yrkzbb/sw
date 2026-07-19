@@ -1487,7 +1487,7 @@ function parseMarkdownExerciseList(text, title) {
     .replace(/\*\*/g, "")
     .replace(/^\s*[-*]\s+(?=(?:题目|答案|解析|详解|知识点|来源|难度|类型)[:：])/gm, "")
     .trim();
-  const starts = [...cleaned.matchAll(/^\s*(\d+)[.、]\s*(?:题目|问题)\s*[:：]?\s*/gm)];
+  const starts = [...cleaned.matchAll(/^(?:\s*(\d+)[.、]\s*(?:题目|问题)\s*[:：]?\s*|#{1,6}\s*(?:第\s*)?题目\s*(\d+)\s*[:：]?\s*)/gm)];
   if (!starts.length) return [];
 
   return starts.map((match, index) => {
@@ -1496,15 +1496,16 @@ function parseMarkdownExerciseList(text, title) {
     const block = cleaned.slice(start, end).trim();
     const before = cleaned.slice(0, start);
     const sectionTitle = [...before.matchAll(/^#{1,6}\s+(.+)$/gm)].at(-1)?.[1]?.trim() || "";
-    const questionBody = block
-      .replace(/^\s*\d+[.、]\s*(?:题目|问题)?\s*[:：]?\s*/, "")
+    const field = (labels) => {
+      const pattern = new RegExp(`(?:^|\\n)\\s*(?:${labels})\\s*[:：]\\s*([\\s\\S]*?)(?=\\n\\s*(?:题目|问题|答案|正确答案|参考答案|解析|答案解析|详解|知识点|来源|难度|类型|题型)\\s*[:：]|$)`, "i");
+      return block.match(pattern)?.[1]?.replace(/^\s*[-*]\s*/gm, "").trim() || "";
+    };
+    const explicitQuestion = field("题目|问题");
+    const questionBody = explicitQuestion || block
+      .replace(/^(?:\s*\d+[.、]\s*(?:题目|问题)?\s*[:：]?\s*|#{1,6}\s*(?:第\s*)?题目\s*\d+\s*[:：]?\s*)/, "")
       .split(/\n\s*(?:(?:答案|正确答案|参考答案|解析|答案解析|详解|知识点|来源|难度|类型|题型)\s*[:：])/)[0]
       .replace(/^\s*[-*]\s*/gm, "")
       .trim();
-    const field = (labels) => {
-      const pattern = new RegExp(`(?:^|\\n)\\s*(?:${labels})\\s*[:：]\\s*([\\s\\S]*?)(?=\\n\\s*(?:答案|正确答案|参考答案|解析|答案解析|详解|知识点|来源|难度|类型|题型)\\s*[:：]|$)`, "i");
-      return block.match(pattern)?.[1]?.replace(/^\s*[-*]\s*/gm, "").trim() || "";
-    };
     const answer = field("答案|正确答案|参考答案");
     const explanation = field("解析|详解|答案解析|解题过程");
     const knowledge = field("知识点|考查知识点");
@@ -1571,9 +1572,22 @@ function normalizeExerciseList(content, title) {
 function normalizeExerciseItem(item, index, title) {
   if (typeof item === "string") return normalizeExerciseItem({ question: item }, index, title);
   if (!item || typeof item !== "object") return null;
-  let question = String(item.question || item["题目"] || item.prompt || item["问题"] || "").trim();
-  let answer = String(item.answer || item["答案"] || item.solution || "").trim();
-  let explanation = String(item.explanation || item["详解"] || item.analysis || item["解析"] || item["解题过程"] || "").trim();
+  const solution = item.solution && typeof item.solution === "object" ? item.solution : null;
+  let question = String(item.question || item["题目"] || item.prompt || item["问题"] || item.stem || item.title || "").trim();
+  let answer = String(
+    item.answer || item["答案"] || item.correct_answer || item.correctAnswer
+    || item.standard_answer || item.standardAnswer || item.reference_answer
+    || item.referenceAnswer || item.result || (typeof item.solution === "string" ? item.solution : "")
+    || solution?.answer || solution?.result || ""
+  ).trim();
+  let explanation = String(
+    item.explanation || item["详解"] || item.analysis || item["解析"] || item["解题过程"]
+    || item.answer_explanation || item.answerExplanation || item.reasoning || item.rationale
+    || item.solution_steps || item.solutionSteps || solution?.explanation || solution?.steps || ""
+  ).trim();
+  if (Array.isArray(item.solution_steps || item.solutionSteps || solution?.steps)) {
+    explanation = (item.solution_steps || item.solutionSteps || solution.steps).map(String).join("\n");
+  }
   const embeddedAnswer = question.match(/^([\s\S]*?)(?:\*\*)?\s*(?:答案|正确答案|参考答案)\s*[:：]\s*(?:\*\*)?([\s\S]*)$/i);
   if (embeddedAnswer) {
     question = embeddedAnswer[1].trim();
@@ -1593,7 +1607,7 @@ function normalizeExerciseItem(item, index, title) {
   const normalized = {
     question,
     answer,
-    explanation: String(explanation || answer || "暂无详解，建议先尝试作答后补充推导过程。").trim(),
+    explanation: String(explanation || "").trim(),
     difficulty: String(difficulty || "中等").trim(),
     type: String(type || "练习题").trim(),
     source: String(source || "经典题型改编").trim(),
@@ -1601,6 +1615,14 @@ function normalizeExerciseItem(item, index, title) {
   };
   normalized.fingerprint = `${normalized.question}|${normalized.answer}`.slice(0, 260);
   return normalized;
+}
+
+function hasCompleteExerciseSolution(exercise) {
+  if (!exercise) return false;
+  const answer = String(exercise.answer || "").trim();
+  const explanation = String(exercise.explanation || "").trim();
+  const placeholder = /^(?:见解析|详见解析|略|待补充|暂无|无)$/;
+  return Boolean(answer && explanation && !placeholder.test(answer) && !placeholder.test(explanation));
 }
 
 function inferExerciseDifficulty(text, index) {
@@ -1645,8 +1667,8 @@ function renderExerciseResource(content, title, resourceIndex) {
           <div class="exercise-source">来源：${escapeHtml(exercise.source)}</div>
           <details class="exercise-detail">
             <summary>答案与详解</summary>
-            <div class="exercise-answer"><strong>答案：</strong>${renderInlineMathText(exercise.answer || "见解析")}</div>
-            <div class="exercise-explanation markdown-body">${renderResourceMarkdown(exercise.explanation)}</div>
+            <div class="exercise-answer"><strong>答案：</strong>${renderInlineMathText(exercise.answer || "答案生成失败，请重新生成题库")}</div>
+            <div class="exercise-explanation markdown-body">${renderResourceMarkdown(exercise.explanation || "本题解析未生成完整，请重新生成题库。")}</div>
           </details>
         </article>
       `;
@@ -1835,6 +1857,23 @@ function buildFallbackExercises(topic) {
   const subject = topic || "当前知识点";
   const grammar = isGrammarDemand(subject);
   const algorithm = isAlgorithmDemand(subject);
+  const computerArchitecture = /计算机组成原理|计算机组成|计算机体系结构|CPU|中央处理器|存储器|指令系统/i.test(subject);
+  if (computerArchitecture) {
+    return {
+      questions: [
+        { type: "单选题", difficulty: "基础", knowledge: "计算机系统基本组成", source: "课程常见题型", question: "冯·诺依曼计算机的五大基本部件不包括哪一项？\nA. 运算器\nB. 控制器\nC. 存储器\nD. 编译器", answer: "D。编译器属于系统软件，不是计算机硬件的五大基本部件。", explanation: "冯·诺依曼计算机由运算器、控制器、存储器、输入设备和输出设备组成。运算器与控制器通常合称 CPU；编译器负责把高级语言程序翻译成目标程序，属于软件系统。检查此题时，应区分硬件功能部件与运行在硬件之上的软件。" },
+        { type: "单选题", difficulty: "基础", knowledge: "存储层次", source: "经典教材题型改编", question: "在寄存器、Cache、主存和磁盘中，CPU 可直接以最快速度访问的是哪一个？\nA. 磁盘\nB. 主存\nC. Cache\nD. 寄存器", answer: "D。寄存器位于 CPU 内部，访问速度最快。", explanation: "典型存储层次从快到慢为寄存器、Cache、主存、辅存。越靠近 CPU，速度越快、容量越小、单位成本越高。Cache 虽然用于缓解 CPU 与主存的速度差距，但仍慢于 CPU 内部寄存器，因此正确答案是 D。" },
+        { type: "多选题", difficulty: "中等", knowledge: "CPU 组成", source: "课程常见题型", question: "下列哪些通常属于 CPU 的组成部分？\nA. 算术逻辑单元 ALU\nB. 控制单元 CU\nC. 寄存器组\nD. 硬盘控制器", answer: "A、B、C。", explanation: "ALU 完成算术和逻辑运算，控制单元负责取指、译码并发出控制信号，寄存器组保存操作数、地址、指令和中间结果，这三者都属于 CPU 的核心组成。硬盘控制器通常属于 I/O 子系统，不属于 CPU 的基本组成。多选题要逐项判断所属层次。" },
+        { type: "判断题", difficulty: "基础", knowledge: "存储程序原理", source: "经典教材题型改编", question: "判断：在冯·诺依曼结构中，程序指令和数据都以二进制形式存放在存储器中。", answer: "正确。", explanation: "存储程序原理要求事先把程序和数据送入存储器，计算机在运行时自动逐条取出指令并执行。指令和数据在存储器中都表现为二进制编码，硬件根据访问时机和控制信号区分它们。这也是冯·诺依曼体系结构的核心特征之一。" },
+        { type: "填空题", difficulty: "中等", knowledge: "指令周期", source: "课程常见题型", question: "CPU 执行一条指令通常至少经历取指、________和执行三个基本阶段。", answer: "译码。", explanation: "取指阶段根据程序计数器 PC 给出的地址读取指令，并更新 PC；译码阶段由控制器分析操作码和寻址方式，确定所需操作数与控制信号；执行阶段由数据通路完成运算、访存或转移。因此空格应填“译码”。" },
+        { type: "填空题", difficulty: "中等", knowledge: "数据表示", source: "经典教材题型改编", question: "8 位二进制补码 `1111 1011` 表示的十进制数是________。", answer: "$-5$。", explanation: "最高位为 1，说明这是负数。求其绝对值可对补码按位取反得到 `0000 0100`，再加 1 得到 `0000 0101`，即十进制 5，所以原补码表示 $-5$。也可按位权计算：$-128+64+32+16+8+2+1=-5$。" },
+        { type: "简答题", difficulty: "中等", knowledge: "控制器功能", source: "课程常见题型", question: "控制器在 CPU 中承担哪些主要功能？请至少写出三点。", answer: "取出并译码指令；按时序产生控制信号；协调运算器、存储器和 I/O 部件完成数据传送与操作。", explanation: "控制器首先依据 PC 从存储器取指，并把指令送入指令寄存器；随后解析操作码和寻址方式；最后依据时钟节拍生成一系列微操作控制信号，协调寄存器传送、ALU 运算、主存读写和 I/O 操作。评分时应覆盖取指、译码、发出控制信号与协调部件。" },
+        { type: "简答题", difficulty: "中等", knowledge: "Cache 原理", source: "经典教材题型改编", question: "为什么设置 Cache 能提高计算机的平均访存速度？", answer: "因为程序具有时间局部性和空间局部性，Cache 保存近期或相邻使用的数据，使大多数访问在高速缓存中命中。", explanation: "CPU 与主存存在明显速度差。程序通常会重复访问刚使用过的数据，并访问相邻地址，分别体现时间局部性和空间局部性。Cache 以块为单位保存这些热点内容；命中时无需等待较慢的主存。只要命中率较高，平均访存时间就会显著接近 Cache 的访问时间。" },
+        { type: "应用题", difficulty: "难题", knowledge: "存储容量计算", source: "课程计算题型改编", question: "某主存按字节编址，地址总线宽度为 20 位。若所有地址均用于主存寻址，最大可寻址容量是多少？", answer: "$2^{20}$ B，即 1 MiB。", explanation: "20 位地址可表示 $2^{20}$ 个不同地址。按字节编址意味着每个地址对应 1 B，因此最大容量为 $2^{20}\times1\text{ B}=1{,}048{,}576\text{ B}=1\text{ MiB}$。易错点是把地址位数直接当成容量，或在没有依据时再乘数据总线宽度。" },
+        { type: "应用题", difficulty: "难题", knowledge: "CPU 性能", source: "经典计算题型改编", question: "某程序执行 $2\times10^8$ 条指令，平均 CPI 为 1.5，CPU 主频为 3 GHz。忽略其他开销，CPU 执行时间是多少？", answer: "$0.1$ s。", explanation: "CPU 时间可用“指令条数 × CPI ÷ 主频”计算。总时钟周期数为 $2\times10^8\times1.5=3\times10^8$；主频 3 GHz 表示每秒 $3\times10^9$ 个周期，因此执行时间为 $3\times10^8/(3\times10^9)=0.1$ s。计算时要统一 Hz 与秒的单位。" },
+      ],
+    };
+  }
   if (grammar) {
     return {
       questions: [
@@ -2306,7 +2345,7 @@ function normalizeGeneratedResources(data, demand) {
     }
     const subjectText = `${demand || ""} ${quiz.title || ""}`.trim();
     const exercises = normalizeExerciseList(quiz.content, quiz.title);
-    const weakExercises = !exercises.length || exercises.some((item) => !item.answer || !item.explanation);
+    const weakExercises = !exercises.length || exercises.some((item) => !hasCompleteExerciseSolution(item));
     if (weakExercises) {
       quiz.content = buildFallbackExercises(subjectText || quiz.title || "当前知识点");
     }
